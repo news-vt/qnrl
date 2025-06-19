@@ -1,0 +1,8 @@
+ipykernel
+jax
+matplotlib
+numpy
+pennylane
+qiskit
+scipy
+seaborn
