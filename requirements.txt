@@ -6,3 +6,4 @@ pennylane
 qiskit
 scipy
 seaborn
+tqdm
