@@ -7,4 +7,5 @@ pennylane
 qiskit
 scipy
 seaborn
+sympy
 tqdm
