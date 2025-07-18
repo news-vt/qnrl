@@ -57,10 +57,96 @@ Now, to fix the normalization on the return-atoms space, we apply a reset operat
 Before we do this, we first need to define the measurement process. A quantum measurement $M$ maps a quantum state in density matrix form $\rho$ to a mixed state using a set of projection operators $\Pi$ outlined by the measurement basis, given by
 
 $$
-M[\rho] = \sum_{i} \Pi_i \rho \Pi_i
+\rho' = M[\rho] = \sum_{i} \Pi_i \rho \Pi^{\dagger}_i
 $$
 
-where $\rho$ is the density matrix for a quantum system of $q$ qubits, and, if measuring in the Pauli-$Z$ basis, $\Pi_i = \ket{i}\bra{i}$, $\forall i \in \{0,2^{q}-1\}$.
+where $\rho$ is the density matrix for a quantum system of $q$ qubits, and, if measuring in the Pauli-$Z$ basis, $\Pi_i = \ket{i}\bra{i}$, $\forall i \in \{0,2^{q}-1\}$. This resulting density matrix after measurement must also be normalized, which we can do by dividing by its trace (which is just the sum of its diagonal elements) as given by
+
+$$
+\hat{\rho}' = \frac{\rho'}{\textrm{tr}[\rho']}.
+$$
+
+Since $\hat{\rho}'$ spans the space of both actions and return-atoms $\mathcal{H}_{a} \otimes \mathcal{H}_{z}$, to complete the reset over the return-atoms space after the projective measurement we must trace-out the return-atoms qubits and then simply set their state to zero. To do this, we define the completed reset operation
+
+$$
+\begin{aligned}
+\textrm{Reset}_z [\rho] 
+    &= \textrm{tr}_{z}{\bigl[ \hat{\rho}' \bigr]} \otimes \ket{0}^{\otimes |Z|}\bra{0}^{\otimes |Z|} \\
+    &= \textrm{tr}_{z}{\Bigl[ \frac{M[\rho]}{\textrm{tr}\bigl[M[\rho]\bigr]} \Bigr]} \otimes \ket{0}^{\otimes |Z|}\bra{0}^{\otimes |Z|}
+\end{aligned}
+$$
+
+where $\textrm{tr}_{z} : \mathcal{H}_{a} \otimes \mathcal{H}_{z} \to \mathcal{H}_{z}$ is the partial trace operator which traces out (i.e., removes) the subspace $\mathcal{H}_{z}$.
+
+So, applying this to our distributional RL setting, we can resume from $\ket{\phi_0}$ and reset the return-atom qubits in the following manner. First, we define the density operator
+
+$$
+\begin{aligned}
+\rho_0 
+    &= \ket{\phi_0}\bra{\phi_0} \\
+    &= \Bigl( \sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \Bigl[ \sum_{z_j} \sqrt{p(z_j|a_i)} \sqrt{v_{z_j}} \ket{z_j} \Bigr] \Bigr) \Bigl( \sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \Bigl[ \sum_{z_l} \sqrt{p(z_l|a_k)} \sqrt{v_{z_l}} \bra{z_l} \Bigr] \Bigr) \\
+    &= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_j|a_i)} \sqrt{v_{z_j}} \sqrt{p(a_k)} \sqrt{p(z_l|a_k)} \sqrt{v_{z_l}} \Bigr) \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}.
+\end{aligned}
+$$
+
+Second, we define the set of projectors $\Pi = \{ \mathbb{I}\otimes\ket{z}\bra{z} \}_{z\in Z}$, which covers all possible return-atom outcomes while doing nothing to the action space, and then apply these projectors as a measurement
+
+$$
+\begin{aligned}
+\rho'_0 = M[\rho_0]
+    &= \sum_{z} \Pi_z \rho_0 \Pi^{\dagger}_z \\
+    &= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_0 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \\
+    &= \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z} ~~\textrm{(Collapses where $z_j=z_l=z$)}
+\end{aligned}
+$$
+
+which has the normalization factor
+
+$$
+\begin{aligned}
+\textrm{tr}\bigl[\rho'_0\bigr]
+    &= \sum_{z} \sum_{a} \sqrt{p(a)} \sqrt{p(z|a)} \sqrt{v_{z}} \sqrt{p(a)} \sqrt{p(z|a)} \sqrt{v_{z}} ~~\textrm{(Sum along diagonal collapses where $a_i=a_k=a$)} \\
+    &= \sum_{z} \sum_{a} p(a) p(z|a) v_{z} \\
+    &= \sum_{a} p(a) \sum_{z} p(z|a) v_{z} \\
+    &= \sum_{a} p(a) \mathbb{E}[Z | a] ~~\textrm{(By definition of expectation of a random variable)}.
+\end{aligned}
+$$
+
+thus the entire normalized density matrix is
+
+$$
+\hat{\rho}'_0
+= \frac{\rho'_0}{\textrm{tr}\bigl[\rho'_0\bigr]}
+= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z}
+$$
+
+Notice that here is where the expectation of the random return appears. Taking the partial trace yields
+
+$$
+\begin{aligned}
+\textrm{tr}_{z}{\bigl[ \hat{\rho}'_0 \bigr]}
+&= \sum_{z} (\mathbb{I}\otimes\bra{z}) \hat{\rho}'_0 (\mathbb{I}\otimes\ket{z}) \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k}
+\end{aligned}
+$$
+
+and therefore the final system state after applying the reset operation is
+
+$$
+\begin{aligned}
+\textrm{Reset}_z [\rho_0] 
+    &= \textrm{tr}_{z}{\bigl[ \hat{\rho}'_0 \bigr]} \otimes \ket{0}^{\otimes |Z|}\bra{0}^{\otimes |Z|} \\
+    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |Z|}\bra{0}^{\otimes |Z|}.
+\end{aligned}
+$$
+
+If at this point we were to stop and measure the action qubits using projectors $\Pi = \{\ket{a}\bra{a}\}_{a \in A}$ we would get the following
+
+<!-- $$
+
+$$ -->
 
 <!-- See -->
 <!-- https://pennylane.ai/qml/demos/tutorial_mcm_introduction#qubit-reset -->
+<!-- https://quantumcomputing.stackexchange.com/questions/4834/density-matrix-after-measurement-on-density-matrix -->
+<!-- https://physics.stackexchange.com/questions/681556/trying-to-understand-post-measurement-density-matrices-in-a-state-that-spans-2-h -->
