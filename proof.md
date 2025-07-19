@@ -52,6 +52,8 @@ U_{z|a} \rho_0 U_{z|a}^{\dagger}
 \end{aligned}
 ```
 
+Note that the definition we provide for $U_{z|a}$ is not strictly unitary because we only include the outer $\bra{0}$ term -- that is, the effect of applying $U_{z|a}$ on an all-zero input state in the $\mathcal{H}_{z}$ space. While a complete definition for $U_{z|a}$ will also include effects of all other non-zero states in the $\mathcal{H}_{z}$ space (i.e., $\{\bra{i}\}_{i=1}^{2^{|\mathcal{Z}|}-1}$) their effect, as we will see shortly, will be inconsequential as we only consider systems that have a known all-zero starting state. We therefore omit these extra terms in the derivations for brevity.
+
 Now define an operator over the return-atoms Hilbert space $`\mathcal{H}_{z}`$ that encodes the return-atom values called $U_{v|z}$
 
 ```math
@@ -229,6 +231,7 @@ If we do not measure the action space, and instead apply another iteration of se
 &= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \textrm{Reset}_z [\rho_1] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
 &= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) ~~\textrm{(Pull out constant normalization factor)} \\
+% -------
 &= 
 \end{aligned}
 ```
