@@ -179,8 +179,9 @@ If at this point we were to stop and measure the action qubits using projectors 
 
 ```math
 \begin{aligned}
-M[\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]}]
-&= \sum_{a} \Pi_a \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \Pi^{\dagger}_a ~~\textrm{(Note that inclusion of partial trace is for formal removal of return-atom space)} \\
+M[\tilde{\rho_1}]
+&= M[\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]}] ~~\textrm{(Note that inclusion of partial trace is for formal removal of return-atom space)} \\
+&= \sum_{a} \Pi_a \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \Pi^{\dagger}_a \\
 &= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \ket{a}\bra{a} \\
 &= \sum_{a} \ket{a}\bra{a} \Bigl((\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \bigr) \ket{a_i}\bra{a_k} \Bigr) \ket{a}\bra{a} \\
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} \sum_{z} \bigl( \sqrt{p(a_i=a)} \sqrt{p(z|a_i=a)} \sqrt{v_{z}} \sqrt{p(a_k=a)} \sqrt{p(z|a_k=a)} \sqrt{v_{z}} \bigr) \ket{a}\bra{a} ~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}\\
