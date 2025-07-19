@@ -67,7 +67,9 @@ U_{v|z}
 \end{aligned},
 ```
 
-which is a diagonal matrix, where $\sum_{z} v_z = 1$, i.e., the return-atom values form a probability distribution. Because the values form a probability distribution, we also have that $U_{v|z}$ is completely positive and $U_{v|z} \leq \mathbb{I}$, which means that $U_{v|z}$ is trace non-increasing. Notice that $U_{v|z}$ is Hermitian (i.e., eigenvalues are real), but not unitary. This means that the resulting state after applying $U_{v|z}$ will not be normalized. This normalization, however, can be circumvented by applying a reset operation on the return-atom space, as we will see shortly.
+which is a diagonal matrix, where $\sum_{z} v_z = 1$, i.e., the return-atom values form a probability distribution. Because the return-atom values form a probability distribution, $U_{v|z}$ is both *completely positive* and $U_{v|z}^{\dagger} U_{v|z} \leq \mathbb{I}$, i.e., *trace non-increasing*, which means that $U_{v|z}$ is a valid Kraus operator.
+
+Notice that $U_{v|z}$ is Hermitian (i.e., eigenvalues are real), but not unitary. This means that the resulting state after applying $U_{v|z}$ will not be normalized. This normalization, however, can be circumvented by applying a reset operation on the return-atom space, as we will see shortly.
 
 Applying both operators in succession on $\ket{\psi_0}$ produces the state
 
@@ -111,7 +113,8 @@ Since $\hat{\rho}'$ spans the space of both actions and return-atoms $`\mathcal{
 \begin{aligned}
 \textrm{Reset}_z [\rho] 
     &= \textrm{tr}_{z}{\bigl[ \hat{\rho}' \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
-    &= \textrm{tr}_{z}{\Bigl[ \frac{M[\rho]}{\textrm{tr}\bigl[M[\rho]\bigr]} \Bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
+    &= \textrm{tr}_{z}{\Bigl[ \frac{M[\rho]}{\textrm{tr}\bigl[M[\rho]\bigr]} \Bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
+    &= \tilde{\rho}
 \end{aligned}
 ```
 
@@ -164,7 +167,8 @@ The final system state after applying the reset operation is therefore
 \begin{aligned}
 \textrm{Reset}_z [\rho_1] 
     &= \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
-    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}.
+    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
+    &= \tilde{\rho_1}
 \end{aligned}
 ```
 
@@ -213,6 +217,26 @@ P[\ket{a}] = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot p(a) \mathbb{E}[Z
 
 which is the **normalized weighted expectation of return-atoms for the given action $a$ relative to all other actions $A \setminus \{a\}$**.
 
+
+
+<!-- Iteration 2 -->
+
+If we do not measure the action space, and instead apply another iteration of sequential return-atom operations $(\mathbb{I} \otimes U_{v|z}) U_{z|a}$, we get the following state in density matrix form
+
+```math
+\begin{aligned}
+(\mathbb{I} \otimes U_{v|z})  U_{z|a} \tilde{\rho_1} U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger})
+&= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \textrm{Reset}_z [\rho_1] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
+&= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) ~~\textrm{(Pull out constant normalization factor)} \\
+&= 
+\end{aligned}
+```
+
+
+
+
+<!-- References: -->
 
 <!-- See -->
 <!-- https://pennylane.ai/qml/demos/tutorial_mcm_introduction#qubit-reset -->
