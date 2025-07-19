@@ -176,7 +176,7 @@ $$
 Notice that because the state was normalized when creating $\hat{\rho}'_0$ this state when measuring $a$ was already normalized, but for completeness we complete the process again here. This means that the probability of measuring an arbitrary action $a$ is
 
 $$
-p(a) = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot p(a) \mathbb{E}[Z | a]
+P[\ket{a}] = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot p(a) \mathbb{E}[Z | a]
 $$
 
 which is the normalized weighted expectation of return-atoms for the given action $a$ relative to all other actions $A \setminus \{a\}$.
