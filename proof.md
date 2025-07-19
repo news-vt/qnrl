@@ -1,6 +1,6 @@
 # Mathematical proof for amplitude kickback
 
-Quantum system with two hilbert spaces, one for actions $a$ and the other for retuns $z$, denoted by $\mathcal{H}_{a} \otimes \mathcal{H}_{z} = \mathbb{C}^{2^{|\mathcal{A}|}} \otimes \mathbb{C}^{2^{|\mathcal{Z}|}}$ where $a \in \mathcal{A}$ is the set of actions and $z \in \mathcal{Z}$ is the set of return atoms.
+Quantum system with two hilbert spaces, one for actions $a$ and the other for retuns $z$, denoted by $`\mathcal{H}_{a} \otimes \mathcal{H}_{z} = \mathbb{C}^{2^{|\mathcal{A}|}} \otimes \mathbb{C}^{2^{|\mathcal{Z}|}}`$ where $a \in \mathcal{A}$ is the set of actions and $z \in \mathcal{Z}$ is the set of return atoms.
 
 We start with an initial state of all zeros across the two spaces, which looks like 
 
@@ -25,7 +25,7 @@ It will become convenient to represent this state in density matrix form, for re
 \end{aligned}
 ```
 
-Next, we define an operator over the combined Hilbert space $\mathcal{H}_{a} \otimes \mathcal{H}_{z}$ for preparing a probability distribution of return-atoms for every action -- this would be the ML model -- called $U_z$
+Next, we define an operator over the combined Hilbert space $`\mathcal{H}_{a} \otimes \mathcal{H}_{z}`$ for preparing a probability distribution of return-atoms for every action -- this would be the ML model -- called $U_z$
 
 ```math
 \begin{aligned}
@@ -52,7 +52,7 @@ U_{z|a} \rho_0 U_{z|a}^{\dagger}
 \end{aligned}
 ```
 
-Now define an operator over the return-atoms Hilbert space $\mathcal{H}_{z}$ that encodes the return-atom values called $U_{v|z}$
+Now define an operator over the return-atoms Hilbert space $`\mathcal{H}_{z}`$ that encodes the return-atom values called $U_{v|z}$
 
 ```math
 \begin{aligned}
@@ -91,7 +91,7 @@ and again in density matrix form
 ```
 which we will refer to as $\rho_1$, where the subscript denotes the number of times the operations have been applied -- this subscript index will be important later.
 
-Now, to fix the normalization on the return-atoms space, we apply a reset operation over the space of the return-atoms $\mathcal{H}_{z}$ to collapse their qubits. A reset operation projects the selection fo qubits to the $\ket{0}$ state. To accomplish this we apply a mid-circuit measurement on the return-atom qubits ($\mathcal{H}_{z}$) to collapse their state to to one of $\ket{z} \in \{\ket{z}\}_{z\in [1,|\mathcal{Z}|]}$ and then apply a conditional correction to map $\ket{z} \to \ket{0}$ (e.g., a bit-flip operation if $z \in \{0,1\}$). Mathematically, we can represent this collapse as a measurement projection followed by a partial-trace over the $\mathcal{H}_{z}$ space.
+Now, to fix the normalization on the return-atoms space, we apply a reset operation over the space of the return-atoms $`\mathcal{H}_{z}`$ to collapse their qubits. A reset operation projects the selection fo qubits to the $\ket{0}$ state. To accomplish this we apply a mid-circuit measurement on the return-atom qubits ($`\mathcal{H}_{z}`$) to collapse their state to to one of $\ket{z} \in \{\ket{z}\}_{z\in [1,|\mathcal{Z}|]}$ and then apply a conditional correction to map $\ket{z} \to \ket{0}$ (e.g., a bit-flip operation if $z \in \{0,1\}$). Mathematically, we can represent this collapse as a measurement projection followed by a partial-trace over the $`\mathcal{H}_{z}`$ space.
 
 Before we do this, we first need to define the measurement process. A quantum measurement $M$ maps a quantum state in density matrix form $\rho$ to a mixed state using a set of projection operators $\Pi$ outlined by the measurement basis, given by
 
@@ -105,7 +105,7 @@ where $\rho$ is the density matrix for a quantum system of $q$ qubits, and, if m
 \hat{\rho}' = \frac{\rho'}{\textrm{tr}[\rho']}.
 ```
 
-Since $\hat{\rho}'$ spans the space of both actions and return-atoms $\mathcal{H}_{a} \otimes \mathcal{H}_{z}$, to complete the reset over the return-atoms space after the projective measurement we must trace-out the return-atoms qubits and then simply set their state to zero. To do this, we define the completed reset operation
+Since $\hat{\rho}'$ spans the space of both actions and return-atoms $`\mathcal{H}_{a} \otimes \mathcal{H}_{z}`$, to complete the reset over the return-atoms space after the projective measurement we must trace-out the return-atoms qubits and then simply set their state to zero. To do this, we define the completed reset operation
 
 ```math
 \begin{aligned}
@@ -115,7 +115,7 @@ Since $\hat{\rho}'$ spans the space of both actions and return-atoms $\mathcal{H
 \end{aligned}
 ```
 
-where $\textrm{tr}_{z} : \mathcal{H}_{a} \otimes \mathcal{H}_{z} \to \mathcal{H}_{z}$ is the partial trace operator which traces out (i.e., removes) the subspace $\mathcal{H}_{z}$.
+where $`\textrm{tr}_{z} : \mathcal{H}_{a} \otimes \mathcal{H}_{z} \to \mathcal{H}_{z}`$ is the partial trace operator which traces out (i.e., removes) the subspace $`\mathcal{H}_{z}`$.
 
 So, applying this to our distributional RL setting, we can resume from $\rho_1$ and reset the return-atom qubits in the following manner. First, we define the set of projectors $\Pi = \{ \mathbb{I}\otimes\ket{z}\bra{z} \}_{z\in Z}$, which covers all possible return-atom outcomes while doing nothing to the action space, and then apply these projectors as a *partial* measurement on $\rho_1$ as follows
 
@@ -124,7 +124,7 @@ So, applying this to our distributional RL setting, we can resume from $\rho_1$ 
 \rho'_1 = M[\rho_1]
     &= \sum_{z} \Pi_z \rho_1 \Pi^{\dagger}_z \\
     &= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_1 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \\
-    &= \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z} ~~\textrm{(Collapses where $z_j=z_l=z$)}
+    &= \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z} ~~\textrm{(Collapses where} ~ z_j=z_l=z \textrm{)}
 \end{aligned}
 ```
 
@@ -133,7 +133,7 @@ which has the normalization factor
 ```math
 \begin{aligned}
 \textrm{tr}\bigl[\rho'_1\bigr]
-    &= \sum_{z} \sum_{a} \sqrt{p(a)} \sqrt{p(z|a)} \sqrt{v_{z}} \sqrt{p(a)} \sqrt{p(z|a)} \sqrt{v_{z}} ~~\textrm{(Sum along diagonal collapses where $a_i=a_k=a$)} \\
+    &= \sum_{z} \sum_{a} \sqrt{p(a)} \sqrt{p(z|a)} \sqrt{v_{z}} \sqrt{p(a)} \sqrt{p(z|a)} \sqrt{v_{z}} ~~\textrm{(Sum along diagonal collapses where} ~ a_i=a_k=a \textrm{)} \\
     &= \sum_{z} \sum_{a} p(a) p(z|a) v_{z} \\
     &= \sum_{a} p(a) \sum_{z} p(z|a) v_{z} \\
     &= \sum_{a} p(a) \mathbb{E}[Z | a] ~~\textrm{(By definition of expectation of a random variable)}.
@@ -143,7 +143,7 @@ which has the normalization factor
 thus the entire normalized density matrix is
 
 ```math
-\hat{\rho}'_1
+{\hat{\rho}'}_1
 = \frac{\rho'_1}{\textrm{tr}\bigl[\rho'_1\bigr]}
 = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z}
 ```
@@ -152,8 +152,8 @@ Notice that here is where the expectation of the random return appears. Next, we
 
 ```math
 \begin{aligned}
-\textrm{tr}_{z}{\bigl[ \hat{\rho}'_1 \bigr]}
-&= \sum_{z} (\mathbb{I}\otimes\bra{z}) \hat{\rho}'_1 (\mathbb{I}\otimes\ket{z}) \\
+\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]}
+&= \sum_{z} (\mathbb{I}\otimes\bra{z}) {\hat{\rho}'}_1 (\mathbb{I}\otimes\ket{z}) \\
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} .
 \end{aligned}
 ```
@@ -163,7 +163,7 @@ The final system state after applying the reset operation is therefore
 ```math
 \begin{aligned}
 \textrm{Reset}_z [\rho_1] 
-    &= \textrm{tr}_{z}{\bigl[ \hat{\rho}'_1 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
+    &= \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
     &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}.
 \end{aligned}
 ```
@@ -174,11 +174,11 @@ If at this point we were to stop and measure the action qubits using projectors 
 
 ```math
 \begin{aligned}
-M[\textrm{tr}_{z}{\bigl[ \hat{\rho}'_1 \bigr]}]
-&= \sum_{a} \Pi_a \textrm{tr}_{z}{\bigl[ \hat{\rho}'_1 \bigr]} \Pi^{\dagger}_a \\
-&= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{z}{\bigl[ \hat{\rho}'_1 \bigr]} \ket{a}\bra{a} \\
+M[\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]}]
+&= \sum_{a} \Pi_a \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \Pi^{\dagger}_a \\
+&= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \ket{a}\bra{a} \\
 &= \sum_{a} \ket{a}\bra{a} \Bigl((\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \bigr) \ket{a_i}\bra{a_k} \Bigr) \ket{a}\bra{a} \\
-&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} \sum_{z} \bigl( \sqrt{p(a_i=a)} \sqrt{p(z|a_i=a)} \sqrt{v_{z}} \sqrt{p(a_k=a)} \sqrt{p(z|a_k=a)} \sqrt{v_{z}} \bigr) \ket{a}\bra{a} ~~\textrm{(Sums collapse when $a_i = a_k = a$)} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} \sum_{z} \bigl( \sqrt{p(a_i=a)} \sqrt{p(z|a_i=a)} \sqrt{v_{z}} \sqrt{p(a_k=a)} \sqrt{p(z|a_k=a)} \sqrt{v_{z}} \bigr) \ket{a}\bra{a} ~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}\\
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} \sum_{z} p(a) p(z|a) v_{z} \ket{a}\bra{a} \\
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \sum_{z} p(z|a) v_{z} \ket{a}\bra{a} \\
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] \ket{a}\bra{a} ~~\textrm{(By definition of expectation of a random variable)},
@@ -189,7 +189,7 @@ which is diagonal with normalization factor
 
 ```math
 \begin{aligned}
-\textrm{tr}\Bigl[ M[\textrm{tr}_{z}{\bigl[ \hat{\rho}'_1 \bigr]}] \Bigr] = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] ~~\textrm{(Sum of diagonal elements)},
+\textrm{tr}\Bigl[ M[\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]}] \Bigr] = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] ~~\textrm{(Sum of diagonal elements)},
 \end{aligned}
 ```
 
@@ -197,13 +197,13 @@ producing the normalized state
 
 ```math
 \begin{aligned}
-\frac{M[\textrm{tr}_{z}{\bigl[ \hat{\rho}'_1 \bigr]}]}{\textrm{tr}\Bigl[ M[\textrm{tr}_{z}{\bigl[ \hat{\rho}'_1 \bigr]}] \Bigr]}
+\frac{M[\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]}]}{\textrm{tr}\Bigl[ M[\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]}] \Bigr]}
 &= (\frac{1}{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] \ket{a}\bra{a} \\
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] \ket{a}\bra{a}.
 \end{aligned}
 ```
 
-Notice that because the state was normalized when creating $\hat{\rho}'_1$ this state when measuring $a$ was already normalized, but for completeness we complete the process again here.
+Notice that because the state was normalized when creating ${\hat{\rho}'}_1$ this state when measuring $a$ was already normalized, but for completeness we complete the process again here.
 
 This means that the probability of measuring an arbitrary action $a$ is
 
