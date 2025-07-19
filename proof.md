@@ -145,15 +145,14 @@ which has the normalization factor
 \end{aligned}
 ```
 
-thus the entire normalized density matrix is
+Notice that here is where the expectation of the random return conditioned on the action space, $\mathbb{E}[Z | a]$, first appears. Thus, the normalized density matrix is
 
 ```math
 {\hat{\rho}'}_1
 = \frac{\rho'_1}{\textrm{tr}\bigl[\rho'_1\bigr]}
 = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z}
 ```
-
-Notice that here is where the expectation of the random return appears. Next, we can find the reduced state of the action space after the partial measurement by taking the partial trace over the return-atoms space
+Next, we can find the reduced state of the action space after the partial measurement by taking the partial trace over the return-atoms space
 
 ```math
 \begin{aligned}
@@ -181,7 +180,7 @@ If at this point we were to stop and measure the action qubits using projectors 
 ```math
 \begin{aligned}
 M[\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]}]
-&= \sum_{a} \Pi_a \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \Pi^{\dagger}_a \\
+&= \sum_{a} \Pi_a \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \Pi^{\dagger}_a ~~\textrm{(Note that inclusion of partial trace is for formal removal of return-atom space)} \\
 &= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_1 \bigr]} \ket{a}\bra{a} \\
 &= \sum_{a} \ket{a}\bra{a} \Bigl((\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \bigr) \ket{a_i}\bra{a_k} \Bigr) \ket{a}\bra{a} \\
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} \sum_{z} \bigl( \sqrt{p(a_i=a)} \sqrt{p(z|a_i=a)} \sqrt{v_{z}} \sqrt{p(a_k=a)} \sqrt{p(z|a_k=a)} \sqrt{v_{z}} \bigr) \ket{a}\bra{a} ~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}\\
@@ -223,7 +222,7 @@ which is the **normalized weighted expectation of return-atoms for the given act
 
 <!-- Iteration 2 -->
 
-If we do not measure the action space, and instead apply another iteration of sequential return-atom operations $(\mathbb{I} \otimes U_{v|z}) U_{z|a}$, we get the following state in density matrix form
+If we do not measure the action space, and instead apply another iteration of cascaded return-atom operations $(\mathbb{I} \otimes U_{v|z}) U_{z|a}$, we get the following state in density matrix form
 
 ```math
 \begin{aligned}
