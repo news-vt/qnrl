@@ -229,10 +229,18 @@ If we do not measure the action space, and instead apply another iteration of ca
 \begin{aligned}
 (\mathbb{I} \otimes U_{v|z})  U_{z|a} \tilde{\rho_1} U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger})
 &= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \textrm{Reset}_z [\rho_1] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
+
 &= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
+
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) ~~\textrm{(Pull out constant normalization factor)} \\
-% -------
-&= 
+
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) ~~\textrm{(Simple relabeling the outer-sum return-atom index}~ z \to z_q \textrm{)} \\
+
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z_w|a_i)} \sqrt{v_{z_w}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] (\mathbb{I} \otimes U_{v|z_q}^{\dagger}) ~~\textrm{(LHS operators collapse where}~ a_i = a ~\textrm{from}~ U_{z|a} ~\textrm{and create new index where}~ z_{w} = z ~\textrm{from}~ U_{v|z} ~\textrm{)} \\
+
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sum_{z_t} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z_w|a_i)} \sqrt{v_{z_w}} \sqrt{p(z_t|a_k)} \sqrt{v_{z_t}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{z_t} \Bigr] ~~\textrm{(RHS operators collapse where}~ a_k = a ~\textrm{from}~ U_{z|a}^{\dagger} ~\textrm{and create new index where}~ z_{t} = z ~\textrm{from}~ U_{v|z}^{\dagger} ~\textrm{)} \\
+
+&= \rho_2
 \end{aligned}
 ```
 
