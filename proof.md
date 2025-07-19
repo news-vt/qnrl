@@ -140,11 +140,47 @@ $$
 \end{aligned}
 $$
 
-If at this point we were to stop and measure the action qubits using projectors $\Pi = \{\ket{a}\bra{a}\}_{a \in A}$ we would get the following
+If at this point we were to stop and measure the action qubits using projectors $\Pi = \{\ket{a}\bra{a}\}_{a \in A}$ we would get the following state 
 
-<!-- $$
+$$
+\begin{aligned}
+M[\textrm{tr}_{z}{\bigl[ \hat{\rho}'_0 \bigr]}]
+&= \sum_{a} \Pi_a \textrm{tr}_{z}{\bigl[ \hat{\rho}'_0 \bigr]} \Pi^{\dagger}_a \\
+&= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{z}{\bigl[ \hat{\rho}'_0 \bigr]} \ket{a}\bra{a} \\
+&= \sum_{a} \ket{a}\bra{a} \Bigl((\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \bigr) \ket{a_i}\bra{a_k} \Bigr) \ket{a}\bra{a} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} \sum_{z} \bigl( \sqrt{p(a_i=a)} \sqrt{p(z|a_i=a)} \sqrt{v_{z}} \sqrt{p(a_k=a)} \sqrt{p(z|a_k=a)} \sqrt{v_{z}} \bigr) \ket{a}\bra{a} ~~\textrm{(Sums collapse when $a_i = a_k = a$)} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} \sum_{z} p(a) p(z|a) v_{z} \ket{a}\bra{a} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \sum_{z} p(z|a) v_{z} \ket{a}\bra{a} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] \ket{a}\bra{a} ~~\textrm{(By definition of expectation of a random variable)}.
+\end{aligned}
+$$
 
-$$ -->
+with normalization factor
+
+$$
+\begin{aligned}
+\textrm{tr}\bigl[ M[\textrm{tr}_{z}{\bigl[ \hat{\rho}'_0 \bigr]}] \bigr] = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] ~~\textrm{(Sum of diagonal elements)}.
+\end{aligned}
+$$
+
+which produces the normalized state
+
+$$
+\begin{aligned}
+\frac{M[\textrm{tr}_{z}{\bigl[ \hat{\rho}'_0 \bigr]}]}{\textrm{tr}\bigl[ M[\textrm{tr}_{z}{\bigl[ \hat{\rho}'_0 \bigr]}] \bigr]}
+&= (\frac{1}{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] \ket{a}\bra{a} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z | a] \ket{a}\bra{a}.
+\end{aligned}
+$$
+
+Notice that because the state was normalized when creating $\hat{\rho}'_0$ this state when measuring $a$ was already normalized, but for completeness we complete the process again here. This means that the probability of measuring an arbitrary action $a$ is
+
+$$
+p(a) = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot p(a) \mathbb{E}[Z | a]
+$$
+
+which is the normalized weighted expectation of return-atoms for the given action $a$ relative to all other actions $A \setminus \{a\}$.
+
 
 <!-- See -->
 <!-- https://pennylane.ai/qml/demos/tutorial_mcm_introduction#qubit-reset -->
