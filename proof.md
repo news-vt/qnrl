@@ -120,7 +120,7 @@ Since $\hat{\rho}'$ spans the space of both actions and return-atoms $`\mathcal{
 \end{aligned}
 ```
 
-where $`\textrm{tr}_{z} : \mathcal{H}_{a} \otimes \mathcal{H}_{z} \to \mathcal{H}_{z}`$ is the partial trace operator which traces out (i.e., removes) the subspace $`\mathcal{H}_{z}`$.
+where $`\textrm{tr}_{z} : \mathcal{H}_{a} \otimes \mathcal{H}_{z} \to \mathcal{H}_{a}`$ is the partial trace operator which traces out (i.e., removes) the subspace $`\mathcal{H}_{z}`$.
 
 So, applying this to our distributional RL setting, we can resume from $\rho_1$ and reset the return-atom qubits in the following manner. First, we define the set of projectors $\Pi = \{ \mathbb{I}\otimes\ket{z}\bra{z} \}_{z\in Z}$, which covers all possible return-atom outcomes while doing nothing to the action space, and then apply these projectors as a *partial* measurement on $\rho_1$ as follows
 
