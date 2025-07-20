@@ -5,6 +5,12 @@
 \usepackage{amsmath} %maths
 \usepackage[utf8]{inputenc} %useful to type directly diacritic characters
 \usepackage{physics}
+\usepackage[capitalize]{cleveref} % Load last, especially AFTER algorithm2e.
+\Crefname{figure}{Fig.}{Figs.}
+\crefrangeformat{line}{lines~#3#1#4--#5#2#6}
+\crefformat{equation}{(#2#1#3)}
+\crefrangeformat{equation}{(#3#1#4--#5#2#6)}
+\newcommand{\creflastconjunction}{, and\nobreakspace}
 
 \begin{document}
 
@@ -27,7 +33,8 @@ We prepare an initial state of superposition for the actions via:
 It will become convenient to represent this state in density matrix form, for reasons we will see shortly. This state can be represented as the density matrix:
 
 \begin{align}
-\rho_0 
+\label{eq:rho_0}
+\rho_0
 &= \ket{\psi_0}\bra{\psi_0} \\
 &= (\sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \ket{0}^{\otimes |\mathcal{Z}|}) (\sum_{a_j} \sqrt{p(a_j)} \bra{a_j} \otimes \bra{0}^{\otimes |\mathcal{Z}|}) \\
 &= \sum_{a_i} \sum_{a_j} \sqrt{p(a_i)} \sqrt{p(a_j)} \ket{a_i} \otimes \ket{0}^{\otimes |\mathcal{Z}|} \bra{a_i} \otimes \bra{0}^{\otimes |\mathcal{Z}|}.
@@ -36,6 +43,7 @@ It will become convenient to represent this state in density matrix form, for re
 Next, we define an operator over the combined Hilbert space $\mathcal{H}_{a} \otimes \mathcal{H}_{z}$ for preparing a probability distribution of return-atoms for every action -- this would be the ML model -- called $U_z$
 
 \begin{align}
+\label{eq:U_z_a}
 U_{z|a}
     &= \sum_{a} \ket{a}\bra{a} \otimes U_{z}(a) \\
     &= \sum_{a} \ket{a}\bra{a} \otimes \Bigl[ \sum_{z} \sqrt{p(z|a)} \ket{z}\bra{0} \Bigr],
@@ -61,6 +69,7 @@ Note that the definition we provide for $U_{z|a}$ is not strictly unitary becaus
 Now define an operator over the return-atoms Hilbert space $\mathcal{H}_{z}$ that encodes the return-atom values called $U_{v|z}$
 
 \begin{align}
+\label{eq:U_v_z}
 U_{v|z} 
     &= \sum_{z} \sqrt{v_z} \ket{z}\bra{z}
     &= \begin{bmatrix}
@@ -89,7 +98,7 @@ and again in density matrix form
 &= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \ket{\psi_0} \bra{\psi_0} U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
 &= \Bigl( \sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \Bigl[ \sum_{z_j} \sqrt{p(z_j|a_i)} \sqrt{v_{z_j}} \ket{z_j} \Bigr] \Bigr) \Bigl( \sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \Bigl[ \sum_{z_l} \sqrt{p(z_l|a_k)} \sqrt{v_{z_l}} \bra{z_l} \Bigr] \Bigr) \\
 &= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_j|a_i)} \sqrt{v_{z_j}} \sqrt{p(a_k)} \sqrt{p(z_l|a_k)} \sqrt{v_{z_l}} \Bigr) \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l} \\
-&= \rho_1 .
+&= \rho_1 \label{eq:rho_1}.
 \end{align}
 
 which we will refer to as $\rho_1$, where the subscript denotes the number of times the operations have been applied -- this subscript index will be important later.
@@ -163,7 +172,7 @@ The final system state after applying the reset operation is therefore
     &= \tilde{\rho_1}
 \end{align}
 
-Notice that at this point the return-atoms space has been reduced to the all-zero state $\ket{0}^{\otimes |\mathcal{Z}|}$, which has a very similar form to $\rho_0$. This means that, after applying the reset, the system state is placed back into a form after applying superposition of actions, and is thus receptive to the sequential return-atom operations $(\mathbb{I} \otimes U_{v|z}) U_{z|a}$.
+Notice that at this point the return-atoms space has been reduced to the all-zero state $\ket{0}^{\otimes |\mathcal{Z}|}$, which has a very similar form to $\rho_0$ in \cref{eq:rho_0}. This means that, after applying the reset, the system state is placed back into a form after applying superposition of actions, and is thus receptive to the sequential return-atom operations $(\mathbb{I} \otimes U_{v|z}) U_{z|a}$.
 
 If at this point we were to stop and measure the action qubits using projectors $\Pi = \{\ket{a}\bra{a}\}_{a \in A}$ -- ignoring the return-atom space because it is already zero -- we would get the following state in density matrix form
 
@@ -215,16 +224,21 @@ If we do not measure the action space, and instead apply another iteration of ca
 % 
 &= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
 % 
-&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) ~~\textrm{(Pull out constant normalization factor)} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger})
+\\&~~~~~\textrm{(Pull out constant normalization factor)} \\
 % 
-&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) ~~\textrm{(Simple relabeling the outer-sum return-atom index}~ z \to z_q \textrm{)} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger})
+\\&~~~~~\textrm{(Simple relabeling the outer-sum return-atom index}~ z \to z_q \textrm{)} \\
 % 
-&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z_w|a_i)} \sqrt{v_{z_w}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] (\mathbb{I} \otimes U_{v|z_q}^{\dagger}) ~~\textrm{(LHS operators collapse where}~ a_i = a ~\textrm{from}~ U_{z|a} ~\textrm{and create new index where}~ z_{w} = z ~\textrm{from}~ U_{v|z} ~\textrm{)} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z_w|a_i)} \sqrt{v_{z_w}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] (\mathbb{I} \otimes U_{v|z_q}^{\dagger})
+\\&~~~~~\textrm{(LHS operators collapse where}~ a_i = a ~\textrm{from}~ U_{z|a} ~\textrm{and create new index where}~ z_{w} = z ~\textrm{from}~ U_{v|z} ~\textrm{)} \\
 % 
-&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sum_{z_t} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z_w|a_i)} \sqrt{v_{z_w}} \sqrt{p(z_t|a_k)} \sqrt{v_{z_t}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{z_t} \Bigr] ~~\textrm{(RHS operators collapse where}~ a_k = a ~\textrm{from}~ U_{z|a}^{\dagger} ~\textrm{and create new index where}~ z_{t} = z ~\textrm{from}~ U_{v|z}^{\dagger} ~\textrm{)} \\
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sum_{z_t} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z_w|a_i)} \sqrt{v_{z_w}} \sqrt{p(z_t|a_k)} \sqrt{v_{z_t}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{z_t} \Bigr]
+\\&~~~~~\textrm{(RHS operators collapse where}~ a_k = a ~\textrm{from}~ U_{z|a}^{\dagger} ~\textrm{and create new index where}~ z_{t} = z ~\textrm{from}~ U_{v|z}^{\dagger} ~\textrm{)} \\
 % 
-&= \rho_2
+&= \rho_2 \label{eq:rho_2}
 \end{align}
+
 
 
 
