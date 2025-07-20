@@ -12,11 +12,20 @@
 \crefrangeformat{equation}{(#3#1#4--#5#2#6)}
 \newcommand{\creflastconjunction}{, and\nobreakspace}
 
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+
 \begin{document}
 
 \section{Mathematical proof for amplitude kickback}
 
-Quantum system with two hilbert spaces, one for actions $a$ and the other for retuns $z$, denoted by $\mathcal{H}_{a} \otimes \mathcal{H}_{z} = \mathbb{C}^{2^{|\mathcal{A}|}} \otimes \mathbb{C}^{2^{|\mathcal{Z}|}}$ where $a \in \mathcal{A}$ is the set of actions and $z \in \mathcal{Z}$ is the set of return atoms.
+\begin{lemma}
+In a quantum system with two hilbert spaces, one for actions $a$ and the other for retuns $z$, denoted by $\mathcal{H}_{a} \otimes \mathcal{H}_{z} = \mathbb{C}^{2^{|\mathcal{A}|}} \otimes \mathbb{C}^{2^{|\mathcal{Z}|}}$ where $a \in \mathcal{A}$ is the set of actions and $z \in \mathcal{Z}$ is the set of return atoms. Applying a cascade of return-atom preparations conditioned on the action space, followed by a reset over the return-atoms space, will produce a weighted sum of expectations over the return-atoms raised to the power of the number of cascades.
+\end{lemma}
+
+
+
+\begin{proof}
 
 We start with an initial state of all zeros across the two spaces, which looks like 
 
@@ -24,11 +33,13 @@ We start with an initial state of all zeros across the two spaces, which looks l
 \ket{\psi_{\textrm{in}}} = \ket{0}^{\otimes |\mathcal{A}|} \otimes \ket{0}^{\otimes |\mathcal{Z}|}
 \end{equation}
 
-We prepare an initial state of superposition for the actions via:
+We prepare an initial state of superposition for the actions via some operator $U_{a}$:
 
 \begin{equation}
-\ket{\psi_0} = \sum_{a} \sqrt{p(a)} \ket{a} \otimes \ket{0}^{\otimes |\mathcal{Z}|}
+\ket{\psi_0} = (U_{a} \otimes \mathbb{I}) \ket{\psi_{\textrm{in}}} = \sum_{a} \sqrt{p(a)} \ket{a} \otimes \ket{0}^{\otimes |\mathcal{Z}|}.
 \end{equation}
+
+For example, if an equal superposition of actions is desired, i.e., $p(a) = 1/|\mathcal{A}|$, one could select $U_{a} = H^{\otimes |\mathcal{A}|}$, which is simply the Hadamard gate on every action qubit.
 
 It will become convenient to represent this state in density matrix form, for reasons we will see shortly. This state can be represented as the density matrix:
 
@@ -131,10 +142,11 @@ where $\textrm{tr}_{z} : \mathcal{H}_{a} \otimes \mathcal{H}_{z} \to \mathcal{H}
 So, applying this to our distributional RL setting, we can resume from $\rho_1$ and reset the return-atom qubits in the following manner. First, we define the set of projectors $\Pi = \{ \mathbb{I}\otimes\ket{z}\bra{z} \}_{z\in Z}$, which covers all possible return-atom outcomes while doing nothing to the action space, and then apply these projectors as a *partial* measurement on $\rho_1$ as follows
 
 \begin{align}
-\rho'_1 = M[\rho_1]
+M[\rho_1]
     &= \sum_{z} \Pi_z \rho_1 \Pi^{\dagger}_z \\
     &= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_1 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \\
-    &= \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z} ~~\textrm{(Collapses where} ~ z_j=z_l=z \textrm{)}
+    &= \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z} ~~\textrm{(Collapses where} ~ z_j=z_l=z \textrm{)} \\
+    &= \rho'_1
 \end{align}
 
 which has the normalization factor
@@ -204,13 +216,13 @@ producing the normalized state
 
 Notice that because the state was normalized when creating ${\hat{\rho}'}_1$ this state when measuring $a$ was already normalized, but for completeness we complete the process again here.
 
-This means that the probability of measuring an arbitrary action $a$ is
+This means that the probability of measuring an arbitrary action $a_i$ is
 
 \begin{equation}
-P[\ket{a}] = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot p(a) \mathbb{E}[Z | a]
+P[\ket{a_i}] = \frac{p(a_i) \mathbb{E}[Z | a_i]}{\sum_{a} p(a) \mathbb{E}[Z | a]},
 \end{equation}
 
-which is the \emph{normalized weighted expectation of return-atoms for the given action $a$ relative to all other actions $A \setminus \{a\}$}.
+which is the \emph{normalized weighted expectation of return-atoms for the given action $a_i$ relative to all other actions $\mathcal{A} \setminus \{a_i\}$}.
 
 
 
@@ -236,12 +248,102 @@ If we do not measure the action space, and instead apply another iteration of ca
 &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sum_{z_t} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z_w|a_i)} \sqrt{v_{z_w}} \sqrt{p(z_t|a_k)} \sqrt{v_{z_t}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{z_t} \Bigr]
 \\&~~~~~\textrm{(RHS operators collapse where}~ a_k = a ~\textrm{from}~ U_{z|a}^{\dagger} ~\textrm{and create new index where}~ z_{t} = z ~\textrm{from}~ U_{v|z}^{\dagger} ~\textrm{)} \\
 % 
-&= \rho_2 \label{eq:rho_2}
+&= \rho_2 \label{eq:rho_2}.
 \end{align}
 
+We then apply the reset operation to the return-atoms space by first applying return-atoms projectors 
 
+\begin{align}
+M[\rho_2]
+    &= \sum_{z} \Pi_z \rho_2 \Pi^{\dagger}_z \\
+    &= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_2 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \\
+    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(z|a_k)} \sqrt{v_{z}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z} \Bigr]
+    \\&~~~~~\textrm{(Collapses where}~ z_w = z_t = z ~\textrm{)} \\
+    &= \rho'_2 
+\end{align}
 
+which has the normalization factor
 
+\begin{align}
+\textrm{tr}\bigl[\rho'_2\bigr]
+    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a)} \sqrt{p(z_q|a)} \sqrt{v_{z_q}} \sqrt{p(a)} \sqrt{p(z_q|a)} \sqrt{v_{z_q}} \sqrt{p(z|a)} \sqrt{v_{z}} \sqrt{p(z|a)} \sqrt{v_{z}} \Bigr]
+    \\&~~~~~\textrm{(Sum along diagonal collapses where}~ a_i = a_k = a ~\textrm{)}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q|a) v_{z_q} p(z|a) v_{z} \Bigr]
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{a} p(a) \sum_{z} p(z|a) v_{z} \sum_{z_q} p(z_q|a) v_{z_q} \Bigr]
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{a} p(a) \bigl( \sum_{z} p(z|a) v_{z} \bigr)^2 \Bigr]
+    \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{a} p(a) \mathbb{E}[Z|a]^2 \Bigr]
+    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.
+\end{align}
+
+Thus the normalized density matrix is
+
+\begin{align}
+{\hat{\rho}'}_2
+    &= \frac{\rho'_2}{\textrm{tr}\bigl[\rho'_2\bigr]}
+    \\&= \frac{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(z|a_k)} \sqrt{v_{z}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z} \Bigr]}{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \Bigl[ \sum_{a} p(a) \mathbb{E}[Z|a]^2 \Bigr]}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(z|a_k)} \sqrt{v_{z}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z} \Bigr].
+\end{align}
+
+Tracing out the return-atoms system gives
+
+\begin{align}
+\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_2 \bigr]}
+    &= \sum_{z} (\mathbb{I}\otimes\bra{z}) {\hat{\rho}'}_2 (\mathbb{I}\otimes\ket{z})
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(z|a_k)} \sqrt{v_{z}}  \Bigr) \ket{a_i}\bra{a_k} \Bigr]
+\end{align}
+
+and the final system state after applying the reset operation is therefore
+
+\begin{align}
+\textrm{Reset}_z [\rho_2]
+    &= \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_2 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(z|a_k)} \sqrt{v_{z}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr]
+    \\&= \tilde{\rho_2}
+\end{align}
+
+Importantly, notice that a squared version of the expectation over return-atoms appears in the normalization term. From this we readily see a correlation between the power index of the expectation and the number of times the return-atoms operations have been applied (conveniently denoted in the subscript of the system state ${\hat{\rho}'}_2$). This is even more prevalent if we apply a measurement on the action space as follows
+
+\begin{align}
+M[\tilde{\rho_2}]
+    &= M[\textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_2 \bigr]}]
+    \\&= \sum_{a} \Pi_a \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_2 \bigr]} \Pi^{\dagger}_a
+    \\&= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{z}{\bigl[ {\hat{\rho}'}_2 \bigr]} \ket{a}\bra{a}
+    \\&= \sum_{a} \ket{a}\bra{a} \Bigr( (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(z|a_k)} \sqrt{v_{z}}  \Bigr) \ket{a_i}\bra{a_k} \Bigr] \Bigl) \ket{a}\bra{a}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a} \Bigl( \sqrt{p(a)} \sqrt{p(z_q|a)} \sqrt{v_{z_q}} \sqrt{p(a)} \sqrt{p(z_q|a)} \sqrt{v_{z_q}} \sqrt{p(z|a)} \sqrt{v_{z}} \sqrt{p(z|a)} \sqrt{v_{z}}  \Bigr) \ket{a}\bra{a} \Bigr]
+    \\&~~~~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q|a) v_{z_q} p(z|a) v_{z} \ket{a}\bra{a} \Bigr]
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{a} p(a) \sum_{z} p(z|a) v_{z} \sum_{z_q} p(z_q|a) v_{z_q} \ket{a}\bra{a}\Bigr]
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{a} p(a) \bigl( \sum_{z} p(z|a) v_{z} \bigr)^2 \ket{a}\bra{a} \Bigr]
+    \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \sum_{a} p(a) \mathbb{E}[Z|a]^2 \ket{a}\bra{a}
+    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.
+\end{align}
+
+Which we can readily see is both diagonal and normalized. The probability of measuring any action $a_i$ is therefore
+
+\begin{equation}
+P[\ket{a_i}] = \frac{p(a_i) \mathbb{E}[Z|a_i]^2}{\sum_{a} p(a) \mathbb{E}[Z|a]^2},
+\end{equation}
+
+which is the normalized weighted squared expectation of return atoms for the chosen action $a_i$ relative to all other actions.
+
+Hence, there is a direct relationship between the number of times $(\mathbb{I} \otimes U_{v|z})  U_{z|a}$ has been applied and the power of the return-atom expectation. Formally, we define the cascaded quantum measurement operation over the joint action-return space $\mathcal{H}_{a} \otimes \mathcal{H}_{z}$ as
+
+\begin{equation}
+    M_{a} \Bigl( \prod_{i=1}^{n} \textrm{Reset}_{z} M_{z} (\mathbb{I} \otimes U_{v|z}) U_{z|a} \Bigr) (U_{a} \otimes \mathbb{I}) : \ket{0}^{\otimes |\mathcal{A}|} \otimes \ket{0}^{\otimes |\mathcal{Z}|} \to (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^{n}}) \cdot \sum_{a} p(a) \mathbb{E}[Z|a]^{n} \ket{a}\bra{a}, \label{eq:result}
+\end{equation}
+
+which pushes an initial all-zero state to a superposition of action states, where the probability of measuring any given action is the 
+\emph{normalized weighted expectation raised to the power of $n$ of return-atoms for any given action $a_i$ relative to all other actions $\mathcal{A} \setminus \{a_i\}$}.
+
+\end{proof}
+
+This result is important because it allows for the comparison of expectations of many random variables within quantum space. The probability of measuring any given state in the action space is directly proportional to the expectation of that action relative to all others. Moreover, we can boost the likelihood of measuring actions with higher expectations by intelligently selecting the cascade index $n$. This allows interplay between the relative strength of action probabilities and the number of shots of the quantum circuit -- that is, higher values of $n$ can be chosen to lower the number of repeated shots required, and vice versa.
+
+For example, consider a scenario where finding the action corresponding to the maximum expectation is desired. In this setting, we do not care about the actual expected return value, only the relative distance between expected returns. Applying \cref{eq:result} with $n=1$ will yield a distribution across every expectation of return-atoms. If the expectations across the actions are similar in value, then the likelihood of measuring any given action will be similar -- with a maximum value near $1/|\mathcal{A}|$. As we push $n \to \infty$, the relative (normalized) distance between the expectations becomes greater -- with a maximum value near $1$. Hence, the action associated with the maximum expected return can be found by choosing a sufficiently high $n$ such that the probability of measuring that action is boosted (approaching $1$) while others are lowered (approaching $0$) by only running a single shot of the quantum circuit.
+
+Consider another example where instead we are interested in the similarity in expected returns, i.e., which actions have returns that are close to each other in relative magnitude. This could be beneficial in situations where exploration in the environment is desired, in contrast to a greedy policy (i.e., always takes the perceived ``best'' action). In this setting, one could choose a very low value for $n$ and run many shots of the circuit to generate a probability distribution over the action space.
 
 % References:
 
