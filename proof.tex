@@ -17,7 +17,7 @@
 
 \begin{document}
 
-\section{Mathematical proof for amplitude kickback}
+\section{Proof for cascaded amplitude kickback}
 
 \begin{lemma}
 In a quantum system with two hilbert spaces, one for actions $a$ and the other for retuns $z$, denoted by $\mathcal{H}_{a} \otimes \mathcal{H}_{z} = \mathbb{C}^{2^{|\mathcal{A}|}} \otimes \mathbb{C}^{2^{|\mathcal{Z}|}}$ where $a \in \mathcal{A}$ is the set of actions and $z \in \mathcal{Z}$ is the set of return atoms. Applying a cascade of return-atom preparations conditioned on the action space, followed by a reset over the return-atoms space, will produce a weighted sum of expectations over the return-atoms raised to the power of the number of cascades.
@@ -341,9 +341,17 @@ which pushes an initial all-zero state to a superposition of action states, wher
 
 This result is important because it allows for the comparison of expectations of many random variables within quantum space. The probability of measuring any given state in the action space is directly proportional to the expectation of that action relative to all others. Moreover, we can boost the likelihood of measuring actions with higher expectations by intelligently selecting the cascade index $n$. This allows interplay between the relative strength of action probabilities and the number of shots of the quantum circuit -- that is, higher values of $n$ can be chosen to lower the number of repeated shots required, and vice versa.
 
+\section{Example Scenarios}
+
 For example, consider a scenario where finding the action corresponding to the maximum expectation is desired. In this setting, we do not care about the actual expected return value, only the relative distance between expected returns. Applying \cref{eq:result} with $n=1$ will yield a distribution across every expectation of return-atoms. If the expectations across the actions are similar in value, then the likelihood of measuring any given action will be similar -- with a maximum value near $1/|\mathcal{A}|$. As we push $n \to \infty$, the relative (normalized) distance between the expectations becomes greater -- with a maximum value near $1$. Hence, the action associated with the maximum expected return can be found by choosing a sufficiently high $n$ such that the probability of measuring that action is boosted (approaching $1$) while others are lowered (approaching $0$) by only running a single shot of the quantum circuit.
 
 Consider another example where instead we are interested in the similarity in expected returns, i.e., which actions have returns that are close to each other in relative magnitude. This could be beneficial in situations where exploration in the environment is desired, in contrast to a greedy policy (i.e., always takes the perceived ``best'' action). In this setting, one could choose a very low value for $n$ and run many shots of the circuit to generate a probability distribution over the action space.
+
+\section{Proof of upper bound for cascaded amplitude kickback}
+
+Lower part of upper bound range is $1/|\mathcal{A}|$ (smallest the max value can be). Upper part of range will be some equation related to $n$, and as $n$ tends to infinity the upper part will approach $1$.
+
+TODO: How many iterations $n$ until the upper bound approaches $1$?
 
 % References:
 
