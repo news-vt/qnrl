@@ -11,17 +11,16 @@
 \usepackage{amsthm}
 \usepackage[utf8]{inputenc} %useful to type directly diacritic characters
 \usepackage{physics}
-
-\newtheorem{theorem}{Theorem}[section]
-\newtheorem{lemma}[theorem]{Lemma}
-\newtheorem{corollary}{Corollary}[theorem]
-
 \usepackage[capitalize]{cleveref} % Load last, especially AFTER algorithm2e.
 \Crefname{figure}{Fig.}{Figs.}
 \crefrangeformat{line}{lines~#3#1#4--#5#2#6}
 \crefformat{equation}{(#2#1#3)}
 \crefrangeformat{equation}{(#3#1#4--#5#2#6)}
 \newcommand{\creflastconjunction}{, and\nobreakspace}
+% 
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}{Corollary}[theorem]
 
 
 \begin{document}
@@ -54,7 +53,7 @@ It will become convenient to represent this state in density matrix form, for re
 
 \begin{align}
 \rho_0
-&= \ket{\psi_0}\bra{\psi_0} \\
+&= \ket{\psi_0}\bra{\psi_0}
 \\&= (\sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \ket{0}^{\otimes |\mathcal{Z}|}) (\sum_{a_j} \sqrt{p(a_j)} \bra{a_j} \otimes \bra{0}^{\otimes |\mathcal{Z}|})
 \\&= \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i} \otimes \ket{0}^{\otimes |\mathcal{Z}|} \bra{a_i} \otimes \bra{0}^{\otimes |\mathcal{Z}|}. \label{eq:rho_0}
 \end{align}
@@ -63,8 +62,8 @@ Next, we define an operator over the combined Hilbert space $\mathcal{H}_{\mathc
 
 \begin{align}
 U_{z|a}
-    &= \sum_{a} \ket{a}\bra{a} \otimes U_{z}(a) \\
-    &= \sum_{a} \ket{a}\bra{a} \otimes \Bigl[ \sum_{z} \sqrt{p(z|a)} \ket{z}\bra{0} \Bigr], \label{eq:U_z_a}
+&= \sum_{a} \ket{a}\bra{a} \otimes U_{z}(a)
+\\&= \sum_{a} \ket{a}\bra{a} \otimes \Bigl[ \sum_{z} \sqrt{p(z|a)} \ket{z}\bra{0} \Bigr], \label{eq:U_z_a}
 \end{align}
 
 which, when operating on the state-vector form of the system state, behaves as follows
@@ -77,9 +76,9 @@ and in density matrix form
 
 \begin{align}
 U_{z|a} \rho_0 U_{z|a}^{\dagger}
-&= U_{z|a} \ket{\psi_0} \bra{\psi_0} U_{z|a}^{\dagger} \\
-&= \Bigl( \sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \Bigl[ \sum_{z_j} \sqrt{p(z_j|a_i)} \ket{z_j} \Bigr] \Bigr) \Bigl( \sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \Bigl[ \sum_{z_l} \sqrt{p(z_l|a_k)} \bra{z_l} \Bigr] \Bigr) \\
-&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i) p(z_j|a_i) p(a_k) p(z_l|a_k)} \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}.
+&= U_{z|a} \ket{\psi_0} \bra{\psi_0} U_{z|a}^{\dagger}
+\\&= \Bigl( \sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \Bigl[ \sum_{z_j} \sqrt{p(z_j|a_i)} \ket{z_j} \Bigr] \Bigr) \Bigl( \sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \Bigl[ \sum_{z_l} \sqrt{p(z_l|a_k)} \bra{z_l} \Bigr] \Bigr)
+\\&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i) p(z_j|a_i) p(a_k) p(z_l|a_k)} \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}.
 \end{align}
 
 Note that the definition we provide for $U_{z|a}$ is not strictly unitary because we only include the outer $\bra{0}$ term -- that is, the effect of applying $U_{z|a}$ on an all-zero input state in the $\mathcal{H}_{\mathcal{Z}}$ space. While a complete definition for $U_{z|a}$ will also include effects of all other non-zero states in the $\mathcal{H}_{\mathcal{Z}}$ space (i.e., $\{\bra{i}\}_{i=1}^{2^{|\mathcal{Z}|}-1}$) their effect, as we will see shortly, will be inconsequential as we only consider systems that have a known all-zero starting state. We therefore omit these extra terms in the derivations for brevity.
@@ -139,9 +138,9 @@ Since $\hat{\rho}'$ spans the space of both actions and return-atoms $\mathcal{H
 
 \begin{align}
 \textrm{Reset}_{\mathcal{Z}} [\rho] 
-    &= \textrm{tr}_{\mathcal{Z}}{\bigl[ \hat{\rho}' \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
-    &= \textrm{tr}_{\mathcal{Z}}{\Bigl[ \frac{M_{\mathcal{Z}}[\rho]}{\textrm{tr}\bigl[M_{\mathcal{Z}}[\rho]\bigr]} \Bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
-    &= \tilde{\rho}
+    &= \textrm{tr}_{\mathcal{Z}}{\bigl[ \hat{\rho}' \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
+    \\&= \textrm{tr}_{\mathcal{Z}}{\Bigl[ \frac{M_{\mathcal{Z}}[\rho]}{\textrm{tr}\bigl[M_{\mathcal{Z}}[\rho]\bigr]} \Bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
+    \\&= \tilde{\rho}
 \end{align}
 
 where $\textrm{tr}_{\mathcal{Z}} : \mathcal{H}_{\mathcal{A}} \otimes \mathcal{H}_{\mathcal{Z}} \to \mathcal{H}_{\mathcal{A}}$ is the partial trace operator which traces out (i.e., removes) the subspace $\mathcal{H}_{\mathcal{Z}}$.
@@ -361,7 +360,7 @@ M_{a} \Bigl( \prod_{n} \textrm{Reset}_{z} \Bigl[ \prod_{m} (\mathbb{I} \otimes U
 
 which pushes an initial all-zero state to a superposition of action states, where the probability of measuring any given action is the 
 \emph{normalized weighted $m$-th moment expectation of return-atoms raised to the power of $n$, for any given action $a_i$ relative to all other actions $\mathcal{A} \setminus \{a_i\}$}.
-
+% 
 \end{proof}
 
 This result is important because it allows for comparison of the moments of many random variables within quantum space -- that is, the entire operation is completely quantum, without the need for encoding/decoding into the classical space mid-way through the algorithm, which is both expensive and error prone due to stochastic noise. The probability of measuring any given state in the action space is directly proportional to the $m$-th moment expectation of that action relative to all others. Moreover, we can boost the likelihood of measuring actions with higher expectations by intelligently selecting the cascade index $n$ to ``spread'' the expectation distribution, i.e., the probability higher expectations get raised while others get lowered. This allows interplay between the relative strength of action probabilities and the number of shots of the quantum circuit -- that is, higher values of $n$ can be chosen to lower the number of repeated shots required, and vice versa.
