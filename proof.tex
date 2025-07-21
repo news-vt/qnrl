@@ -119,10 +119,10 @@ Now, to fix the normalization on the return-atoms space, we apply a reset operat
 Before we do this, we first need to define the measurement process. A quantum measurement $M$ maps a quantum state in density matrix form $\rho$ to a mixed state using a set of projection operators $\Pi$ outlined by the measurement basis, given by
 
 \begin{equation}
-\rho' = M[\rho] = \sum_{i} \Pi_i \rho \Pi^{\dagger}_i
+\rho' = M_{\mathcal{B}}[\rho] = \sum_{b} \Pi_b \rho \Pi^{\dagger}_b
 \end{equation}
 
-where $\rho$ is the density matrix for a quantum system of $q$ qubits, and, if measuring in the Pauli-$Z$ basis, $\Pi_i = \ket{i}\bra{i}$, $\forall i \in \{0,2^{q}-1\}$. This resulting density matrix after measurement must also be normalized, which we can do by dividing by its trace (which is just the sum of its diagonal elements) as given by
+where $\rho$ is the density matrix for a quantum system of $q$ qubits, and $b \in \mathcal{B}$ is the measurement basis -- for example, if measuring in the Pauli-$Z$ basis, $\Pi_b = \ket{b}\bra{b}$, $\forall b \in \{0,2^{q}-1\}$. This resulting density matrix after measurement must also be normalized, which we can do by dividing by its trace (which is just the sum of its diagonal elements) as given by
 
 \begin{equation}
 \hat{\rho}' = \frac{\rho'}{\textrm{tr}[\rho']}.
@@ -131,9 +131,9 @@ where $\rho$ is the density matrix for a quantum system of $q$ qubits, and, if m
 Since $\hat{\rho}'$ spans the space of both actions and return-atoms $\mathcal{H}_{\mathcal{A}} \otimes \mathcal{H}_{\mathcal{Z}}$, to complete the reset over the return-atoms space after the projective measurement we must trace-out the return-atoms qubits and then simply set their state to zero. To do this, we define the completed reset operation
 
 \begin{align}
-\textrm{Reset}_z [\rho] 
+\textrm{Reset}_{\mathcal{Z}} [\rho] 
     &= \textrm{tr}_{\mathcal{Z}}{\bigl[ \hat{\rho}' \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
-    &= \textrm{tr}_{\mathcal{Z}}{\Bigl[ \frac{M[\rho]}{\textrm{tr}\bigl[M[\rho]\bigr]} \Bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
+    &= \textrm{tr}_{\mathcal{Z}}{\Bigl[ \frac{M_{\mathcal{Z}}[\rho]}{\textrm{tr}\bigl[M_{\mathcal{Z}}[\rho]\bigr]} \Bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
     &= \tilde{\rho}
 \end{align}
 
@@ -178,7 +178,7 @@ Next, we can find the reduced state of the action space after the partial measur
 The final system state after applying the reset operation is therefore
 
 \begin{align}
-\textrm{Reset}_z [\rho_1] 
+\textrm{Reset}_{\mathcal{Z}} [\rho_1] 
     &= \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
     &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
     &= \tilde{\rho_1}
@@ -232,7 +232,7 @@ If we do not measure the action space, and instead apply another iteration of ca
 
 \begin{align}
 (\mathbb{I} \otimes U_{v|z})  U_{z|a} \tilde{\rho_1} U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger})
-&= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \textrm{Reset}_z [\rho_1] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
+&= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \textrm{Reset}_{\mathcal{Z}} [\rho_1] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
 % 
 &= (\mathbb{I} \otimes U_{v|z})  U_{z|a} \Bigl[ (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(a_k)} \sqrt{p(z|a_k)} \sqrt{v_{z}} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} (\mathbb{I} \otimes U_{v|z}^{\dagger}) \\
 % 
@@ -296,7 +296,7 @@ Tracing out the return-atoms system gives
 and the final system state after applying the reset operation is therefore
 
 \begin{align}
-\textrm{Reset}_z [\rho_2]
+\textrm{Reset}_{\mathcal{Z}} [\rho_2]
     &= \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
     \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z|a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} \sqrt{v_{z_q}} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} \sqrt{v_{z_q}} \sqrt{p(z|a_i)} \sqrt{v_{z}} \sqrt{p(z|a_k)} \sqrt{v_{z}}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr]
     \\&= \tilde{\rho_2}
