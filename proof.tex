@@ -1,10 +1,21 @@
-\documentclass[10pt]{article}
+\documentclass{article}
 
+\usepackage{neurips_2025}
+
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{graphicx}
 \usepackage[usenames]{color} %used for font color
 \usepackage{amssymb} %maths
 \usepackage{amsmath} %maths
+\usepackage{amsthm}
 \usepackage[utf8]{inputenc} %useful to type directly diacritic characters
 \usepackage{physics}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}{Corollary}[theorem]
+
 \usepackage[capitalize]{cleveref} % Load last, especially AFTER algorithm2e.
 \Crefname{figure}{Fig.}{Figs.}
 \crefrangeformat{line}{lines~#3#1#4--#5#2#6}
@@ -12,12 +23,10 @@
 \crefrangeformat{equation}{(#3#1#4--#5#2#6)}
 \newcommand{\creflastconjunction}{, and\nobreakspace}
 
-\newtheorem{theorem}{Theorem}[section]
-\newtheorem{lemma}[theorem]{Lemma}
 
 \begin{document}
 
-\section{Proof for cascaded amplitude kickback for expectation comparison (1st-moment, or weighted mean)}
+\section{Proof for cascaded amplitude kickback for $m$-th moment expectation comparison}
 
 \begin{theorem}
 In a quantum system with two hilbert spaces, one for actions $a$ and the other for retuns $z$, denoted by $\mathcal{H}_{\mathcal{A}} \otimes \mathcal{H}_{\mathcal{Z}} = \mathbb{C}^{2^{|\mathcal{A}|}} \otimes \mathbb{C}^{2^{|\mathcal{Z}|}}$ where $a \in \mathcal{A}$ is the set of actions and $z \in \mathcal{Z}$ is the set of return atoms, the $m$-th moment of the return atoms can be compared between actions entirely in quantum space, i.e., without needing to encode/decode between classical computation.
@@ -44,20 +53,18 @@ For example, if an equal superposition of actions is desired, i.e., $p(a) = 1/|\
 It will become convenient to represent this state in density matrix form, for reasons we will see shortly. This state can be represented as the density matrix:
 
 \begin{align}
-\label{eq:rho_0}
 \rho_0
 &= \ket{\psi_0}\bra{\psi_0} \\
-&= (\sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \ket{0}^{\otimes |\mathcal{Z}|}) (\sum_{a_j} \sqrt{p(a_j)} \bra{a_j} \otimes \bra{0}^{\otimes |\mathcal{Z}|}) \\
-&= \sum_{a_i} \sum_{a_j} \sqrt{p(a_i)} \sqrt{p(a_j)} \ket{a_i} \otimes \ket{0}^{\otimes |\mathcal{Z}|} \bra{a_i} \otimes \bra{0}^{\otimes |\mathcal{Z}|}.
+\\&= (\sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \ket{0}^{\otimes |\mathcal{Z}|}) (\sum_{a_j} \sqrt{p(a_j)} \bra{a_j} \otimes \bra{0}^{\otimes |\mathcal{Z}|})
+\\&= \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i} \otimes \ket{0}^{\otimes |\mathcal{Z}|} \bra{a_i} \otimes \bra{0}^{\otimes |\mathcal{Z}|}. \label{eq:rho_0}
 \end{align}
 
 Next, we define an operator over the combined Hilbert space $\mathcal{H}_{\mathcal{A}} \otimes \mathcal{H}_{\mathcal{Z}}$ for preparing a probability distribution of return-atoms for every action -- this would be the ML model in a distributional reinforcement learning setting -- called $U_{z|a}$
 
 \begin{align}
-\label{eq:U_z_a}
 U_{z|a}
     &= \sum_{a} \ket{a}\bra{a} \otimes U_{z}(a) \\
-    &= \sum_{a} \ket{a}\bra{a} \otimes \Bigl[ \sum_{z} \sqrt{p(z|a)} \ket{z}\bra{0} \Bigr],
+    &= \sum_{a} \ket{a}\bra{a} \otimes \Bigl[ \sum_{z} \sqrt{p(z|a)} \ket{z}\bra{0} \Bigr], \label{eq:U_z_a}
 \end{align}
 
 which, when operating on the state-vector form of the system state, behaves as follows
@@ -72,7 +79,7 @@ and in density matrix form
 U_{z|a} \rho_0 U_{z|a}^{\dagger}
 &= U_{z|a} \ket{\psi_0} \bra{\psi_0} U_{z|a}^{\dagger} \\
 &= \Bigl( \sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \Bigl[ \sum_{z_j} \sqrt{p(z_j|a_i)} \ket{z_j} \Bigr] \Bigr) \Bigl( \sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \Bigl[ \sum_{z_l} \sqrt{p(z_l|a_k)} \bra{z_l} \Bigr] \Bigr) \\
-&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_j|a_i)} \sqrt{p(a_k)} \sqrt{p(z_l|a_k)} \Bigr) \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}.
+&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i) p(z_j|a_i) p(a_k) p(z_l|a_k)} \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}.
 \end{align}
 
 Note that the definition we provide for $U_{z|a}$ is not strictly unitary because we only include the outer $\bra{0}$ term -- that is, the effect of applying $U_{z|a}$ on an all-zero input state in the $\mathcal{H}_{\mathcal{Z}}$ space. While a complete definition for $U_{z|a}$ will also include effects of all other non-zero states in the $\mathcal{H}_{\mathcal{Z}}$ space (i.e., $\{\bra{i}\}_{i=1}^{2^{|\mathcal{Z}|}-1}$) their effect, as we will see shortly, will be inconsequential as we only consider systems that have a known all-zero starting state. We therefore omit these extra terms in the derivations for brevity.
@@ -80,15 +87,14 @@ Note that the definition we provide for $U_{z|a}$ is not strictly unitary becaus
 Now we define an operator over the return-atoms Hilbert space $\mathcal{H}_{\mathcal{Z}}$ that encodes the return-atom values called $U_{v|z}$
 
 \begin{align}
-\label{eq:U_v_z}
 U_{v|z} 
     = \sum_{z} \sqrt{v_z} \ket{z}\bra{z}
     = \begin{bmatrix}
-    \sqrt{v_0} & 0 & 0 & \dots \\
+    \sqrt{v_0} & 0 & 0 & \cdots \\
     0 & \sqrt{v_1} & 0 &  \\
     0 & 0 & \sqrt{v_2} &  \\
     \vdots &  &  & \ddots
-    \end{bmatrix},
+    \end{bmatrix}, \label{eq:U_v_z}
 \end{align}
 
 which is a diagonal matrix, where $\sum_{z} v_z = 1$, i.e., the return-atom values form a probability distribution. Because the return-atom values form a probability distribution, $U_{v|z}$ is both *completely positive* and $U_{v|z}^{\dagger} U_{v|z} \leq \mathbb{I}$, i.e., *trace non-increasing*, which means that $U_{v|z}$ is a valid Kraus operator and can therefore be implemented on quantum hardware.
@@ -108,7 +114,8 @@ and again in density matrix form
 &\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]  U_{z|a} \rho_0 U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
 \\&= \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]  U_{z|a} \ket{\psi_0} \bra{\psi_0} U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
 \\&= \Bigl( \sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \Bigl[ \sum_{z_j} \sqrt{p(z_j|a_i)} (\sqrt{v_{z_j}})^{m} \ket{z_j} \Bigr] \Bigr) \Bigl( \sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \Bigl[ \sum_{z_l} \sqrt{p(z_l|a_k)} (\sqrt{v_{z_l}})^{m} \bra{z_l} \Bigr] \Bigr)
-\\&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_j|a_i)} (\sqrt{v_{z_j}})^{m} \sqrt{p(a_k)} \sqrt{p(z_l|a_k)} (\sqrt{v_{z_l}})^{m} \Bigr) \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}
+\\&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i)
+p(z_j|a_i) v_{z_j}^{m} p(a_k) p(z_l|a_k) v_{z_l}^{m}} \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}
 \\&= \rho_1 \label{eq:rho_1}.
 \end{align}
 
@@ -145,8 +152,8 @@ So, applying this to our distributional RL setting, we can resume from $\rho_1$ 
 M_{\mathcal{Z}}[\rho_1]
     &= \sum_{z} \Pi_z \rho_1 \Pi^{\dagger}_z
     \\&= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_1 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr)
-    \\&= \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(a_k)} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z}
-    \\&~~~~~\textrm{(Collapses where} ~ z_j=z_l=z \textrm{)}
+    \\&= \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z|a_i) v_{z}^{m} p(a_k) p(z|a_k) v_{z}^{m}} \ket{a_i} \ket{z} \bra{a_k} \bra{z}
+    \\&~~~~~\textrm{(Collapses where} ~ z_j=z_l=z \textrm{)}\nonumber
     \\&= \rho'_1
 \end{align}
 
@@ -154,56 +161,58 @@ which has the normalization factor
 
 \begin{align}
 \textrm{tr}\bigl[\rho'_1\bigr]
-    &= \sum_{z} \sum_{a} \sqrt{p(a)} \sqrt{p(z|a)} (\sqrt{v_{z}})^{m} \sqrt{p(a)} \sqrt{p(z|a)} (\sqrt{v_{z}})^{m}
-    \\&~~~~~\textrm{(Sum along diagonal collapses where} ~ a_i=a_k=a \textrm{)}
+    &= \sum_{z} \sum_{a} \sqrt{p(a) p(z|a) v_{z}^{m} p(a) p(z|a) v_{z}^{m}}
+    \\&~~~~~\textrm{(Sum along diagonal collapses where} ~ a_i=a_k=a \textrm{)}\nonumber
     \\&= \sum_{z} \sum_{a} p(a) p(z|a) v_{z}^{m}
     \\&= \sum_{a} p(a) \sum_{z} p(z|a) v_{z}^{m}
     \\&= \sum_{a} p(a) \mathbb{E}[Z^{m} | a]
-    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.
+    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.\nonumber
 \end{align}
 
 Notice that here is where the expectation of the random return conditioned on the action space, $\mathbb{E}[Z^{m} | a]$, first appears -- importantly, we have the $m$-th moment of $Z$ conditioned on $a$. Thus, the normalized density matrix is
 
-\begin{equation}
+\begin{align}
 {\hat{\rho}'}_1
-= \frac{\rho'_1}{\textrm{tr}\bigl[\rho'_1\bigr]}
-= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(a_k)} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m} \Bigr) \ket{a_i} \ket{z} \bra{a_k} \bra{z}
-\end{equation}
+&= \frac{\rho'_1}{\textrm{tr}\bigl[\rho'_1\bigr]}
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z|a_i) v_{z}^{m} p(a_k) p(z|a_k) v_{z}^{m}} \ket{a_i} \ket{z} \bra{a_k} \bra{z}
+\end{align}
 
 Next, we can find the reduced state of the action space after the partial measurement by taking the partial trace over the return-atoms space
 
 \begin{align}
 \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]}
 &= \sum_{z} (\mathbb{I}\otimes\bra{z}) {\hat{\rho}'}_1 (\mathbb{I}\otimes\ket{z}) \\
-&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(a_k)} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m} \Bigr) \ket{a_i}\bra{a_k} .
+&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z|a_i) v_{z}^{m} p(a_k) p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k}.
 \end{align}
 
 The final system state after applying the reset operation is therefore
 
 \begin{align}
-\textrm{Reset}_{\mathcal{Z}} [\rho_1] 
-    &= \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
-    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(a_k)} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \\
-    &= \tilde{\rho_1}
+&\textrm{Reset}_{\mathcal{Z}} [\rho_1] 
+\\&= \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z|a_i) v_{z}^{m} p(a_k) p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
+\\&= \tilde{\rho_1}
 \end{align}
 
-Notice that at this point the return-atoms space has been reduced to the all-zero state $\ket{0}^{\otimes |\mathcal{Z}|}$, which has a very similar form to $\rho_0$ in \cref{eq:rho_0}. This means that, after applying the reset, the system state is placed back into a form after applying superposition of actions, and is thus receptive to the sequential return-atom operations $(\mathbb{I} \otimes U_{v|z}) U_{z|a}$.
+Notice that at this point the return-atoms space has been reduced to the all-zero state $\ket{0}^{\otimes |\mathcal{Z}|}$, which has a very similar form to $\rho_0$ in \cref{eq:rho_0}. This means that, after applying the reset, the system state is placed back into a form after applying superposition of actions, and is thus receptive to the sequential return-atom operations $\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a}$.
 
 If at this point we were to stop and measure the action qubits using projectors $\Pi = \{\ket{a}\bra{a}\}_{a \in \mathcal{A}}$ -- ignoring the return-atom space because it is already zero -- we would get the following state in density matrix form
 
 \begin{align}
-M_{\mathcal{A}}[\tilde{\rho_1}]
-&= M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]}] 
-\\&~~~~~\textrm{(Note that inclusion of partial trace is for formal removal of return-atom space)}
+&M_{\mathcal{A}}[\tilde{\rho_1}]
+\\&= M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]}] 
+\\&~~~~~\textrm{(Note that inclusion of partial trace is for formal removal of return-atom space)}\nonumber
 \\&= \sum_{a} \Pi_a \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]} \Pi^{\dagger}_a
 \\&= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]} \ket{a}\bra{a}
-\\&= \sum_{a} \ket{a}\bra{a} \Bigl((\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(a_k)} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m} \bigr) \ket{a_i}\bra{a_k} \Bigr) \ket{a}\bra{a}
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} \sum_{z} \bigl( \sqrt{p(a_i=a)} \sqrt{p(z|a_i=a)} (\sqrt{v_{z}})^{m} \sqrt{p(a_k=a)} \sqrt{p(z|a_k=a)} (\sqrt{v_{z}})^{m} \bigr) \ket{a}\bra{a} 
-\\&~~~~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}
+% 
+\\&= \sum_{a} \ket{a}\bra{a} \Bigl((\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \qqad\sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z|a_i) v_{z}^{m} p(a_k) p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \Bigr) \ket{a}\bra{a}
+% 
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} \sum_{z} \sqrt{p(a_i=a) p(z|a_i=a) v_{z}^{m} p(a_k=a) p(z|a_k=a) v_{z}^{m}} \ket{a}\bra{a} 
+\\&~~~~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}\nonumber
 \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} \sum_{z} p(a) p(z|a) v_{z}^{m} \ket{a}\bra{a}
 \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} p(a) \sum_{z} p(z|a) v_{z}^{m} \ket{a}\bra{a}
 \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^m | a] \ket{a}\bra{a} 
-\\&~~~~~\textrm{(By definition of expectation of a random variable)},
+\\&~~~~~\textrm{(By definition of expectation of a random variable)},\nonumber
 \end{align}
 
 which is diagonal with normalization factor
@@ -238,21 +247,27 @@ If we do not measure the action space, and instead apply another iteration of ca
 
 \begin{align}
 & \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \tilde{\rho_1} U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
+% 
 \\&= \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \textrm{Reset}_{\mathcal{Z}} [\rho_1] U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
 % 
-\\&= \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \Bigl[ (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(a_k)} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
+\\&= \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \cdot
+\\&~~\cdot \Bigl[ (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z|a_i) v_{z}^{m} p(a_k) p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \Bigl[ \sum_{z} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(a_k)} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
-\\&~~~~~\textrm{(Pull out constant normalization factor)}
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \cdot
+\\&~~\cdot \Bigl[ \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z|a_i) v_{z}^{m} p(a_k) p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
+\\&~~~~~\textrm{(Pull out constant normalization factor)}\nonumber
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
-\\&~~~~~\textrm{(Simple relabeling the outer-sum return-atom index}~ z \to z_q \textrm{)}
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \cdot
+\\&~~\cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] U_{z|a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr]}^{\dagger}
+\\&~~~~~\textrm{(Simple relabeling the outer-sum return-atom index}~ z \to z_q \textrm{)}\nonumber
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z_w|a_i)} (\sqrt{v_{z_w}})^{m} \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] (\mathbb{I} \otimes U_{v|z_q}^{\dagger})
-\\&~~~~~\textrm{(LHS operators collapse where}~ a_i = a ~\textrm{from}~ U_{z|a} ~\textrm{and create new index where}~ z_{w} = z ~\textrm{from}~ U_{v|z} ~\textrm{)}
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot 
+\\&~~\cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sqrt{p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m} p(z_w|a_i) v_{z_w}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr] (\mathbb{I} \otimes U_{v|z_q}^{\dagger})
+\\&~~~~~\textrm{(LHS operators collapse where}~ a_i = a ~\textrm{from}~ U_{z|a} ~\textrm{and create new index where}~ z_{w} = z ~\textrm{from}~ U_{v|z} ~\textrm{)}\nonumber
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sum_{z_t} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z_w|a_i)} (\sqrt{v_{z_w}})^{m} \sqrt{p(z_t|a_k)} (\sqrt{v_{z_t}})^{m}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{z_t} \Bigr]
-\\&~~~~~\textrm{(RHS operators collapse where}~ a_k = a ~\textrm{from}~ U_{z|a}^{\dagger} ~\textrm{and create new index where}~ z_{t} = z ~\textrm{from}~ U_{v|z}^{\dagger} ~\textrm{)}
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot 
+\\&~~\cdot \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sum_{z_t} \sqrt{p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m} p(z_w|a_i) v_{z_w}^{m} p(z_t|a_k) v_{z_t}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{z_t}
+\\&~~~~~\textrm{(RHS operators collapse where}~ a_k = a ~\textrm{from}~ U_{z|a}^{\dagger} ~\textrm{and create new index where}~ z_{t} = z ~\textrm{from}~ U_{v|z}^{\dagger} ~\textrm{)}\nonumber
 % 
 \\&= \rho_2 \label{eq:rho_2}.
 \end{align}
@@ -260,26 +275,26 @@ If we do not measure the action space, and instead apply another iteration of ca
 We then apply the reset operation to the return-atoms space by first applying return-atoms projectors 
 
 \begin{align}
-M_{\mathcal{Z}}[\rho_2]
-    &= \sum_{z} \Pi_z \rho_2 \Pi^{\dagger}_z \\
-    &= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_2 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \\
-    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z} \Bigr]
-    \\&~~~~~\textrm{(Collapses where}~ z_w = z_t = z ~\textrm{)} \\
-    &= \rho'_2 
+&M_{\mathcal{Z}}[\rho_2]
+\\&= \sum_{z} \Pi_z \rho_2 \Pi^{\dagger}_z
+\\&= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_2 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr)
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m} p(z|a_i) v_{z}^{m} p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z}
+\\&~~~~~\textrm{(Collapses where}~ z_w = z_t = z ~\textrm{)}\nonumber
+\\&= \rho'_2 
 \end{align}
 
 which has the normalization factor
 
 \begin{align}
 \textrm{tr}\bigl[\rho'_2\bigr]
-    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a)} \sqrt{p(z_q|a)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a)} \sqrt{p(z_q|a)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z|a)} (\sqrt{v_{z}})^{m} \sqrt{p(z|a)} (\sqrt{v_{z}})^{m} \Bigr]
-    \\&~~~~~\textrm{(Sum along diagonal collapses where}~ a_i = a_k = a ~\textrm{)}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q|a) v_{z_q}^{m} p(z|a) v_{z}^{m} \Bigr]
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{a} p(a) \sum_{z} p(z|a) v_{z}^{m} \sum_{z_q} p(z_q|a) v_{z_q}^{m} \Bigr]
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{a} p(a) \bigl( \sum_{z} p(z|a) v_{z}^{m} \bigr)^2 \Bigr]
-    \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2 \Bigr]
-    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.
+    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a) p(z_q|a) v_{z_q}^{m} p(a) p(z_q|a) v_{z_q}^{m} p(z|a) v_{z}^{m} p(z|a) v_{z}^{m}}
+    \\&~~~~~\textrm{(Sum along diagonal collapses where}~ a_i = a_k = a ~\textrm{)}\nonumber
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q|a) v_{z_q}^{m} p(z|a) v_{z}^{m}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} p(a) \sum_{z} p(z|a) v_{z}^{m} \sum_{z_q} p(z_q|a) v_{z_q}^{m}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} p(a) \bigl( \sum_{z} p(z|a) v_{z}^{m} \bigr)^2
+    \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}\nonumber
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2
+    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.\nonumber
 \end{align}
 
 Thus the normalized density matrix is
@@ -287,8 +302,8 @@ Thus the normalized density matrix is
 \begin{align}
 {\hat{\rho}'}_2
     &= \frac{\rho'_2}{\textrm{tr}\bigl[\rho'_2\bigr]}
-    \\&= \frac{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z} \Bigr]}{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \Bigl[ \sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2 \Bigr]}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z} \Bigr].
+    \\&= \frac{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m} p(z|a_i) v_{z}^{m} p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z}}{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m} p(z|a_i) v_{z}^{m} p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z}.
 \end{align}
 
 Tracing out the return-atoms system gives
@@ -296,34 +311,38 @@ Tracing out the return-atoms system gives
 \begin{align}
 \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]}
     &= \sum_{z} (\mathbb{I}\otimes\bra{z}) {\hat{\rho}'}_2 (\mathbb{I}\otimes\ket{z})
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m}  \Bigr) \ket{a_i}\bra{a_k} \Bigr]
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m} p(z|a_i) v_{z}^{m} p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k}
 \end{align}
 
 and the final system state after applying the reset operation is therefore
 
 \begin{align}
-\textrm{Reset}_{\mathcal{Z}} [\rho_2]
-    &= \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m}  \Bigr) \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|} \Bigr]
-    \\&= \tilde{\rho_2}
+&\textrm{Reset}_{\mathcal{Z}} [\rho_2]
+\\&= \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
+\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot 
+\\&~~\cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{ p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m} p(z|a_i) v_{z}^{m} p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes |\mathcal{Z}|}\bra{0}^{\otimes |\mathcal{Z}|}
+\\&= \tilde{\rho_2}.
 \end{align}
 
 Importantly, notice that a squared version of the expectation over return-atoms appears in the normalization term. From this we readily see a correlation between the power index of the expectation and the number of times the return-atoms operations have been applied (conveniently denoted in the subscript of the system state ${\hat{\rho}'}_2$). This is even more prevalent if we apply a measurement on the action space as follows
 
 \begin{align}
-M_{\mathcal{A}}[\tilde{\rho_2}]
-    &= M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]}]
+&M_{\mathcal{A}}[\tilde{\rho_2}]
+    \\&= M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]}]
     \\&= \sum_{a} \Pi_a \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]} \Pi^{\dagger}_a
     \\&= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]} \ket{a}\bra{a}
-    \\&= \sum_{a} \ket{a}\bra{a} \Bigr( (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \Bigl( \sqrt{p(a_i)} \sqrt{p(z_q|a_i)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a_k)} \sqrt{p(z_q|a_k)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z|a_i)} (\sqrt{v_{z}})^{m} \sqrt{p(z|a_k)} (\sqrt{v_{z}})^{m}  \Bigr) \ket{a_i}\bra{a_k} \Bigr] \Bigl) \ket{a}\bra{a}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a} \Bigl( \sqrt{p(a)} \sqrt{p(z_q|a)} (\sqrt{v_{z_q}})^{m} \sqrt{p(a)} \sqrt{p(z_q|a)} (\sqrt{v_{z_q}})^{m} \sqrt{p(z|a)} (\sqrt{v_{z}})^{m} \sqrt{p(z|a)} (\sqrt{v_{z}})^{m}  \Bigr) \ket{a}\bra{a} \Bigr]
-    \\&~~~~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \Bigl[ \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q|a) v_{z_q}^{m} p(z|a) v_{z}^{m} \ket{a}\bra{a} \Bigr]
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \Bigl[ \sum_{a} p(a) \sum_{z} p(z|a) v_{z}^{m} \sum_{z_q} p(z_q|a) v_{z_q}^{m} \ket{a}\bra{a}\Bigr]
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \Bigl[ \sum_{a} p(a) \bigl( \sum_{z} p(z|a) v_{z}^{m} \bigr)^2 \ket{a}\bra{a} \Bigr]
-    \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}
+    \\&= \sum_{a} \ket{a}\bra{a} \Bigr( (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot 
+    \\&~~\cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{ p(a_i) p(z_q|a_i) v_{z_q}^{m} p(a_k) p(z_q|a_k) v_{z_q}^{m} p(z|a_i) v_{z}^{m} p(z|a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \Bigl) \ket{a}\bra{a}
+    % 
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a) p(z_q|a) v_{z_q}^{m} p(a) p(z_q|a) v_{z_q}^{m} p(z|a) v_{z}^{m} p(z|a) v_{z}^{m}} \ket{a}\bra{a}
+    \\&~~~~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}\nonumber
+    % 
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q|a) v_{z_q}^{m} p(z|a) v_{z}^{m} \ket{a}\bra{a}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \sum_{a} p(a) \sum_{z} p(z|a) v_{z}^{m} \sum_{z_q} p(z_q|a) v_{z_q}^{m} \ket{a}\bra{a}
+    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \sum_{a} p(a) \bigl( \sum_{z} p(z|a) v_{z}^{m} \bigr)^2 \ket{a}\bra{a}
+    \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}\nonumber
     \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} | a]^2 \ket{a}\bra{a}
-    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.
+    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.\nonumber
 \end{align}
 
 Which we can readily see is both diagonal and normalized. The probability of measuring any action $a_i$ is therefore
@@ -337,7 +356,7 @@ which is the normalized weighted squared expectation of return atoms for the cho
 Hence, there is a direct relationship between the number of times $\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a}$ has been applied and the power of the return-atom $m$-th moment expectation. Formally, we define the cascaded quantum measurement operation over the joint action-return space $\mathcal{H}_{\mathcal{A}} \otimes \mathcal{H}_{\mathcal{Z}}$ as
 
 \begin{equation}
-    M_{a} \Bigl( \prod_{n} \textrm{Reset}_{z} \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \Bigr) (U_{a} \otimes \mathbb{I}) : \ket{0}^{\otimes |\mathcal{A}|} \otimes \ket{0}^{\otimes |\mathcal{Z}|} \to (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^{n}}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} | a]^{n} \ket{a}\bra{a}, \label{eq:result}
+M_{a} \Bigl( \prod_{n} \textrm{Reset}_{z} \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v|z}) \Bigr] U_{z|a} \Bigr) (U_{a} \otimes \mathbb{I}) : \ket{0}^{\otimes |\mathcal{A}|} \otimes \ket{0}^{\otimes |\mathcal{Z}|} \to (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} | a]^{n}}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} | a]^{n} \ket{a}\bra{a}, \label{eq:result}
 \end{equation}
 
 which pushes an initial all-zero state to a superposition of action states, where the probability of measuring any given action is the 
