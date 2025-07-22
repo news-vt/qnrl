@@ -30,14 +30,18 @@
 \DeclarePairedDelimiter{\bra}{\langle}{\rvert} % <x|
 \DeclarePairedDelimiter{\ket}{\lvert}{\rangle} % |x>
 \DeclarePairedDelimiter{\abs}{\lvert}{\rvert} % |x|
-\DeclarePairedDelimiter{\paren}{(}{)} % (x)
+\DeclarePairedDelimiter{\paren}{\lparen}{\rparen} % (x)
 \DeclarePairedDelimiter{\bparen}{[}{]} % [x]
 \DeclarePairedDelimiter{\set}{\{}{\}} % {x}
 \DeclarePairedDelimiter{\ceil}{\lceil}{\rceil}
 \DeclarePairedDelimiter{\floor}{\lfloor}{\rfloor}
+% \DeclarePairedDelimiterXPP{\op}[2]{pre code}{left delim}{right delim}{post code}{body}
+% \DeclarePairedDelimiterX{\op}[args]{(}{)}{body}
 \DeclareMathOperator{\E}{\mathbb{E}} % Expectation operator.
 \newcommand{\hilbert}{\mathcal{H}} % Hilbert space marker.
-
+\newcommand{\pfunc}[2]{#1\paren*{#2}} % \pfunc{\E}{x} = E(x)
+\newcommand{\bfunc}[2]{#1\bparen*{#2}} % \bfunc{\E}{x} = E[x]
+\newcommand{\sfunc}[2]{#1\set*{#2}} % \bfunc{\E}{x} = E{x}
 
 \DeclareMathDelimiter{\given}{\mathbin}{symbols}{"6A}{largesymbols}{"0C} % a \given b = a | b
 % \renewcommand{\given}{\;\delimsize\vert\nonscript\;\mathopen{}}
@@ -49,7 +53,7 @@
 \section{Proof for cascaded amplitude kickback for $m$-th moment expectation comparison}
 
 \begin{theorem}
-In a quantum system with two Hilbert spaces $\hilbert_{\mathcal{A}} = \mathbb{C}^{2^{q_{\mathcal{A}}}}$ representing a distribution over a set of actions $\mathcal{A} = \set{a_i}_{i=0}^{\abs{\mathcal{A}} - 1}$ with $q_{\mathcal{A}} = \ceil*{\log_{2}{\abs{\mathcal{A}}}}$ qubits, and $\hilbert_{\mathcal{Z}} = \mathbb{C}^{2^{q_{\mathcal{Z}}}}$ representing a distribution over a set of return atoms $\mathcal{Z} = \set{z_i}_{i=0}^{\abs{\mathcal{Z}} - 1}$ with $q_{\mathcal{Z}} = \ceil*{\log_{2}{\abs{\mathcal{Z}}}}$ qubits, the conditional $m$-th moment of the return-atom distribution raised to an arbitrary power $n$, i.e., $\mathbb{E}[Z^{m} \given a]^{n}$, can be simultaneously computed and compared between all actions entirely in the combined quantum space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$ without needing to encode/decode between classical computation.
+In a quantum system with two Hilbert spaces $\hilbert_{\mathcal{A}} = \mathbb{C}^{2^{q_{\mathcal{A}}}}$ representing a distribution over a set of actions $\mathcal{A} = \set{a_i}_{i=0}^{\abs{\mathcal{A}} - 1}$ with $q_{\mathcal{A}} = \ceil*{\log_{2}{\abs{\mathcal{A}}}}$ qubits, and $\hilbert_{\mathcal{Z}} = \mathbb{C}^{2^{q_{\mathcal{Z}}}}$ representing a distribution over a set of return atoms $\mathcal{Z} = \set{z_i}_{i=0}^{\abs{\mathcal{Z}} - 1}$ with $q_{\mathcal{Z}} = \ceil*{\log_{2}{\abs{\mathcal{Z}}}}$ qubits, the conditional $m$-th moment of the return-atom distribution raised to an arbitrary power $n$, i.e., $\bfunc{\mathbb{E}}{Z^{m} \given a}^{n}$, can be simultaneously computed and compared between all actions entirely in the combined quantum space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$ without needing to encode/decode between classical computation.
 \end{theorem}
 
 \begin{proof}
@@ -61,16 +65,18 @@ In a quantum system with two Hilbert spaces $\hilbert_{\mathcal{A}} = \mathbb{C}
 % 
 A comparison of the $m$-th moments can be done entirely in quantum space by first applying a cascade of return-atom preparations conditioned on the action space, followed by a reset over the return-atoms space, producing a weighted sum of $m$-th moment expectations over the return-atoms raised to the power of the number of cascades.
 
-We start with an initial state of all zeros across the two spaces, as follows:
+We start with an initial state of all zeros across the two spaces, as follows
 
 \begin{equation}
-\ket{\psi_{\textrm{in}}} = \ket{0}^{\otimes q_{\mathcal{A}}} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}.
+\ket{\psi_{\textrm{in}}} 
+= \ket{0}^{\otimes q_{\mathcal{A}}} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}} 
+= \ket{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}},
 \end{equation}
 
-We prepare an initial state of superposition for the actions via some operator $U_{a}$:
+where the latter form will be predominantly used for brevity. We then prepare an initial state of superposition for the actions via some operator $U_{a}$:
 
 \begin{equation}
-\ket{\psi_0} = (U_{a} \otimes \mathbb{I}) \ket{\psi_{\textrm{in}}} = \sum_{a} \sqrt{p(a)} \ket{a} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}.
+\ket{\psi_0} = (U_{a} \otimes \mathbb{I}) \ket{\psi_{\textrm{in}}} = \sum_{a} \sqrt{p(a)} \ket{a, 0^{\otimes q_{\mathcal{Z}}}}.
 \end{equation}
 
 For example, if an equal superposition of actions is desired, i.e., $p(a) = 1/\abs{\mathcal{A}}$, one could select $U_{a} = H^{\otimes q_{\mathcal{A}}}$, which is simply the Hadamard gate on every action qubit.
@@ -80,8 +86,8 @@ It will become convenient to represent this state in density matrix form, for re
 \begin{align}
 \rho_0
 &= \ket{\psi_0}\bra{\psi_0}
-\\&= (\sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}) (\sum_{a_j} \sqrt{p(a_j)} \bra{a_j} \otimes \bra{0}^{\otimes q_{\mathcal{Z}}})
-\\&= \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}} \bra{a_i} \otimes \bra{0}^{\otimes q_{\mathcal{Z}}}. \label{eq:rho_0}
+\\&= \paren[\Big]{\sum_{a_i} \sqrt{p(a_i)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}}} \paren[\Big]{\sum_{a_j} \sqrt{p(a_j)} \bra{a_j, 0^{\otimes q_{\mathcal{Z}}}}}
+\\&= \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_i, 0^{\otimes q_{\mathcal{Z}}}}. \label{eq:rho_0}
 \end{align}
 
 Next, we define an operator over the combined Hilbert space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$ for preparing a probability distribution of return-atoms for every action -- this would be the ML model in a distributional reinforcement learning setting -- called $U_{z \given a}$
@@ -89,13 +95,13 @@ Next, we define an operator over the combined Hilbert space $\hilbert_{\mathcal{
 \begin{align}
 U_{z \given a}
 &= \sum_{a} \ket{a}\bra{a} \otimes U_{z}(a)
-\\&= \sum_{a} \ket{a}\bra{a} \otimes \Bigl[ \sum_{z} \sqrt{p(z \given a)} \ket{z}\bra{0} \Bigr], \label{eq:U_z_a}
+\\&= \sum_{a} \ket{a}\bra{a} \otimes \bparen*{\sum_{z} \sqrt{p(z \given a)} \ket{z}\bra{0}}, \label{eq:U_z_a}
 \end{align}
 
 which, when operating on the state-vector form of the system state, behaves as follows
 
 \begin{equation}
-U_{z \given a} \ket{\psi_0} = \sum_{a} \sqrt{p(a)} \ket{a} \otimes \Bigl[ \sum_{z} \sqrt{p(z \given a)} \ket{z} \Bigr].
+U_{z \given a} \ket{\psi_0} = \sum_{a} \sqrt{p(a)} \ket{a} \otimes \bparen*{\sum_{z} \sqrt{p(z \given a)} \ket{z}}.
 \end{equation}
 
 and in density matrix form
@@ -103,8 +109,8 @@ and in density matrix form
 \begin{align}
 U_{z \given a} \rho_0 U_{z \given a}^{\dagger}
 &= U_{z \given a} \ket{\psi_0} \bra{\psi_0} U_{z \given a}^{\dagger}
-\\&= \Bigl( \sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \Bigl[ \sum_{z_j} \sqrt{p(z_j \given a_i)} \ket{z_j} \Bigr] \Bigr) \Bigl( \sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \Bigl[ \sum_{z_l} \sqrt{p(z_l \given a_k)} \bra{z_l} \Bigr] \Bigr)
-\\&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i) p(z_j \given a_i) p(a_k) p(z_l \given a_k)} \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}.
+\\&= \paren*{\sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \bparen*{\sum_{z_j} \sqrt{p(z_j \given a_i)} \ket{z_j}}} \paren*{\sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \bparen*{\sum_{z_l} \sqrt{p(z_l \given a_k)} \bra{z_l}}}
+\\&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i) p(z_j \given a_i) p(a_k) p(z_l \given a_k)} \ket{a_i, z_j} \bra{a_k, z_l}.
 \end{align}
 
 Note that the definition we provide for $U_{z \given a}$ is not strictly unitary because we only include the outer $\bra{0}$ term -- that is, the effect of applying $U_{z \given a}$ on an all-zero input state in the $\hilbert_{\mathcal{Z}}$ space. While a complete definition for $U_{z \given a}$ will also include effects of all other non-zero states in the $\hilbert_{\mathcal{Z}}$ space (i.e., $\{\bra{i}\}_{i=1}^{2^{\abs{\mathcal{Z}}}-1}$) their effect, as we will see shortly, will be inconsequential as we only consider systems that have a known all-zero starting state. We therefore omit these extra terms in the derivations for brevity.
@@ -129,22 +135,22 @@ Notice that $U_{v \given z}$ is Hermitian (i.e., eigenvalues are real), but not 
 Applying $m$ repetitions of $U_{v \given z}$ on $U_{z \given a} \ket{\psi_0}$ produces the state
 
 \begin{align}
-\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]  U_{z \given a} \ket{\psi_0} 
-    &= \sum_{a} \sqrt{p(a)} \ket{a} \otimes \Bigl[ \sum_{z} \sqrt{p(z \given a)} (\sqrt{v_z})^{m} \ket{z} \Bigr]
+\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}  U_{z \given a} \ket{\psi_0} 
+    &= \sum_{a} \sqrt{p(a)} \ket{a} \otimes \bparen*{\sum_{z} \sqrt{p(z \given a)} (\sqrt{v_z})^{m} \ket{z}}
 \end{align}
 
 and again in density matrix form
 
 \begin{align}
-&\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]  U_{z \given a} \rho_0 U_{z \given a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]}^{\dagger}
-\\&= \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]  U_{z \given a} \ket{\psi_0} \bra{\psi_0} U_{z \given a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]}^{\dagger}
-\\&= \Bigl( \sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \Bigl[ \sum_{z_j} \sqrt{p(z_j \given a_i)} (\sqrt{v_{z_j}})^{m} \ket{z_j} \Bigr] \Bigr) \Bigl( \sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \Bigl[ \sum_{z_l} \sqrt{p(z_l \given a_k)} (\sqrt{v_{z_l}})^{m} \bra{z_l} \Bigr] \Bigr)
+&\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}  U_{z \given a} \rho_0 U_{z \given a}^{\dagger} {\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}}^{\dagger}
+\\&= \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}  U_{z \given a} \ket{\psi_0} \bra{\psi_0} U_{z \given a}^{\dagger} {\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}}^{\dagger}
+\\&= \paren*{\sum_{a_i} \sqrt{p(a_i)} \ket{a_i} \otimes \bparen*{\sum_{z_j} \sqrt{p(z_j \given a_i)} (\sqrt{v_{z_j}})^{m} \ket{z_j}}} \paren*{\sum_{a_k} \sqrt{p(a_k)} \bra{a_k} \otimes \bparen*{\sum_{z_l} \sqrt{p(z_l \given a_k)} (\sqrt{v_{z_l}})^{m} \bra{z_l}}}
 \\&= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i)
-p(z_j \given a_i) v_{z_j}^{m} p(a_k) p(z_l \given a_k) v_{z_l}^{m}} \ket{a_i} \ket{z_j} \bra{a_k} \bra{z_l}
+p(z_j \given a_i) v_{z_j}^{m} p(a_k) p(z_l \given a_k) v_{z_l}^{m}} \ket{a_i, z_j} \bra{a_k, z_l}
 \\&= \rho_1 \label{eq:rho_1}.
 \end{align}
 
-which we will refer to as $\rho_1$, where the subscript denotes the number of times the operations $ \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]  U_{z \given a}$ have been applied -- this subscript index will be important later.
+which we will refer to as $\rho_1$, where the subscript denotes the number of times the operations $ \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}  U_{z \given a}$ have been applied -- this subscript index will be important later.
 
 Now, to correct the normalization on the return-atoms space, we apply a reset operation over the space of the return-atoms $\hilbert_{\mathcal{Z}}$ to collapse their qubits. A reset operation projects the selection of qubits to the $\ket{0}$ state. To accomplish this we apply a mid-circuit measurement on the return-atom qubits ($\hilbert_{\mathcal{Z}}$) to collapse their state to to one of $\ket{z} \in \{\ket{z}\}_{z\in [1,\abs{\mathcal{Z}}]}$ and then apply a conditional correction to map $\ket{z} \to \ket{0}$ (e.g., a bit-flip operation if $z \in \{0,1\}$). Mathematically, we can represent this collapse as a measurement projection followed by a partial-trace over the $\hilbert_{\mathcal{Z}}$ space. Importantly, in this setting we do not care about the measurement result, only the collapse is desired.
 
@@ -157,15 +163,15 @@ Before we apply the reset to our system state, we first need to define the measu
 where $\rho$ is the density matrix for a quantum system of $q$ qubits, and $b \in \mathcal{B}$ is the measurement basis -- for example, if measuring in the Pauli-$Z$ basis, $\Pi_b = \ket{b}\bra{b}$, $\forall b \in \{0,2^{q}-1\}$. This resulting density matrix after measurement must also be normalized, which we can do by dividing by its trace (which is just the sum of its diagonal elements) as given by
 
 \begin{equation}
-\hat{\rho}' = \frac{\rho'}{\textrm{tr}[\rho']}.
+\hat{\rho}' = \frac{\rho'}{\bfunc{\textrm{tr}}{\rho'}}.
 \end{equation}
 
 Since $\hat{\rho}'$ spans the space of both actions and return-atoms $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$, to complete the reset over the return-atoms space after the projective measurement we must trace-out the return-atoms qubits and then simply set their state to zero. To do this, we define the completed reset operation
 
 \begin{align}
-\textrm{Reset}_{\mathcal{Z}} [\rho] 
-    &= \textrm{tr}_{\mathcal{Z}}{\bigl[ \hat{\rho}' \bigr]} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}}
-    \\&= \textrm{tr}_{\mathcal{Z}}{\Bigl[ \frac{M_{\mathcal{Z}}[\rho]}{\textrm{tr}\bigl[M_{\mathcal{Z}}[\rho]\bigr]} \Bigr]} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}}
+\bfunc{\textrm{Reset}_{\mathcal{Z}}}{\rho}
+    &= \bfunc{\textrm{tr}_{\mathcal{Z}}}{\hat{\rho}'} \otimes \ket{0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{Z}}}}
+    \\&= \bfunc{\textrm{tr}_{\mathcal{Z}}}{\frac{\bfunc{M_{\mathcal{Z}}}{\rho}}{\bfunc{\textrm{tr}}{\bfunc{M_{\mathcal{Z}}}{\rho}}}} \otimes \ket{0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{Z}}}}
     \\&= \tilde{\rho}
 \end{align}
 
@@ -174,10 +180,10 @@ where $\textrm{tr}_{\mathcal{Z}} : \hilbert_{\mathcal{A}} \otimes \hilbert_{\mat
 So, applying this to our distributional RL setting, we can resume from $\rho_1$ and reset the return-atom qubits in the following manner. First, we define the set of projectors $\Pi = \{ \mathbb{I}\otimes\ket{z}\bra{z} \}_{z\in \mathcal{Z}}$, which covers all possible return-atom outcomes while doing nothing to the action space, and then apply these projectors as a *partial* measurement on $\rho_1$ as follows
 
 \begin{align}
-M_{\mathcal{Z}}[\rho_1]
+\bfunc{M_{\mathcal{Z}}}{\rho_1}
     &= \sum_{z} \Pi_z \rho_1 \Pi^{\dagger}_z
-    \\&= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_1 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr)
-    \\&= \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i} \ket{z} \bra{a_k} \bra{z}
+    \\&= \sum_{z} \paren*{\mathbb{I}\otimes\ket{z}\bra{z}} \rho_1 \paren*{\mathbb{I}\otimes\ket{z}\bra{z}}
+    \\&= \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i, z} \bra{a_k, z}
     \\&~~~~~\textrm{(Collapses where} ~ z_j=z_l=z \textrm{)}\nonumber
     \\&= \rho'_1
 \end{align}
@@ -185,73 +191,73 @@ M_{\mathcal{Z}}[\rho_1]
 which has the normalization factor
 
 \begin{align}
-\textrm{tr}\bigl[\rho'_1\bigr]
+\bfunc{\textrm{tr}}{\rho'_1}
     &= \sum_{z} \sum_{a} \sqrt{p(a) p(z \given a) v_{z}^{m} p(a) p(z \given a) v_{z}^{m}}
     \\&~~~~~\textrm{(Sum along diagonal collapses where} ~ a_i=a_k=a \textrm{)}\nonumber
     \\&= \sum_{z} \sum_{a} p(a) p(z \given a) v_{z}^{m}
     \\&= \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m}
-    \\&= \sum_{a} p(a) \mathbb{E}[Z^{m} \given a]
+    \\&= \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}
     \\&~~~~~\textrm{(By definition of expectation of a random variable)}.\nonumber
 \end{align}
 
-Notice that here is where the expectation of the random return conditioned on the action space, $\mathbb{E}[Z^{m} \given a]$, first appears -- importantly, we have the $m$-th moment of $Z$ conditioned on $a$. Thus, the normalized density matrix is
+Notice that here is where the expectation of the random return conditioned on the action space, $\bfunc{\mathbb{E}}{Z^{m} \given a}$, first appears -- importantly, we have the $m$-th moment of $Z$ conditioned on $a$. Thus, the normalized density matrix is
 
 \begin{align}
 {\hat{\rho}'}_1
-&= \frac{\rho'_1}{\textrm{tr}\bigl[\rho'_1\bigr]}
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i} \ket{z} \bra{a_k} \bra{z}
+&= \frac{\rho'_1}{\bfunc{\textrm{tr}}{\rho'_1}}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i, z} \bra{a_k, z}
 \end{align}
 
 Next, we can find the reduced state of the action space after the partial measurement by taking the partial trace over the return-atoms space
 
 \begin{align}
-\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]}
+\bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_1}
 &= \sum_{z} (\mathbb{I}\otimes\bra{z}) {\hat{\rho}'}_1 (\mathbb{I}\otimes\ket{z}) \\
-&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k}.
+&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k}.
 \end{align}
 
 The final system state after applying the reset operation is therefore
 
 \begin{align}
-&\textrm{Reset}_{\mathcal{Z}} [\rho_1] 
-\\&= \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}}
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}}
+&\bfunc{\textrm{Reset}_{\mathcal{Z}}}{\rho_1}
+\\&= \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_1} \otimes \ket{0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{Z}}}}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i,0^{\otimes q_{\mathcal{Z}}}}\bra{a_k,0^{\otimes q_{\mathcal{Z}}}}
 \\&= \tilde{\rho_1}
 \end{align}
 
-Notice that at this point the return-atoms space has been reduced to the all-zero state $\ket{0}^{\otimes q_{\mathcal{Z}}}$, which has a very similar form to $\rho_0$ in \cref{eq:rho_0}. This means that, after applying the reset, the system state is placed back into a form after applying superposition of actions, and is thus receptive to the sequential return-atom operations $\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr] U_{z \given a}$.
+Notice that at this point the return-atoms space has been reduced to the all-zero state $\ket{0}^{\otimes q_{\mathcal{Z}}}$, which has a very similar form to $\rho_0$ in \cref{eq:rho_0}. This means that, after applying the reset, the system state is placed back into a form after applying superposition of actions, and is thus receptive to the sequential return-atom operations $\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}$.
 
 If at this point we were to stop and measure the action qubits using projectors $\Pi = \{\ket{a}\bra{a}\}_{a \in \mathcal{A}}$ -- ignoring the return-atom space because it is already zero -- we would get the following state in density matrix form
 
 \begin{align}
-&M_{\mathcal{A}}[\tilde{\rho_1}]
-\\&= M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]}] 
+&\bfunc{M_{\mathcal{A}}}{\tilde{\rho_1}}
+\\&= \bfunc{M_{\mathcal{A}}}{\bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_1}}
 \\&~~~~~\textrm{(Note that inclusion of partial trace is for formal removal of return-atom space)}\nonumber
-\\&= \sum_{a} \Pi_a \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]} \Pi^{\dagger}_a
-\\&= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]} \ket{a}\bra{a}
+\\&= \sum_{a} \Pi_a \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_1} \Pi^{\dagger}_a
+\\&= \sum_{a} \ket{a}\bra{a} \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_1} \ket{a}\bra{a}
 % 
-\\&= \sum_{a} \ket{a}\bra{a} \Bigl((\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \qqad\sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \Bigr) \ket{a}\bra{a}
+\\&= \sum_{a} \ket{a}\bra{a} \paren*{(\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \qqad\sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k}} \ket{a}\bra{a}
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} \sum_{z} \sqrt{p(a_i=a) p(z \given a_i=a) v_{z}^{m} p(a_k=a) p(z \given a_k=a) v_{z}^{m}} \ket{a}\bra{a} 
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} \sum_{z} \sqrt{p(a_i=a) p(z \given a_i=a) v_{z}^{m} p(a_k=a) p(z \given a_k=a) v_{z}^{m}} \ket{a}\bra{a} 
 \\&~~~~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}\nonumber
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} \sum_{z} p(a) p(z \given a) v_{z}^{m} \ket{a}\bra{a}
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \ket{a}\bra{a}
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^m \given a] \ket{a}\bra{a} 
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} \sum_{z} p(a) p(z \given a) v_{z}^{m} \ket{a}\bra{a}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \ket{a}\bra{a}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \mathbb{E}[Z^m \given a] \ket{a}\bra{a} 
 \\&~~~~~\textrm{(By definition of expectation of a random variable)},\nonumber
 \end{align}
 
 which is diagonal with normalization factor
 
 \begin{align}
-\textrm{tr}\Bigl[ M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]}] \Bigr] = (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} \given a] ~~\textrm{(Sum of diagonal elements)},
+\bfunc{\textrm{tr}}{\bfunc{M_{\mathcal{A}}}{\bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_1}}} = (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a} ~~\textrm{(Sum of diagonal elements)},
 \end{align}
 
 producing the normalized state
 
 \begin{align}
-\frac{M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]}]}{\textrm{tr}\Bigl[ M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_1 \bigr]}] \Bigr]}
-&= (\frac{1}{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} \given a] \ket{a}\bra{a} \\
-&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} \given a] \ket{a}\bra{a}.
+\frac{\bfunc{M_{\mathcal{A}}}{\bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_1}}}{\bfunc{\textrm{tr}}{\bfunc{M_{\mathcal{A}}}{\bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_1}}}}
+&= \paren*{\frac{1}{(\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}} \cdot (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a} \ket{a}\bra{a} \\
+&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a} \ket{a}\bra{a}.
 \end{align}
 
 Notice that because the state was normalized when creating ${\hat{\rho}'}_1$ this state when measuring $a$ was already normalized, but for completeness we complete the process again here.
@@ -259,7 +265,7 @@ Notice that because the state was normalized when creating ${\hat{\rho}'}_1$ thi
 This means that the probability of measuring an arbitrary action $a_i$ is
 
 \begin{equation}
-P[\ket{a_i}] = \frac{p(a_i) \mathbb{E}[Z^{m} \given a_i]}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]},
+\bfunc{P}{\ket{a_i}} = \frac{p(a_i) \bfunc{\mathbb{E}}{Z^{m} \given a_i}}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}},
 \end{equation}
 
 which is the \emph{normalized weighted expectation of return-atoms for the given action $a_i$ relative to all other actions $\mathcal{A} \setminus \{a_i\}$}.
@@ -271,27 +277,27 @@ which is the \emph{normalized weighted expectation of return-atoms for the given
 If we do not measure the action space, and instead apply another iteration of cascaded return-atom operations $(\mathbb{I} \otimes U_{v \given z}) U_{z \given a}$, we get the following state in density matrix form
 
 \begin{align}
-& \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr] U_{z \given a} \tilde{\rho_1} U_{z \given a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]}^{\dagger}
+& \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a} \tilde{\rho_1} U_{z \given a}^{\dagger} {\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}}^{\dagger}
 % 
-\\&= \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr] U_{z \given a} \textrm{Reset}_{\mathcal{Z}} [\rho_1] U_{z \given a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]}^{\dagger}
+\\&= \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a} \bfunc{\textrm{Reset}_{\mathcal{Z}}}{\rho_1}U_{z \given a}^{\dagger} {\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}}^{\dagger}
 % 
-\\&= \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr] U_{z \given a} \cdot
-\\&~~\cdot \Bigl[ (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}} \Bigr] U_{z \given a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]}^{\dagger}
+\\&= \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a} \cdot
+\\&~~\cdot \bparen*{(\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i,0^{\otimes q_{\mathcal{Z}}}}\bra{a_k,0^{\otimes q_{\mathcal{Z}}}}} U_{z \given a}^{\dagger} {\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}}^{\dagger}
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr] U_{z \given a} \cdot
-\\&~~\cdot \Bigl[ \sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}} \Bigr] U_{z \given a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]}^{\dagger}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a} \cdot
+\\&~~\cdot \bparen*{\sum_{z} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z \given a_i) v_{z}^{m} p(a_k) p(z \given a_k) v_{z}^{m}} \ket{a_i,0^{\otimes q_{\mathcal{Z}}}}\bra{a_k,0^{\otimes q_{\mathcal{Z}}}}} U_{z \given a}^{\dagger} {\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}}^{\dagger}
 \\&~~~~~\textrm{(Pull out constant normalization factor)}\nonumber
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr] U_{z \given a} \cdot
-\\&~~\cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}} \Bigr] U_{z \given a}^{\dagger} {\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr]}^{\dagger}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a} \cdot
+\\&~~\cdot \bparen*{\sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m}} \ket{a_i,0^{\otimes q_{\mathcal{Z}}}}\bra{a_k,0^{\otimes q_{\mathcal{Z}}}}} U_{z \given a}^{\dagger} {\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})}}^{\dagger}
 \\&~~~~~\textrm{(Simple relabeling the outer-sum return-atom index}~ z \to z_q \textrm{)}\nonumber
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot 
-\\&~~\cdot \Bigl[ \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z_w \given a_i) v_{z_w}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{0}^{\otimes q_{\mathcal{Z}}} \Bigr] (\mathbb{I} \otimes U_{v \given z_q}^{\dagger})
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot 
+\\&~~\cdot \bparen*{\sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z_w \given a_i) v_{z_w}^{m}} \ket{a_i, z_w}\bra{a_k, 0^{\otimes q_{\mathcal{Z}}}}} (\mathbb{I} \otimes U_{v \given z_q}^{\dagger})
 \\&~~~~~\textrm{(LHS operators collapse where}~ a_i = a ~\textrm{from}~ U_{z \given a} ~\textrm{and create new index where}~ z_{w} = z ~\textrm{from}~ U_{v \given z} ~\textrm{)}\nonumber
 % 
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot 
-\\&~~\cdot \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sum_{z_t} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z_w \given a_i) v_{z_w}^{m} p(z_t \given a_k) v_{z_t}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z_w}\bra{z_t}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot 
+\\&~~\cdot \sum_{z_q} \sum_{a_i} \sum_{a_k} \sum_{z_w} \sum_{z_t} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z_w \given a_i) v_{z_w}^{m} p(z_t \given a_k) v_{z_t}^{m}} \ket{a_i, z_w}\bra{a_k, z_t}
 \\&~~~~~\textrm{(RHS operators collapse where}~ a_k = a ~\textrm{from}~ U_{z \given a}^{\dagger} ~\textrm{and create new index where}~ z_{t} = z ~\textrm{from}~ U_{v \given z}^{\dagger} ~\textrm{)}\nonumber
 % 
 \\&= \rho_2 \label{eq:rho_2}.
@@ -300,10 +306,10 @@ If we do not measure the action space, and instead apply another iteration of ca
 We then apply the reset operation to the return-atoms space by first applying return-atoms projectors 
 
 \begin{align}
-&M_{\mathcal{Z}}[\rho_2]
+&\bfunc{M_{\mathcal{Z}}}{\rho_2}
 \\&= \sum_{z} \Pi_z \rho_2 \Pi^{\dagger}_z
-\\&= \sum_{z} \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr) \rho_2 \bigl(\mathbb{I}\otimes\ket{z}\bra{z}\bigr)
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z}
+\\&= \sum_{z} \paren*{\mathbb{I}\otimes\ket{z}\bra{z}} \rho_2 \paren*{\mathbb{I}\otimes\ket{z}\bra{z}}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i, z}\bra{a_k, z}
 \\&~~~~~\textrm{(Collapses where}~ z_w = z_t = z ~\textrm{)}\nonumber
 \\&= \rho'_2 
 \end{align}
@@ -311,14 +317,14 @@ We then apply the reset operation to the return-atoms space by first applying re
 which has the normalization factor
 
 \begin{align}
-\textrm{tr}\bigl[\rho'_2\bigr]
-    &= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a) p(z_q \given a) v_{z_q}^{m} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m} p(z \given a) v_{z}^{m}}
+\bfunc{\textrm{tr}}{\rho'_2}
+    &= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a) p(z_q \given a) v_{z_q}^{m} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m} p(z \given a) v_{z}^{m}}
     \\&~~~~~\textrm{(Sum along diagonal collapses where}~ a_i = a_k = a ~\textrm{)}\nonumber
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \sum_{z_q} p(z_q \given a) v_{z_q}^{m}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \bigl( \sum_{z} p(z \given a) v_{z}^{m} \bigr)^2
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \sum_{z_q} p(z_q \given a) v_{z_q}^{m}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \paren*{\sum_{z} p(z \given a) v_{z}^{m}}^2
     \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}\nonumber
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2
     \\&~~~~~\textrm{(By definition of expectation of a random variable)}.\nonumber
 \end{align}
 
@@ -326,62 +332,62 @@ Thus the normalized density matrix is
 
 \begin{align}
 {\hat{\rho}'}_2
-    &= \frac{\rho'_2}{\textrm{tr}\bigl[\rho'_2\bigr]}
-    \\&= \frac{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z}}{(\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{z}\bra{z}.
+    &= \frac{\rho'_2}{\bfunc{\textrm{tr}}{\rho'_2}}
+    \\&= \frac{(\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i, z}\bra{a_k, z}}{(\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i, z}\bra{a_k, z}.
 \end{align}
 
 Tracing out the return-atoms system gives
 
 \begin{align}
-\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]}
+\bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_2}
     &= \sum_{z} (\mathbb{I}\otimes\bra{z}) {\hat{\rho}'}_2 (\mathbb{I}\otimes\ket{z})
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k}
 \end{align}
 
 and the final system state after applying the reset operation is therefore
 
 \begin{align}
-&\textrm{Reset}_{\mathcal{Z}} [\rho_2]
-\\&= \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}}
-\\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot 
-\\&~~\cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{ p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}}\bra{0}^{\otimes q_{\mathcal{Z}}}
+&\bfunc{\textrm{Reset}_{\mathcal{Z}}}{\rho_2}
+\\&= \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_2} \otimes \ket{0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{Z}}}}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot 
+\\&~~\cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{ p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i,0^{\otimes q_{\mathcal{Z}}}}\bra{a_k,0^{\otimes q_{\mathcal{Z}}}}
 \\&= \tilde{\rho_2}.
 \end{align}
 
 Importantly, notice that a squared version of the expectation over return-atoms appears in the normalization term. From this we readily see a correlation between the power index of the expectation and the number of times the return-atoms operations have been applied (conveniently denoted in the subscript of the system state ${\hat{\rho}'}_2$). This is even more prevalent if we apply a measurement on the action space as follows
 
 \begin{align}
-&M_{\mathcal{A}}[\tilde{\rho_2}]
-    \\&= M_{\mathcal{A}}[\textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]}]
-    \\&= \sum_{a} \Pi_a \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]} \Pi^{\dagger}_a
-    \\&= \sum_{a} \ket{a}\bra{a} \textrm{tr}_{\mathcal{Z}}{\bigl[ {\hat{\rho}'}_2 \bigr]} \ket{a}\bra{a}
-    \\&= \sum_{a} \ket{a}\bra{a} \Bigr( (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot 
+&\bfunc{M_{\mathcal{A}}}{\tilde{\rho_2}}
+    \\&= \bfunc{M_{\mathcal{A}}}{\bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_2}}
+    \\&= \sum_{a} \Pi_a \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_2} \Pi^{\dagger}_a
+    \\&= \sum_{a} \ket{a}\bra{a} \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\hat{\rho}'}_2} \ket{a}\bra{a}
+    \\&= \sum_{a} \ket{a}\bra{a} \Bigr( (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot 
     \\&~~\cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{ p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k} \Bigl) \ket{a}\bra{a}
     % 
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a) p(z_q \given a) v_{z_q}^{m} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m} p(z \given a) v_{z}^{m}} \ket{a}\bra{a}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a) p(z_q \given a) v_{z_q}^{m} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m} p(z \given a) v_{z}^{m}} \ket{a}\bra{a}
     \\&~~~~~\textrm{(Sums collapse when} ~ a_i = a_k = a \textrm{)}\nonumber
     % 
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m} \ket{a}\bra{a}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \sum_{z_q} p(z_q \given a) v_{z_q}^{m} \ket{a}\bra{a}
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot \sum_{a} p(a) \bigl( \sum_{z} p(z \given a) v_{z}^{m} \bigr)^2 \ket{a}\bra{a}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m} \ket{a}\bra{a}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \sum_{z_q} p(z_q \given a) v_{z_q}^{m} \ket{a}\bra{a}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{a} p(a) \bigl( \sum_{z} p(z \given a) v_{z}^{m} \bigr)^2 \ket{a}\bra{a}
     \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}\nonumber
-    \\&= (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2 \ket{a}\bra{a}
+    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2 \ket{a}\bra{a}
     \\&~~~~~\textrm{(By definition of expectation of a random variable)}.\nonumber
 \end{align}
 
 Which we can readily see is both diagonal and normalized. The probability of measuring any action $a_i$ is therefore
 
 \begin{equation}
-P[\ket{a_i}] = \frac{p(a_i) \mathbb{E}[Z^{m} \given a_i]^2}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^2},
+\bfunc{P}{\ket{a_i}} = \frac{p(a_i) \bfunc{\mathbb{E}}{Z^{m} \given a_i}^2}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2},
 \end{equation}
 
 which is the normalized weighted squared expectation of return atoms for the chosen action $a_i$ relative to all other actions.
 
-Hence, there is a direct relationship between the number of times $\Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr] U_{z \given a}$ has been applied and the power of the return-atom $m$-th moment expectation. Formally, we define the cascaded quantum measurement operation over the joint action-return space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$ as
+Hence, there is a direct relationship between the number of times $\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}$ has been applied and the power of the return-atom $m$-th moment expectation. Formally, we define the cascaded quantum measurement operation over the joint action-return space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$ as
 
 \begin{equation}
-M_{a} \Bigl( \prod_{n} \textrm{Reset}_{z} \Bigl[ \prod_{m} (\mathbb{I} \otimes U_{v \given z}) \Bigr] U_{z \given a} \Bigr) (U_{a} \otimes \mathbb{I}) : \ket{0}^{\otimes q_{\mathcal{A}}} \otimes \ket{0}^{\otimes q_{\mathcal{Z}}} \to (\frac{1}{\sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^{n}}) \cdot \sum_{a} p(a) \mathbb{E}[Z^{m} \given a]^{n} \ket{a}\bra{a}, \label{eq:result}
+M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}} (U_{a} \otimes \mathbb{I}) : \ket{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}} \to \frac{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n} \ket{a,0^{\otimes q_{\mathcal{Z}}}}\bra{a,0^{\otimes q_{\mathcal{Z}}}}}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n}}, \label{eq:result}
 \end{equation}
 
 which pushes an initial all-zero state to a superposition of action states, where the probability of measuring any given action is the 
@@ -393,11 +399,11 @@ This result is important because it allows for comparison of the moments of many
 
 \section{Example Scenarios}
 
-For example, consider a scenario where finding the action corresponding to the maximum average (mean) value of the return-atom distribution is desired, i.e., ${\arg\max}_{a}{\{\mathbb{E}[Z \given a]\}}$. In this setting, we do not care about the actual expected return value, only the relative distance between expected returns. Applying \cref{eq:result} with $n=1$ and $m=1$ will yield a distribution across every 1st moment, i.e., the mean, of return-atoms. If the expectations across the actions are similar in value, then the likelihood of measuring any given action will be similar -- with a maximum value near $1/\abs{\mathcal{A}}$. As we push $n \to \infty$, the relative (normalized) distance between the expectations becomes greater -- with a maximum value near $1$. Hence, the action associated with the maximum expected return can be found by choosing a sufficiently high $n$ such that the probability of measuring that action is boosted (approaching $1$) while others are lowered (approaching $0$) by only running a single shot of the quantum circuit.
+For example, consider a scenario where finding the action corresponding to the maximum average (mean) value of the return-atom distribution is desired, i.e., ${\arg\max}_{a}{\set*{\bfunc{\mathbb{E}}{Z \given a}}}$. In this setting, we do not care about the actual expected return value, only the relative distance between expected returns. Applying \cref{eq:result} with $n=1$ and $m=1$ will yield a distribution across every 1st moment, i.e., the mean, of return-atoms. If the expectations across the actions are similar in value, then the likelihood of measuring any given action will be similar -- with a maximum value near $1/\abs{\mathcal{A}}$. As we push $n \to \infty$, the relative (normalized) distance between the expectations becomes greater -- with a maximum value near $1$. Hence, the action associated with the maximum expected return can be found by choosing a sufficiently high $n$ such that the probability of measuring that action is boosted (approaching $1$) while others are lowered (approaching $0$) by only running a single shot of the quantum circuit.
 
-Consider another example where instead we are interested in the similarity in expected returns, i.e., which actions have returns that are close to each other in relative magnitude. This could be beneficial in situations where exploration in the environment is desired, in contrast to a greedy policy (i.e., always takes the perceived ``best'' action). In this setting, one could choose a very low value for $n$ and instead run many shots of the circuit to generate a probability distribution over the action space, i.e., the set $\{ \frac{p(a_i)\mathbb{E}[Z \given a_i]}{\sum_{a \in \mathcal{A}} p(a)\mathbb{E}[Z \given a]} \}_{a_i \in \mathcal{A}}$.
+Consider another example where instead we are interested in the similarity in expected returns, i.e., which actions have returns that are close to each other in relative magnitude. This could be beneficial in situations where exploration in the environment is desired, in contrast to a greedy policy (i.e., always takes the perceived ``best'' action). In this setting, one could choose a very low value for $n$ and instead run many shots of the circuit to generate a probability distribution over the action space, i.e., the set $\set*{\frac{p(a_i)\bfunc{\mathbb{E}}{Z \given a_i}}{\sum_{a \in \mathcal{A}} p(a)\bfunc{\mathbb{E}}{Z \given a}}}_{a_i \in \mathcal{A}}$.
 
-As another example, consider the comparison of the 2nd moments of the returns distribution. Selecting $m=2$ with low $n$ one can sample the circuit many times to generate the distribution $\{ \frac{p(a_i)\mathbb{E}[Z^{2} \given a_i]}{\sum_{a \in \mathcal{A}} p(a)\mathbb{E}[Z^{2} \given a]} \}_{a_i \in \mathcal{A}}$, which can then be used for explorative post-selection by the agent.
+As another example, consider the comparison of the 2nd moments of the returns distribution. Selecting $m=2$ with low $n$ one can sample the circuit many times to generate the distribution $\set*{\frac{p(a_i)\bfunc{\mathbb{E}}{Z^{2} \given a_i}}{\sum_{a \in \mathcal{A}} p(a)\bfunc{\mathbb{E}}{Z^{2} \given a}}}_{a_i \in \mathcal{A}}$, which can then be used for explorative post-selection by the agent.
 
 \section{Proof of upper bound for cascaded amplitude kickback}
 
