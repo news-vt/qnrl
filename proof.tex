@@ -143,11 +143,12 @@ In our \ac{qdrl} system, we assume the existance of two quantum operators for pr
 Given an initial state of all zeros in the combined Hilbert space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$, the following operator prepares a distribution over the action set:
 %
 \begin{equation}\label{eq:def:U_a}
-(U_{a} \otimes \mathbb{I}) 
+\paren*{U_{a} \otimes \mathbb{I}}
 % 
-: \ket{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}} 
+% : \ket{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}} 
+: \ket{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}} 
 % 
-\to \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_i, 0^{\otimes q_{\mathcal{Z}}}}.
+\to \sum_{a_i \in \mathcal{A}} \sum_{a_j \in \mathcal{A}} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_i, 0^{\otimes q_{\mathcal{Z}}}}.
 \end{equation}
 % 
 For example, if an equal superposition of actions is desired, i.e., $p(a) = 1/\abs{\mathcal{A}}$, one could select $U_{a} = H^{\otimes q_{\mathcal{A}}}$, which is simply the Hadamard gate on every action qubit.
@@ -159,9 +160,9 @@ Given an quantum state in the combined Hilbert space $\hilbert_{\mathcal{A}} \ot
 \begin{equation}\label{eq:def:U_z_a}
 U_{z \given a} 
 % 
-: \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_i, 0^{\otimes q_{\mathcal{Z}}}} 
+: \sum_{a_i \in \mathcal{A}} \sum_{a_j \in \mathcal{A}} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_j, 0^{\otimes q_{\mathcal{Z}}}} 
 % 
-\to \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i) p(z_j \given a_i) p(a_k) p(z_l \given a_k)} \ket{a_i, z_j} \bra{a_k, z_l}.
+\to \sum_{a_i \in \mathcal{A}} \sum_{z_j \in \mathcal{Z}} \sum_{a_k \in \mathcal{A}} \sum_{z_l \in \mathcal{Z}} \sqrt{p(a_i) p(z_j \given a_i) p(a_k) p(z_l \given a_k)} \ket{a_i, z_j} \bra{a_k, z_l}.
 \end{equation}
 % 
 Note that the definition we provide for $U_{z \given a}$ is not strictly unitary because we only include the outer $\bra{0}$ term -- that is, the effect of applying $U_{z \given a}$ on an all-zero input state in the $\hilbert_{\mathcal{Z}}$ space. While a complete definition for $U_{z \given a}$ will also include effects of all other non-zero states in the $\hilbert_{\mathcal{Z}}$ space (i.e., $\{\bra{i}\}_{i=1}^{2^{\abs{\mathcal{Z}}}-1}$) their effect as a result of applying onto a known state prepared from \cref{eq:def:U_a} is inconsequential, i.e., we only consider systems that have a known all-zero starting state. We therefore omit these extra terms in the derivations for brevity.
@@ -171,11 +172,35 @@ Note that the definition we provide for $U_{z \given a}$ is not strictly unitary
 
 \section{Proof for cascaded amplitude kickback for $m$-th moment expectation comparison}
 
-\begin{theorem}[$m$-th moment expectation kickback]
-In a quantum system with two Hilbert spaces $\hilbert_{\mathcal{A}} = \mathbb{C}^{2^{q_{\mathcal{A}}}}$ representing a distribution over a set of actions $\mathcal{A} = \set{a_i}_{i=0}^{\abs{\mathcal{A}} - 1}$ with $q_{\mathcal{A}} = \ceil*{\log_{2}{\abs{\mathcal{A}}}}$ qubits, and $\hilbert_{\mathcal{Z}} = \mathbb{C}^{2^{q_{\mathcal{Z}}}}$ representing a distribution over a set of return atoms $\mathcal{Z} = \set{z_i}_{i=0}^{\abs{\mathcal{Z}} - 1}$ with $q_{\mathcal{Z}} = \ceil*{\log_{2}{\abs{\mathcal{Z}}}}$ qubits, the conditional $m$-th moment of the return-atom distribution raised to an arbitrary power $n$, i.e., $\bfunc{\mathbb{E}}{Z^{m} \given a}^{n}$, can be simultaneously computed and compared between all actions entirely in the combined quantum space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$ without needing to encode/decode between classical computation.
+\begin{theorem}[$m$-th moment expectation kickback]\label{thm:m_moment_expectation}
+In a quantum system with two Hilbert spaces $\hilbert_{\mathcal{A}} = \mathbb{C}^{2^{q_{\mathcal{A}}}}$ representing a distribution over a set of actions $\mathcal{A} = \set{a_i}_{i=0}^{\abs{\mathcal{A}} - 1}$ with $q_{\mathcal{A}} = \ceil*{\log_{2}{\abs{\mathcal{A}}}}$ qubits, and $\hilbert_{\mathcal{Z}} = \mathbb{C}^{2^{q_{\mathcal{Z}}}}$ representing a distribution over a set of return atoms $\mathcal{Z} = \set{z_i}_{i=0}^{\abs{\mathcal{Z}} - 1}$ with $q_{\mathcal{Z}} = \ceil*{\log_{2}{\abs{\mathcal{Z}}}}$ qubits, the conditional $m$-th moment of the return-atom distribution raised to an arbitrary power $n$, i.e., $\bfunc{\mathbb{E}}{Z^{m} \given a}^{n}$, can be simultaneously computed and compared between all actions entirely in the combined quantum space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$, without needing to encode/decode between classical computation, using the combined operator
+% 
+\begin{equation}\label{eq:def:m_moment_expectation}
+M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}} (U_{a} \otimes \mathbb{I})
+% 
+% : \ket{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}} 
+: \ket{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}} 
+% 
+\to \frac{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n} \ket{a,0^{\otimes q_{\mathcal{Z}}}}\bra{a,0^{\otimes q_{\mathcal{Z}}}}}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n}},
+\end{equation}
+% 
+where
+% 
+\begin{equation}\label{eq:def:U_v_z}
+U_{v \given z} 
+= \sum_{z \in \mathcal{Z}} \sqrt{v_z} \ket{z}\bra{z}
+= \begin{bmatrix}
+\sqrt{v_0} & 0 & 0 & \cdots \\
+0 & \sqrt{v_1} & 0 &  \\
+0 & 0 & \sqrt{v_2} &  \\
+\vdots &  &  & \ddots
+\end{bmatrix},
+\end{equation}
+% 
+is a \emph{completely positive}, \emph{self-adjoint}, and \emph{trace non-increasing} value-encoding operator, $\bm{v} = \pfunc{G}{\mathcal{Z}}$ is a normalized collection of return-atom values, and $\pfunc{G}{\mathcal{Z}}$ is a probability generating function such that $\sum_{z \in \mathcal{Z}} v_z = 1$, i.e., the return-atom values form a probability distribution.
 \end{theorem}
 
-\begin{proof}
+\begin{proof}[Proof of \cref{thm:m_moment_expectation}]
 % TODO: highlight the key technical hurdles that will subsequently appear in the proof.
 % 
 % Key technical hurdles:
@@ -187,17 +212,18 @@ A comparison of the $m$-th moments can be done entirely in quantum space by firs
 We start with an initial state of all zeros across the two spaces in density matrix form as follows:
 % 
 \begin{equation}
-\rho_{{\textrm{in}}} = \ket{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}.
+% \rho_{{\textrm{in}}} = \ket{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}.
+\rho_{{\textrm{in}}} = \ket{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}.
 \end{equation}
 % 
 We then prepare a quantum state representing the distribution of actions according to \cref{eq:def:U_a}:
 % 
-\begin{align}
+\begin{equation}\label{eq:rho_0}
 U_{a} \rho_{{\textrm{in}}} U_{a}^{\dagger}
-&= \paren[\Big]{\sum_{a_i} \sqrt{p(a_i)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}}} \paren[\Big]{\sum_{a_j} \sqrt{p(a_j)} \bra{a_j, 0^{\otimes q_{\mathcal{Z}}}}}
-\\&= \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_i, 0^{\otimes q_{\mathcal{Z}}}}
-\\&= \rho_0 \label{eq:rho_0}
-\end{align}
+% &= \paren[\Big]{\sum_{a_i} \sqrt{p(a_i)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}}} \paren[\Big]{\sum_{a_j} \sqrt{p(a_j)} \bra{a_j, 0^{\otimes q_{\mathcal{Z}}}}}
+= \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_j, 0^{\otimes q_{\mathcal{Z}}}}
+= \rho_0
+\end{equation}
 % 
 Next, we prepare a quantum state representing the conditional probability distribution of return-atoms for every action according to \cref{eq:def:U_z_a}:
 % 
@@ -206,12 +232,12 @@ U_{z \given a} \rho_0 U_{z \given a}^{\dagger}
 &= \sum_{a_i} \sum_{z_j} \sum_{a_k} \sum_{z_l} \sqrt{p(a_i) p(z_j \given a_i) p(a_k) p(z_l \given a_k)} \ket{a_i, z_j} \bra{a_k, z_l}.
 \end{align}
 
-Now, in order to evaluate the expectation of return atoms we need to represent the \emph{values} of the return atom distribution $\set{z}_{z \in \mathcal{Z}}$ in quantum space. In typical \ac{rl} settings, the \emph{raw values} of the returns are unbounded. Due to this explosive upper bound, this means that the raw return values cannot be directly implemented as a quantum operator.
+Now, in order to evaluate the expectation of return atoms we need to represent the \emph{values} of the return atom distribution $\set{z}_{z \in \mathcal{Z}}$ in quantum space. In typical \ac{rl} settings, the \emph{raw values} of the returns are unbounded. Due to this explosive upper bound, the raw return values cannot be linearly mapped to a quantum operation.
 % NOTE: has to do with creating bounded self-adjoint (i.e., Hermitian) operators.
 % 
 % One could apply a series of Pauli rotations $\pfunc{R_{J}}{v_{z}} = \exp{\paren{-i \frac{v_z}{2} J}}$, where $J \in \set{X, Y, Z}$, on the raw return value to encode it into quantum space. This approach will not work for our setting, however, as the transformation maps the raw return value to rotation angle with range $\bparen{0, \pi}$ that will experience non-linear wraparound.
 % 
-In our setting, however, we are interested in the \emph{comparison} between expectations amongst the action set. Because the set of return atoms is both discrete and explicitly defined in our setting, the range of the return-atom values is known a priori. In light of this, we can apply a normalization to the raw return-atom values to preserve their relative magnitudes, which allows us to represent them in quantum space as a bounded quantum operator.
+In our setting, however, we are interested in the \emph{comparison} between expectation of returns amongst the action set. Because the set of return atoms is both discrete and explicitly defined in our setting, the range of the return-atom values is known a priori. In light of this, we can apply a normalization to the raw return-atom values to preserve their relative magnitudes, which allows us to represent them in quantum space as a bounded quantum operator.
 % 
 We therefore define an operator over the return-atoms Hilbert space $\hilbert_{\mathcal{Z}}$ that encodes the return-atom values as follows:
 % 
@@ -456,13 +482,13 @@ and the probability of measuring an arbitrary action $a_i$ according to \cref{eq
 \end{equation}
 % 
 which is the normalized weighted squared expectation of return atoms for the chosen action $a_i$ relative to all other actions.
-
+% 
 Hence, there is a direct relationship between the number of times $\bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}$ has been applied and the power of the return-atom $m$-th moment expectation. Formally, we define the cascaded quantum measurement operation over the joint action-return space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$ as
-
-\begin{equation}
-M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}} (U_{a} \otimes \mathbb{I}) : \ket{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}} \to \frac{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n} \ket{a,0^{\otimes q_{\mathcal{Z}}}}\bra{a,0^{\otimes q_{\mathcal{Z}}}}}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n}}, \label{eq:result}
+% 
+\begin{equation}\label{eq:result}
+M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}} (U_{a} \otimes \mathbb{I}) : \ket{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}} \to \frac{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n} \ket{a,0^{\otimes q_{\mathcal{Z}}}}\bra{a,0^{\otimes q_{\mathcal{Z}}}}}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n}},
 \end{equation}
-
+% 
 which pushes an initial all-zero state to a superposition of action states, where the probability of measuring any given action is the 
 \emph{normalized weighted $m$-th moment expectation of return-atoms raised to the power of $n$, for any given action $a_i$ relative to all other actions $\mathcal{A} \setminus \{a_i\}$}.
 % 
@@ -472,7 +498,7 @@ This result is important because it allows for comparison of the moments of many
 
 \section{Example Scenarios}
 
-For example, consider a scenario where finding the action corresponding to the maximum average (mean) value of the return-atom distribution is desired, i.e., ${\arg\max}_{a}{\set*{\bfunc{\mathbb{E}}{Z \given a}}}$. In this setting, we do not care about the actual expected return value, only the relative distance between expected returns. Applying \cref{eq:result} with $n=1$ and $m=1$ will yield a distribution across every 1st moment, i.e., the mean, of return-atoms. If the expectations across the actions are similar in value, then the likelihood of measuring any given action will be similar -- with a maximum value near $1/\abs{\mathcal{A}}$. As we push $n \to \infty$, the relative (normalized) distance between the expectations becomes greater -- with a maximum value near $1$. Hence, the action associated with the maximum expected return can be found by choosing a sufficiently high $n$ such that the probability of measuring that action is boosted (approaching $1$) while others are lowered (approaching $0$) by only running a single shot of the quantum circuit.
+For example, consider a scenario where finding the action corresponding to the maximum average (mean) value of the return-atom distribution is desired, i.e., ${\arg\max}_{a}{\set*{\bfunc{\mathbb{E}}{Z \given a}}}$. In this setting, we do not care about the actual expected return value, only the relative distance between expected returns. Applying \cref{eq:def:m_moment_expectation} with $n=1$ and $m=1$ will yield a distribution across every 1st moment, i.e., the mean, of return-atoms. If the expectations across the actions are similar in value, then the likelihood of measuring any given action will be similar -- with a maximum value near $1/\abs{\mathcal{A}}$. As we push $n \to \infty$, the relative (normalized) distance between the expectations becomes greater -- with a maximum value near $1$. Hence, the action associated with the maximum expected return can be found by choosing a sufficiently high $n$ such that the probability of measuring that action is boosted (approaching $1$) while others are lowered (approaching $0$) by only running a single shot of the quantum circuit.
 
 Consider another example where instead we are interested in the similarity in expected returns, i.e., which actions have returns that are close to each other in relative magnitude. This could be beneficial in situations where exploration in the environment is desired, in contrast to a greedy policy (i.e., always takes the perceived ``best'' action). In this setting, one could choose a very low value for $n$ and instead run many shots of the circuit to generate a probability distribution over the action space, i.e., the set $\set*{\frac{p(a_i)\bfunc{\mathbb{E}}{Z \given a_i}}{\sum_{a \in \mathcal{A}} p(a)\bfunc{\mathbb{E}}{Z \given a}}}_{a_i \in \mathcal{A}}$.
 
