@@ -126,16 +126,11 @@ which collapses and conditionally sets qubits $q_{\mathcal{Z}} \in \hilbert_{\ma
 
 
 
-\subsection{Quantum Distributional Reinforcement Learning}
+\section{Quantum Distributional Reinforcement Learning Setting}
 
 We consider a \ac{qdrl} setting with a discrete set of actions $\mathcal{A} = \set{a_i}_{i=0}^{\abs{\mathcal{A}} - 1}$, and a discrete set of return atoms $\mathcal{Z} = \set{z_i}_{i=0}^{\abs{\mathcal{Z}} - 1}$.
 % 
 We consider a combined quantum system of two Hilbert spaces $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}} = \mathbb{C}^{2^{q_{\mathcal{A}}}} \otimes \mathbb{C}^{2^{q_{\mathcal{Z}}}}$ with $q_{\mathcal{A}} = \ceil*{\log_{2}{\abs{\mathcal{A}}}}$ and $q_{\mathcal{Z}} = \ceil*{\log_{2}{\abs{\mathcal{Z}}}}$ qubits for the action and return distributions respectively.
-
-
-
-
-\section{Wider quantum distributional reinforcement learning operators}
 
 In our \ac{qdrl} system, we assume the existance of two quantum operators for preparing a distriubtion over the set of actions and return atoms as follows:
 
@@ -173,7 +168,7 @@ Note that the definition we provide for $U_{z \given a}$ is not strictly unitary
 \section{Proof for cascaded amplitude kickback for $m$-th moment expectation comparison}
 
 \begin{theorem}[$m$-th moment expectation kickback]\label{thm:m_moment_expectation}
-In a quantum system with two Hilbert spaces $\hilbert_{\mathcal{A}} = \mathbb{C}^{2^{q_{\mathcal{A}}}}$ representing a distribution over a set of actions $\mathcal{A} = \set{a_i}_{i=0}^{\abs{\mathcal{A}} - 1}$ with $q_{\mathcal{A}} = \ceil*{\log_{2}{\abs{\mathcal{A}}}}$ qubits, and $\hilbert_{\mathcal{Z}} = \mathbb{C}^{2^{q_{\mathcal{Z}}}}$ representing a distribution over a set of return atoms $\mathcal{Z} = \set{z_i}_{i=0}^{\abs{\mathcal{Z}} - 1}$ with $q_{\mathcal{Z}} = \ceil*{\log_{2}{\abs{\mathcal{Z}}}}$ qubits, the conditional $m$-th moment of the return-atom distribution raised to an arbitrary power $n$, i.e., $\bfunc{\mathbb{E}}{Z^{m} \given a}^{n}$, can be simultaneously computed and compared between all actions entirely in the combined quantum space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$, without needing to encode/decode between classical computation, using the combined operator
+In a quantum system with two Hilbert spaces $\hilbert_{\mathcal{A}} = \mathbb{C}^{2^{q_{\mathcal{A}}}}$ representing a distribution over a set of actions $\mathcal{A} = \set{a_i}_{i=0}^{\abs{\mathcal{A}} - 1}$ with $q_{\mathcal{A}} = \ceil*{\log_{2}{\abs{\mathcal{A}}}}$ qubits, and $\hilbert_{\mathcal{Z}} = \mathbb{C}^{2^{q_{\mathcal{Z}}}}$ representing a distribution over a set of return atoms $\mathcal{Z} = \set{z_i}_{i=0}^{\abs{\mathcal{Z}} - 1}$ with $q_{\mathcal{Z}} = \ceil*{\log_{2}{\abs{\mathcal{Z}}}}$ qubits, the conditional $m$-th moment of the return-atom distribution raised to an arbitrary power $n$, i.e., $\bfunc{\mathbb{E}}{Z^{m} \given a}^{n}$, can be simultaneously computed and compared between all actions entirely in the combined quantum space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$, without needing to encode/decode between classical computation, using the cascaded operator
 % 
 \begin{equation}\label{eq:def:m_moment_expectation}
 M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}} (U_{a} \otimes \mathbb{I})
@@ -188,16 +183,11 @@ where
 % 
 \begin{equation}\label{eq:def:U_v_z}
 U_{v \given z} 
-= \sum_{z \in \mathcal{Z}} \sqrt{v_z} \ket{z}\bra{z}
-= \begin{bmatrix}
-\sqrt{v_0} & 0 & 0 & \cdots \\
-0 & \sqrt{v_1} & 0 &  \\
-0 & 0 & \sqrt{v_2} &  \\
-\vdots &  &  & \ddots
-\end{bmatrix},
+= \sum_{z \in \mathcal{Z}} \sqrt{v_z} \ket{z}\bra{z},
+~\textrm{s.t.}~ \set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}},
 \end{equation}
 % 
-is a \emph{completely positive}, \emph{self-adjoint}, and \emph{trace non-increasing} value-encoding operator, $\bm{v} = \pfunc{G}{\mathcal{Z}}$ is a normalized collection of return-atom values, and $\pfunc{G}{\mathcal{Z}}$ is a probability generating function such that $\sum_{z \in \mathcal{Z}} v_z = 1$, i.e., the return-atom values form a probability distribution.
+is a \emph{completely positive}, \emph{self-adjoint}, and \emph{trace non-increasing} value-encoding operator for the return-atom set $\mathcal{Z}$, and $\set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}$ is a probability generating function for the return-atom values such that $\sum_{z \in \mathcal{Z}} v_z = 1$, i.e., the return-atom values form a probability distribution.
 \end{theorem}
 
 \begin{proof}[Proof of \cref{thm:m_moment_expectation}]
@@ -250,9 +240,10 @@ U_{v \given z}
 0 & 0 & \sqrt{v_2} &  \\
 \vdots &  &  & \ddots
 \end{bmatrix},
+~\textrm{s.t.}~ \set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}},
 \end{equation}
 % 
-which is both diagonal and self-adjoint (i.e., Hermitian), where $\bm{v} = \pfunc{G}{\mathcal{Z}}$, and $\pfunc{G}{\mathcal{Z}}$ is a probability generating function such that $\sum_{z} v_z = 1$, i.e., the return-atom values form a probability distribution. Because the return-atom values form a probability distribution, $U_{v \given z}$ is both \emph{completely positive} and $U_{v \given z}^{\dagger} U_{v \given z} \leq \mathbb{I}$, i.e., \emph{trace non-increasing}, which means that $U_{v \given z}$ is a valid Kraus operator and can therefore be implemented on quantum hardware.
+which is both diagonal and self-adjoint (i.e., Hermitian), where $\set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}$ is a probability generating function such that $\sum_{z} v_z = 1$, i.e., the return-atom values form a probability distribution. For example, one choice of $\pfunc{G}{\mathcal{Z}}$ could be the softmax function, $\pfunc{\textrm{softmax}}{\mathcal{Z}} = \frac{\sum_{z \in \mathcal{Z}} \pfunc{\exp}{z}}{\sum_{z \in \mathcal{Z}} \pfunc{\exp}{z}}$. Because the return-atom values are real, and form a probability distribution, we have that $U_{v \given z}$ is both \emph{completely positive} and $U_{v \given z}^{\dagger} U_{v \given z} \leq \mathbb{I}$, i.e., \emph{trace non-increasing}, which means that $U_{v \given z}$ is a valid Kraus operator and can therefore be implemented on quantum hardware.
 % 
 Notice that although $U_{v \given z}$ is self-adjoint, it is \emph{not unitary}. This means that the resulting state after applying $U_{v \given z}$ will not be normalized. This normalization, however, can be circumvented by applying a reset operation on the return-atom space, as we will see shortly.
 
