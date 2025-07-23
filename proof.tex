@@ -228,7 +228,7 @@ followed by the normalization factor
     \\&= \sum_{z} \sum_{a} p(a) p(z \given a) v_{z}^{m}
     \\&= \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m}
     \\&= \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a},
-    \\&~~~~~\textrm{(By definition of expectation of a random variable)} \nonumber
+    \\&~~~~~\textrm{(By definition of the expectation of a random variable)} \nonumber
 \end{align}
 %
 which produces the normalized mixed density matrix
@@ -277,7 +277,7 @@ If at this point we were to stop and measure the action qubits using projectors 
 \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \sum_{a} \sum_{z} p(a) p(z \given a) v_{z}^{m} \ket{a}\bra{a}
 \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \ket{a}\bra{a}
 \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \sum_{a} p(a) \mathbb{E}[Z^m \given a] \ket{a}\bra{a},
-\\&~~~~~\textrm{(By definition of expectation of a random variable)} \nonumber
+\\&~~~~~\textrm{(By definition of the expectation of a random variable)} \nonumber
 \end{align}
 % 
 which is diagonal with normalization factor
@@ -359,7 +359,7 @@ which has the normalization factor
     \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \paren*{\sum_{z} p(z \given a) v_{z}^{m}}^2
     \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}\nonumber
     \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2
-    \\&~~~~~\textrm{(By definition of expectation of a random variable)}.\nonumber
+    \\&~~~~~\textrm{(By definition of the expectation of a random variable)}.\nonumber
 \end{align}
 
 Thus the normalized density matrix is
@@ -408,7 +408,7 @@ Importantly, notice that a squared version of the expectation over return-atoms 
 \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{a} p(a) \paren[\Big]{\sum_{z} p(z \given a) v_{z}^{m}}^2 \ket{a}\bra{a}
 \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}\nonumber
 \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2 \ket{a}\bra{a},
-\\&~~~~~\textrm{(By definition of expectation of a random variable)} \nonumber
+\\&~~~~~\textrm{(By definition of the expectation of a random variable)} \nonumber
 \end{align}
 % 
 which we can readily see is both diagonal and normalized, i.e., $\bfunc{\textrm{tr}}{\bfunc{\mathcal{E}_{\mathcal{A}}}{\tilde{\rho_2}}} = 1$. Hence, we have the final measured state
