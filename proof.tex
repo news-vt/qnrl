@@ -176,7 +176,7 @@ M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otime
 % : \ket{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}} 
 : \ket{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}} 
 % 
-\to \frac{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n} \ket{a,0^{\otimes q_{\mathcal{Z}}}}\bra{a,0^{\otimes q_{\mathcal{Z}}}}}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n}},
+\to \frac{\sum_{a \in \mathcal{A}} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n} \ket{a,0^{\otimes q_{\mathcal{Z}}}}\bra{a,0^{\otimes q_{\mathcal{Z}}}}}{\sum_{a \in \mathcal{A}} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n}},
 \end{equation}
 % 
 where
@@ -184,7 +184,7 @@ where
 \begin{equation}\label{eq:def:U_v_z}
 U_{v \given z} 
 = \sum_{z \in \mathcal{Z}} \sqrt{v_z} \ket{z}\bra{z},
-~\textrm{s.t.}~ \set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}},
+~ \forall \set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}, ~\textrm{s.t.}~ \sum_{z \in \mathcal{Z}} v_z = 1,
 \end{equation}
 % 
 is a \emph{completely positive}, \emph{self-adjoint}, and \emph{trace non-increasing} value-encoding operator for the return-atom set $\mathcal{Z}$, and $\set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}$ is a probability generating function for the return-atom values such that $\sum_{z \in \mathcal{Z}} v_z = 1$, i.e., the return-atom values form a probability distribution.
@@ -233,14 +233,14 @@ We therefore define an operator over the return-atoms Hilbert space $\hilbert_{\
 % 
 \begin{equation}\label{eq:U_v_z}
 U_{v \given z} 
-= \sum_{z} \sqrt{v_z} \ket{z}\bra{z}
+= \sum_{z \in \mathcal{Z}} \sqrt{v_z} \ket{z}\bra{z}
 = \begin{bmatrix}
 \sqrt{v_0} & 0 & 0 & \cdots \\
 0 & \sqrt{v_1} & 0 &  \\
 0 & 0 & \sqrt{v_2} &  \\
 \vdots &  &  & \ddots
 \end{bmatrix},
-~\textrm{s.t.}~ \set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}},
+~ \forall \set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}, ~\textrm{s.t.}~ \sum_{z \in \mathcal{Z}} v_z = 1,
 \end{equation}
 % 
 which is both diagonal and self-adjoint (i.e., Hermitian), where $\set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}$ is a probability generating function such that $\sum_{z} v_z = 1$, i.e., the return-atom values form a probability distribution. For example, one choice of $\pfunc{G}{\mathcal{Z}}$ could be the softmax function, $\pfunc{\textrm{softmax}}{\mathcal{Z}} = \frac{\sum_{z \in \mathcal{Z}} \pfunc{\exp}{z}}{\sum_{z \in \mathcal{Z}} \pfunc{\exp}{z}}$. Because the return-atom values are real, and form a probability distribution, we have that $U_{v \given z}$ is both \emph{completely positive} and $U_{v \given z}^{\dagger} U_{v \given z} \leq \mathbb{I}$, i.e., \emph{trace non-increasing}, which means that $U_{v \given z}$ is a valid Kraus operator and can therefore be implemented on quantum hardware.
