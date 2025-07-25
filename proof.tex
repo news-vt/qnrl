@@ -46,6 +46,8 @@
 \usepackage{mathtools}
 \DeclarePairedDelimiter{\bra}{\langle}{\rvert} % <x|
 \DeclarePairedDelimiter{\ket}{\lvert}{\rangle} % |x>
+\DeclarePairedDelimiterX{\braket}[2]{\langle}{\rangle}{#1 \vert #2}
+\DeclarePairedDelimiterX{\ketbra}[2]{\lvert}{\rvert}{#1 \rangle\langle #2}
 \DeclarePairedDelimiter{\abs}{\lvert}{\rvert} % |x|
 \DeclarePairedDelimiter{\paren}{\lparen}{\rparen} % (x)
 \DeclarePairedDelimiter{\bparen}{[}{]} % [x]
@@ -54,11 +56,15 @@
 \DeclarePairedDelimiter{\floor}{\lfloor}{\rfloor}
 % \DeclarePairedDelimiterXPP{\op}[2]{pre code}{left delim}{right delim}{post code}{body}
 % \DeclarePairedDelimiterX{\op}[args]{(}{)}{body}
-\DeclareMathOperator{\E}{\mathbb{E}} % Expectation operator.
+% \DeclareMathOperator{\E}{\mathbb{E}} % Expectation operator.
+\newcommand{\E}{\mathbb{E}} % Expectation symbol.
 \newcommand{\hilbert}{\mathcal{H}} % Hilbert space marker.
 \newcommand{\pfunc}[2]{#1\paren*{#2}} % \pfunc{\E}{x} = E(x)
 \newcommand{\bfunc}[2]{#1\bparen*{#2}} % \bfunc{\E}{x} = E[x]
 \newcommand{\sfunc}[2]{#1\set*{#2}} % \bfunc{\E}{x} = E{x}
+\newcommand{\conj}[1]{#1^{*}} % Complex conjugate.
+\newcommand{\conjtran}[1]{#1^{\dagger}} % Complex conjugate transpose.
+\newcommand{\tran}[1]{#1^{T}} % Transpose
 
 \DeclareMathDelimiter{\given}{\mathbin}{symbols}{"6A}{largesymbols}{"0C} % a \given b = a | b
 % \renewcommand{\given}{\;\delimsize\vert\nonscript\;\mathopen{}}
@@ -70,12 +76,20 @@
 
 \section{Preliminaries}
 
-TODO: This document is meant to be inserted into a larger paper on \ac{drl}. All \ac{drl} terminology and system design should be (is assumed to be) defined before this proof.
+% TODO: This document is meant to be inserted into a larger paper on \ac{drl}. All \ac{drl} terminology and system design should be (is assumed to be) defined before this proof.
+
+
+% \subsection{Quantum Computing}
+
+% \subsubsection{Qubit States}
+
+% A \emph{qubit} is the quantum analog to a classical bit (i.e., 0 or 1) that has a complex state represented by a 2-dimensional unit vector within Hilbert space denoted by $\hilbert = \mathbb{C}^{2}$. We adopt Dirac notation to describe general qubit states as denoted by the ``ket'', $\ket{\psi} = \tran{\begin{bmatrix}\alpha & \beta\end{bmatrix}}$, where $\abs{\alpha}^{2} + \abs{\beta}^{2} = 1$, their conjugate transpose ``bra'', $\bra{\psi} = \conjtran{\ket{\psi}} = \begin{bmatrix}\conj{\alpha} & \conj{\beta}\end{bmatrix}$, the inner product $\braket{\psi_{1}}{\psi_{2}} = \conj{\alpha_{1}} \alpha_{2} + \conj{\beta_{1}} \beta_{2}$, and the outer product $\ketbra{\psi_{1}}{\psi_{2}} = \begin{bmatrix}\alpha_{1}\conj{\alpha_{2}} & \alpha_{1}\conj{\beta_{2}} \\ \beta_{1}\conj{\alpha_{2}} & \beta_{1}\conj{\beta_{2}}\end{bmatrix}$.
+% % 
+% A \emph{basis} is the set of states $\set{\ket{\psi_{i}}}_{i=0}^{2^{d}-1}, \forall \ket{\psi_{i}} \in \hilbert$ that are orthonormal to each other, i.e., $$. The computational basis, for example, is the set of states $\set{\ket{0} = \begin{bmatrix}1 & 0 \end{bmatrix}^{T}, \ket{1} = \begin{bmatrix}0 & 1 \end{bmatrix}^{T}}$
 
 
 
-\subsection{Quantum Computing}
-
+% \subsubsection{Measurement}
 
 % https://phys.libretexts.org/Bookshelves/Quantum_Mechanics/Advanced_Quantum_Mechanics_(Kok)/04%3A_Mixed_States_and_the_Density_Operator/4.03%3A_Imperfect_Measurements
 % 
@@ -140,7 +154,6 @@ Given an initial state of all zeros in the combined Hilbert space $\hilbert_{\ma
 \begin{equation}\label{eq:def:U_a}
 \paren*{U_{a} \otimes \mathbb{I}}
 % 
-% : \ket{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}} 
 : \ket{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}} 
 % 
 \to \sum_{a_i \in \mathcal{A}} \sum_{a_j \in \mathcal{A}} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_i, 0^{\otimes q_{\mathcal{Z}}}}.
@@ -173,7 +186,6 @@ In a quantum system with two Hilbert spaces $\hilbert_{\mathcal{A}} = \mathbb{C}
 \begin{equation}\label{eq:def:m_moment_expectation}
 M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}} (U_{a} \otimes \mathbb{I})
 % 
-% : \ket{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}} 
 : \ket{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}} 
 % 
 \to \frac{\sum_{a \in \mathcal{A}} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n} \ket{a,0^{\otimes q_{\mathcal{Z}}}}\bra{a,0^{\otimes q_{\mathcal{Z}}}}}{\sum_{a \in \mathcal{A}} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n}},
@@ -202,7 +214,6 @@ A comparison of the $m$-th moments can be done entirely in quantum space by firs
 We start with an initial state of all zeros across the two spaces in density matrix form as follows:
 % 
 \begin{equation}
-% \rho_{{\textrm{in}}} = \ket{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}}, 0^{\otimes q_{\mathcal{Z}}}}.
 \rho_{{\textrm{in}}} = \ket{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}.
 \end{equation}
 % 
@@ -210,7 +221,6 @@ We then prepare a quantum state representing the distribution of actions accordi
 % 
 \begin{equation}\label{eq:rho_0}
 U_{a} \rho_{{\textrm{in}}} U_{a}^{\dagger}
-% &= \paren[\Big]{\sum_{a_i} \sqrt{p(a_i)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}}} \paren[\Big]{\sum_{a_j} \sqrt{p(a_j)} \bra{a_j, 0^{\otimes q_{\mathcal{Z}}}}}
 = \sum_{a_i} \sum_{a_j} \sqrt{p(a_i) p(a_j)} \ket{a_i, 0^{\otimes q_{\mathcal{Z}}}} \bra{a_j, 0^{\otimes q_{\mathcal{Z}}}}
 = \rho_0
 \end{equation}
@@ -261,8 +271,6 @@ which we will refer to as $\rho_1$, where the subscript represents the number of
 
 Now, to correct the normalization on the return-atoms space, we apply a reset operation according to \cref{eq:def:reset} over the space of the return-atoms $\hilbert_{\mathcal{Z}}$ to collapse their qubits.
 % 
-% A reset operation projects the selection of qubits to the $\ket{0}$ state. We accomplish this by applying a mid-circuit measurement on the return-atom qubits ($\hilbert_{\mathcal{Z}}$) to collapse their state to to one of $\ket{z} \in \set{\ket{z}}_{z \in \mathcal{Z}}$ -- as is common in current quantum hardware -- and then apply a conditional correction to map $\ket{z} \to \ket{0}$ (e.g., a bit-flip operation if $z \in \set{0,1}$). Mathematically, we can represent this collapse as a measurement projection followed by a partial-trace over the $\hilbert_{\mathcal{Z}}$ space.
-% 
 Importantly, in this setting we do not care about the measurement result, only the collapse is desired.
 % 
 So, applying this to our \ac{drl} setting, we can resume from $\rho_1$ and reset the return-atom qubits in the following manner. We define the set of projectors $\Pi = \{ \mathbb{I}\otimes\ket{z}\bra{z} \}_{z\in \mathcal{Z}}$, which covers all possible return-atom outcomes while doing nothing to the action space, and then apply these projectors as a \emph{partial} measurement on $\rho_1$ according to \cref{eq:def:measurement} as follows. First, we compute the operator-sum representation
@@ -279,17 +287,16 @@ followed by the normalization factor
 %
 \begin{align}
 \bfunc{\textrm{tr}}{\bfunc{\mathcal{E}_{\mathcal{Z}}}{\rho_1}}
-    &= \sum_{z} \sum_{a} \sqrt{p(a) p(z \given a) v_{z}^{m} p(a) p(z \given a) v_{z}^{m}}
-    \\&~~~~~\textrm{(Sum along diagonal collapses where} ~ a_i=a_k=a \textrm{)} \nonumber
-    \\&= \sum_{z} \sum_{a} p(a) p(z \given a) v_{z}^{m}
-    \\&= \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m}
-    \\&= \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a},
-    \\&~~~~~\textrm{(By definition of the expectation of a random variable)} \nonumber
+&= \sum_{z} \sum_{a} \sqrt{p(a) p(z \given a) v_{z}^{m} p(a) p(z \given a) v_{z}^{m}}
+\\&~~~~~\textrm{(Sum along diagonal collapses where} ~ a_i=a_k=a \textrm{)} \nonumber
+\\&= \sum_{z} \sum_{a} p(a) p(z \given a) v_{z}^{m}
+\\&= \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m}
+\\&= \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a},
+\\&~~~~~\textrm{(By definition of the expectation of a random variable)} \nonumber
 \end{align}
 %
 which produces the normalized mixed density matrix
 %
-% \phantom{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}
 \begin{align}
 \bfunc{M_{\mathcal{Z}}}{\rho_1}
 &= \frac{\bfunc{\mathcal{E}_{\mathcal{Z}}}{\rho_1}}{\bfunc{\textrm{tr}}{\bfunc{\mathcal{E}_{\mathcal{Z}}}{\rho_1}}}
@@ -324,8 +331,6 @@ If at this point we were to stop and measure the action qubits using projectors 
 % 
 \begin{align}
 \bfunc{\mathcal{E}_{\mathcal{A}}}{\tilde{\rho_1}}
-% &= \bfunc{\mathcal{E}_{\mathcal{A}}}{\bfunc{\textrm{tr}_{\mathcal{Z}}}{{\rho'}_1}}
-% \\&~~~~~\textrm{(Note that inclusion of partial trace is for formal removal of return-atom space)}\nonumber
 &= \sum_{a} \Pi_a \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\rho'}_1} \Pi^{\dagger}_a
 \\&= \sum_{a} \ket{a}\bra{a} \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\rho'}_1} \ket{a}\bra{a}
 % 
@@ -353,8 +358,6 @@ producing the normalized state
 \\&= \paren*{\frac{1}{(\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}} \cdot (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a} \ket{a}\bra{a}
 \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a} \ket{a}\bra{a}.
 \end{align}
-% 
-% Notice that because the state was normalized when creating ${\rho'}_1$ this state when measuring $a$ was already normalized, but for completeness we complete the process again here.
 % 
 This means that the probability of measuring an arbitrary action $a_i$ according to \cref{eq:def:measurement_outcome_prob} is
 % 
@@ -398,7 +401,6 @@ We then apply the reset operation to the return-atoms space by first applying re
 \begin{align}
 &\bfunc{\mathcal{E}_{\mathcal{Z}}}{\rho_2}
 \\&= \sum_{z} \Pi_z \rho_2 \Pi^{\dagger}_z
-% \\&= \sum_{z} \paren*{\mathbb{I}\otimes\ket{z}\bra{z}} \rho_2 \paren*{\mathbb{I}\otimes\ket{z}\bra{z}}
 \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i, z}\bra{a_k, z},
 \\&~~~~~\textrm{(Collapses where}~ z_w = z_t = z ~\textrm{)}\nonumber
 \end{align}
@@ -407,14 +409,14 @@ which has the normalization factor
 % 
 \begin{align}
 \bfunc{\textrm{tr}}{\bfunc{\mathcal{E}_{\mathcal{Z}}}{\rho_2}}
-    &= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a) p(z_q \given a) v_{z_q}^{m} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m} p(z \given a) v_{z}^{m}}
-    \\&~~~~~\textrm{(Sum along diagonal collapses where}~ a_i = a_k = a ~\textrm{)}\nonumber
-    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m}
-    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \sum_{z_q} p(z_q \given a) v_{z_q}^{m}
-    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \paren[\Big]{\sum_{z} p(z \given a) v_{z}^{m}}^2
-    \\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}\nonumber
-    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2.
-    \\&~~~~~\textrm{(By definition of the expectation of a random variable)}.\nonumber
+&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a} \sqrt{p(a) p(z_q \given a) v_{z_q}^{m} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m} p(z \given a) v_{z}^{m}}
+\\&~~~~~\textrm{(Sum along diagonal collapses where}~ a_i = a_k = a ~\textrm{)}\nonumber
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{z} \sum_{z_q} \sum_{a} p(a) p(z_q \given a) v_{z_q}^{m} p(z \given a) v_{z}^{m}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \sum_{z} p(z \given a) v_{z}^{m} \sum_{z_q} p(z_q \given a) v_{z_q}^{m}
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \paren[\Big]{\sum_{z} p(z \given a) v_{z}^{m}}^2
+\\&~~~~~\textrm{(Both return-atom sums are identical, i.e.,}~ z = z_q ~\textrm{)}\nonumber
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}}) \cdot \sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2.
+\\&~~~~~\textrm{(By definition of the expectation of a random variable)}.\nonumber
 \end{align}
 % 
 Thus the normalized density matrix according to \cref{eq:def:measurement} is
@@ -431,8 +433,8 @@ Tracing out the return-atoms system gives
 % 
 \begin{align}
 \bfunc{\textrm{tr}_{\mathcal{Z}}}{{\rho'}_2}
-    &= \sum_{z} (\mathbb{I}\otimes\bra{z}) {\rho'}_2 (\mathbb{I}\otimes\ket{z})
-    \\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k},
+&= \sum_{z} (\mathbb{I}\otimes\bra{z}) {\rho'}_2 (\mathbb{I}\otimes\ket{z})
+\\&= (\frac{1}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}) \cdot \sum_{z} \sum_{z_q} \sum_{a_i} \sum_{a_k} \sqrt{p(a_i) p(z_q \given a_i) v_{z_q}^{m} p(a_k) p(z_q \given a_k) v_{z_q}^{m} p(z \given a_i) v_{z}^{m} p(z \given a_k) v_{z}^{m}} \ket{a_i}\bra{a_k},
 \end{align}
 % 
 and the final system state after applying the reset operation according to \cref{eq:def:reset} is therefore
@@ -478,8 +480,6 @@ and the probability of measuring an arbitrary action $a_i$ according to \cref{eq
 \bfunc{P}{\ket{a_i}} = \frac{p(a_i) \overbrace{\bfunc{\mathbb{E}}{Z^{m} \given a_i}^{2}}^{\textrm{exponent $n=2$}}}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^2}.
 \end{equation}
 % 
-% which is the normalized weighted squared expectation of return atoms for the chosen action $a_i$ relative to all other actions.
-% 
 Notice that the exponent of the expectation, in this case $n=2$, matches the number of times the operation $\textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}$ has been applied to the input state, as indicated by the subscript of $\rho_2$. 
 % 
 We have therefore shown that we can also control the exponent of the expectation in the resulting probability distribuion through the number of cascades of $\textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}$.
@@ -488,7 +488,6 @@ Formally, we define this cascaded quantum measurement operation over the joint a
 % 
 \begin{equation}\label{eq:result}
 M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}} (U_{a} \otimes \mathbb{I})
-% : \ket{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}}},0^{\otimes q_{\mathcal{Z}}}} 
 : \ket{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}}\bra{0^{\otimes q_{\mathcal{A}} + q_{\mathcal{Z}}}} 
 \to \frac{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n} \ket{a,0^{\otimes q_{\mathcal{Z}}}}\bra{a,0^{\otimes q_{\mathcal{Z}}}}}{\sum_{a} p(a) \bfunc{\mathbb{E}}{Z^{m} \given a}^{n}},
 \end{equation}
@@ -496,8 +495,6 @@ M_{a} \paren*{\prod_{n} \textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otime
 which pushes an initial all-zero state to a superposition of action states, where the probability of measuring any given action is the \emph{normalized weighted $m$-th moment expectation of return-atoms raised to the power of $n$, for any given action $a_i$ relative to all other actions $\mathcal{A} \setminus \{a_i\}$}.
 % 
 Hence, we have shown that the computation and comparison of the $m$-th moment of the return-atom distributions conditioned on the action space can be parallelized entirely in the combined quantum space $\hilbert_{\mathcal{A}} \otimes \hilbert_{\mathcal{Z}}$ using \cref{eq:result}, without needing to swap to classical computation.
-% 
-% Hence, we show that there is a direct relationship between the number of times $\textrm{Reset}_{z} \bparen*{\prod_{m} (\mathbb{I} \otimes U_{v \given z})} U_{z \given a}$ has been applied and the exponent of the return-atom $m$-th moment expectation, which in this case is $n=2$.
 \end{proof}
 
 \Cref{thm:m_moment_expectation} is pertinent to applications in both \ac{drl}, and also broader statistical analysis settings, because it allows for comparison of the moments of many random variables within quantum space -- that is, the entire operation is completely quantum, without the need for encoding/decoding into the classical space mid-way through the algorithm, which is both expensive and error prone due to stochastic noise. Specifically, the permier result of \cref{thm:m_moment_expectation} is its application in a more general class of nested distributional settings -- that is, \emph{distributions over distributions}. To be precise, our \ac{drl} setting can indeed be more generally described as a \emph{nested distribution of actions $\mathcal{A}$ over a distribution of returns $\mathcal{Z}$}.
@@ -514,11 +511,13 @@ Consider another example where instead we are interested in the similarity in ex
 
 As another example, consider the comparison of the 2nd moments of the returns distribution. Selecting $m=2$ with low $n$ one can sample the circuit many times to generate the distribution $\set*{\frac{p(a_i)\bfunc{\mathbb{E}}{Z^{2} \given a_i}}{\sum_{a \in \mathcal{A}} p(a)\bfunc{\mathbb{E}}{Z^{2} \given a}}}_{a_i \in \mathcal{A}}$, which can then be used for explorative post-selection by the agent.
 
-\section{Proof of upper bound for cascaded amplitude kickback}
+% -----------------------
+% \section{Proof of upper bound for cascaded amplitude kickback}
 
-Lower part of upper bound range is $1/\abs{\mathcal{A}}$ (smallest the max value can be). Upper part of range will be some equation related to $n$, and as $n$ tends to infinity the upper part will approach $1$. Upper part will be highly dependant on the initial distribution (wider initial spread will result in lower $n$, narrow spread will need higher $n$).
+% Lower part of upper bound range is $1/\abs{\mathcal{A}}$ (smallest the max value can be). Upper part of range will be some equation related to $n$, and as $n$ tends to infinity the upper part will approach $1$. Upper part will be highly dependant on the initial distribution (wider initial spread will result in lower $n$, narrow spread will need higher $n$).
 
-TODO: How many iterations $n$ until the upper bound approaches $1$?
+% TODO: How many iterations $n$ until the upper bound approaches $1$?
+% -----------------------
 
 % https://math.stackexchange.com/questions/386360/upper-bound-on-a-probability-generating-function-with-a-finite-first-moment
 
