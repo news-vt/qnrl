@@ -66,9 +66,10 @@
 \newcommand{\conjtran}[1]{#1^{\dagger}} % Complex conjugate transpose.
 \newcommand{\tran}[1]{#1^{T}} % Transpose
 
-\DeclareMathDelimiter{\given}{\mathbin}{symbols}{"6A}{largesymbols}{"0C} % a \given b = a | b
+% \DeclareMathDelimiter{\given}{\mathbin}{symbols}{"6A}{largesymbols}{"0C} % a \given b = a | b
 % \renewcommand{\given}{\;\delimsize\vert\nonscript\;\mathopen{}}
-% \newcommand\given[1][]{\:#1\vert\:}
+\newcommand{\given}[1][]{\:#1\vert\:}
+% \newcommand{\given}[][]{;}
 
 
 \begin{document}
@@ -243,17 +244,11 @@ We therefore define an operator over the return-atoms Hilbert space $\hilbert_{\
 % 
 \begin{equation}\label{eq:U_v_z}
 U_{v \given z} 
-= \sum_{z \in \mathcal{Z}} \sqrt{v_z} \ket{z}\bra{z}
-= \begin{bmatrix}
-\sqrt{v_0} & 0 & 0 & \cdots \\
-0 & \sqrt{v_1} & 0 &  \\
-0 & 0 & \sqrt{v_2} &  \\
-\vdots &  &  & \ddots
-\end{bmatrix},
+= \sum_{z \in \mathcal{Z}} \sqrt{v_z} \ket{z}\bra{z},
 ~ \forall \set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}, ~\textrm{s.t.}~ \sum_{z \in \mathcal{Z}} v_z = 1,
 \end{equation}
 % 
-which is both diagonal and self-adjoint (i.e., Hermitian), where $\set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}$ is a probability generating function such that $\sum_{z} v_z = 1$, i.e., the return-atom values form a probability distribution. For example, one choice of $\pfunc{G}{\mathcal{Z}}$ could be the softmax function, $\pfunc{\textrm{softmax}}{\mathcal{Z}} = \frac{\sum_{z \in \mathcal{Z}} \pfunc{\exp}{z}}{\sum_{z \in \mathcal{Z}} \pfunc{\exp}{z}}$. Because the return-atom values are real, and form a probability distribution, we have that $U_{v \given z}$ is both \emph{completely positive} and $U_{v \given z}^{\dagger} U_{v \given z} \leq \mathbb{I}$, i.e., \emph{trace non-increasing}, which means that $U_{v \given z}$ is a valid Kraus operator and can therefore be implemented on quantum hardware.
+which is both diagonal in the $\mathcal{Z}$ basis, and self-adjoint (i.e., Hermitian), where $\set{v_{z}}_{z \in \mathcal{Z}} = \pfunc{G}{\mathcal{Z}}$ is a probability generating function such that $\sum_{z} v_z = 1$, i.e., the return-atom values form a probability distribution. For example, one choice of $\pfunc{G}{\mathcal{Z}}$ could be the softmax function, $\pfunc{\textrm{softmax}}{\mathcal{Z}} = \frac{\sum_{z \in \mathcal{Z}} \pfunc{\exp}{z}}{\sum_{z \in \mathcal{Z}} \pfunc{\exp}{z}}$. Because the return-atom values are real, and form a probability distribution, we have that $U_{v \given z}$ is both \emph{completely positive} and $U_{v \given z}^{\dagger} U_{v \given z} \leq \mathbb{I}$, i.e., \emph{trace non-increasing}, which means that $U_{v \given z}$ is a valid Kraus operator and can therefore be implemented on quantum hardware.
 % 
 Notice that although $U_{v \given z}$ is self-adjoint, it is \emph{not unitary}. This means that the resulting state after applying $U_{v \given z}$ will not be normalized. This normalization, however, can be circumvented by applying a reset operation on the return-atom space, as we will see shortly.
 
