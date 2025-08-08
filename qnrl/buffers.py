@@ -1,0 +1,119 @@
+from dataclasses import dataclass
+import gymnasium as gym
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
+
+def get_observation_space_shape(observation_space: gym.spaces.Space):
+    if isinstance(observation_space, gym.spaces.Discrete):
+        return (1,)
+    elif isinstance(observation_space, gym.spaces.MultiDiscrete):
+        return (int(len(observation_space.nvec)),)
+    elif isinstance(observation_space, gym.spaces.Box):
+        return observation_space.shape
+    else:
+        raise NotImplementedError(f"{observation_space} observation space is not supported")
+
+
+def get_action_space_shape(action_space: gym.spaces.Space):
+    if isinstance(action_space, gym.spaces.Discrete):
+        return (1,)
+    elif isinstance(action_space, gym.spaces.MultiDiscrete):
+        return (int(len(action_space.nvec)),)
+    else:
+        raise NotImplementedError(f"{action_space} action space is not supported")
+
+
+@dataclass
+class ReplayBufferSlice:
+    observations: jax.Array
+    next_observations: jax.Array
+    actions: jax.Array
+    rewards: jax.Array
+    dones: jax.Array
+    idx: jax.Array # Indices of samples within original buffer.
+
+
+@dataclass # This allows the buffer to be displayed properly using `IPython.display`.
+class ReplayBuffer:
+    """Circular replay buffer written in JAX.
+    
+    Supports both `gym.Env` and `gym.vector.VectorEnv` environments.
+    
+    Inspired by: https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl_utils/buffers.py
+    """
+    observations: jax.Array
+    next_observations: jax.Array
+    actions: jax.Array
+    rewards: jax.Array
+    dones: jax.Array
+    
+    def __init__(self,
+        buffer_size: int,
+        env: gym.Env | gym.vector.VectorEnv,
+        ):
+        super().__init__()
+        self.idx = 0 # Index within buffer.
+        self.is_full = False # Indicates if the buffer has reached full capacity, also indicates when circular replacement is used.
+        self.buffer_size = buffer_size
+        
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
+        self.observation_shape = get_observation_space_shape(self.observation_space)
+        self.action_shape = get_action_space_shape(self.action_space)
+        # Create sub-buffers for each environment element.
+        if isinstance(env, gym.vector.VectorEnv):
+            self.num_envs = env.num_envs
+            self.observations = jnp.zeros(shape=(self.buffer_size, *self.observation_shape), dtype=self.observation_space.dtype)
+        else:
+            self.num_envs = 1
+            self.observations = jnp.zeros(shape=(self.buffer_size, self.num_envs, *self.observation_shape), dtype=self.observation_space.dtype)
+        self.next_observations = jnp.zeros_like(self.observations)
+        self.actions = jnp.zeros(shape=(self.buffer_size, *self.action_shape), dtype=self.action_space.dtype)
+        self.rewards = jnp.zeros(shape=(self.buffer_size, self.num_envs), dtype=jnp.float32)
+        self.dones = jnp.zeros(shape=(self.buffer_size, self.num_envs), dtype=bool)
+    
+    def add(self,
+        observation: jax.Array,
+        next_observation: jax.Array,
+        action: jax.Array,
+        reward: jax.Array,
+        done: jax.Array,
+        ):
+        """Insert an environment interaction onto the buffer in circular fashion."""
+        
+        # Add elements onto buffer.
+        self.observations = self.observations.at[self.idx].set(jnp.asarray(observation).reshape((*self.observations.shape[1:],)))
+        self.next_observations = self.next_observations.at[self.idx].set(jnp.asarray(next_observation).reshape((*self.observations.shape[1:],)))
+        self.actions = self.actions.at[self.idx].set(jnp.asarray(action).reshape((*self.actions.shape[1:],)))
+        self.rewards = self.rewards.at[self.idx].set(jnp.asarray(reward).reshape((*self.rewards.shape[1:],)))
+        self.dones = self.dones.at[self.idx].set(jnp.asarray(done).reshape((*self.dones.shape[1:],)))
+        
+        self.idx += 1 # Increment buffer index.
+        if self.idx >= self.buffer_size:
+            self.is_full = True # Indicate that the buffer has reached capacity.
+            self.idx = 0 # Reset index if buffer is full (circular buffer).
+    
+    def sample(self, key: ArrayLike, batch_size: int):
+        """Collect randomized samples from the buffer."""
+        key, subkey = jax.random.split(key) # Generate a new random key, use `subkey` for calls to jax.random, preserve `self.key` for future splits.
+        if self.is_full:
+            idx_batch = (jax.random.randint(subkey, shape=(batch_size,), minval=1, maxval=self.buffer_size) + self.idx) % self.buffer_size
+        else:
+            idx_batch = jax.random.randint(subkey, shape=(batch_size,), minval=0, maxval=self.idx)
+        
+        # Return a sample of the batched elements.
+        return self[idx_batch]
+    
+    def __getitem__(self, idx: int | list[int] | ArrayLike):
+        """Access a sample of the buffer via index notation."""
+        data = (
+            self.observations[idx],
+            self.next_observations[idx],
+            self.actions[idx],
+            self.rewards[idx],
+            self.dones[idx],
+            jnp.asarray(idx).flatten(),
+        )
+        return ReplayBufferSlice(*data)
