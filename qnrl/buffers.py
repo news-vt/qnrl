@@ -75,6 +75,16 @@ class ReplayBuffer:
         self.rewards = jnp.zeros(shape=(self.buffer_size, self.num_envs), dtype=jnp.float32)
         self.dones = jnp.zeros(shape=(self.buffer_size, self.num_envs), dtype=bool)
     
+    def reset(self):
+        """Reinitialize the buffer with all zeroes."""
+        self.idx = 0 # Index within buffer.
+        self.is_full = False # Indicates if the buffer has reached full capacity, also indicates when circular replacement is used.
+        self.observations = jnp.zeros_like(self.observations)
+        self.next_observations = jnp.zeros_like(self.next_observations)
+        self.actions = jnp.zeros_like(self.actions)
+        self.rewards = jnp.zeros_like(self.rewards)
+        self.dones = jnp.zeros_like(self.dones)
+    
     def add(self,
         observation: jax.Array,
         next_observation: jax.Array,
