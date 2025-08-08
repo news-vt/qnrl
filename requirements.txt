@@ -4,7 +4,7 @@ jax==0.4.28 # Freeze version for compatibility with PennyLane.
 jaxlib==0.4.28 # Freeze version for compatibility with PennyLane.
 matplotlib
 numpy
-pennylane
+pennylane~=0.42.0 # Freeze version for compatibility.
 qiskit
 scipy
 seaborn
