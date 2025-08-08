@@ -27,6 +27,7 @@ def get_action_space_shape(action_space: gym.spaces.Space):
 
 @dataclass
 class ReplayBufferSlice:
+    """Collection of elements from a replay buffer."""
     observations: jax.Array
     next_observations: jax.Array
     actions: jax.Array
