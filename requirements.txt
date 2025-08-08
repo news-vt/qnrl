@@ -1,3 +1,4 @@
+flax
 ipykernel
 jax==0.4.28 # Freeze version for compatibility with PennyLane.
 jaxlib==0.4.28 # Freeze version for compatibility with PennyLane.
