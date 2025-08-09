@@ -33,14 +33,15 @@ class ReplayBufferSlice:
     actions: jax.Array
     rewards: jax.Array
     dones: jax.Array
-    idx: jax.Array # Indices of samples within original buffer.
 
 
 @dataclass # This allows the buffer to be displayed properly using `IPython.display`.
 class ReplayBuffer:
     """Circular replay buffer written in JAX.
     
-    Supports both `gym.Env` and `gym.vector.VectorEnv` environments.
+    Supports both `gym.Env` and `gym.vector.VectorEnv` environments, the latter used for sample diversification.
+    
+    In the case of a `gym.vector.VectorEnv`, the environment axis within the buffer shape `(buffer_size, num_envs, ...)` is also treated as a random sample index, along with the buffer size axis. This means sampling a minibatch will generate random indices from both `buffer_size` and `num_envs` axes, resulting in a sample with shape `(batch_size, ...)`.
     
     Inspired by: https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl_utils/buffers.py
     """
@@ -108,16 +109,21 @@ class ReplayBuffer:
     
     def sample(self, key: ArrayLike, batch_size: int):
         """Collect randomized samples from the buffer."""
+        # Collect random batch indices.
         key, subkey = jax.random.split(key) # Generate a new random key, use `subkey` for calls to jax.random, preserve `self.key` for future splits.
         if self.is_full:
             idx_batch = (jax.random.randint(subkey, shape=(batch_size,), minval=1, maxval=self.buffer_size) + self.idx) % self.buffer_size
         else:
             idx_batch = jax.random.randint(subkey, shape=(batch_size,), minval=0, maxval=self.idx)
+
+        # Collect random environment indices.
+        key, subkey = jax.random.split(key) # Generate a new random key, use `subkey` for calls to jax.random, preserve `self.key` for future splits.
+        idx_env = jax.random.randint(subkey, shape=(len(idx_batch),), minval=0, maxval=self.num_envs)
         
         # Return a sample of the batched elements.
-        return self[idx_batch]
+        return self[idx_batch, idx_env]
     
-    def __getitem__(self, idx: int | list[int] | ArrayLike):
+    def __getitem__(self, idx: int | list[int] | tuple[ArrayLike, ...] | ArrayLike):
         """Access a sample of the buffer via index notation."""
         data = (
             self.observations[idx],
@@ -125,6 +131,5 @@ class ReplayBuffer:
             self.actions[idx],
             self.rewards[idx],
             self.dones[idx],
-            jnp.asarray(idx).flatten(),
         )
         return ReplayBufferSlice(*data)
