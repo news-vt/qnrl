@@ -5,7 +5,7 @@ Experience replay samples a minibatch of environment transitions from a replay b
 Fixed target freezes the target Q-network for a set number of steps, after which it resets the target using the current policy model parameters.
 
 Reference:
-    Mnih, Volodymyr, et al. “Human-Level Control through Deep Reinforcement Learning.” Nature, vol. 518, no. 7540, Feb. 2015, pp. 529–33, https://doi.org/10.1038/nature14236.
+    V. Mnih et al., “Human-level control through deep reinforcement learning,” Nature, vol. 518, no. 7540, pp. 529–533, Feb. 2015, doi: 10.1038/nature14236.
 """
 import gymnasium as gym
 import jax

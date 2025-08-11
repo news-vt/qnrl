@@ -3,7 +3,7 @@
 Distributional reinforcement learning variant of DQN.
 
 Reference:
-    Bellemare, Marc G., et al. “A Distributional Perspective on Reinforcement Learning.” Proceedings of the 34th International Conference on Machine Learning, edited by Doina Precup and Yee Whye Teh, vol. 70, PMLR, 2017, pp. 449–58, https://doi.org/10.48550/arXiv.1707.06887.
+    M. G. Bellemare, W. Dabney, and R. Munos, “A distributional perspective on reinforcement learning,” in Proceedings of the 34th international conference on machine learning, D. Precup and Y. W. Teh, Eds., in Proceedings of machine learning research, vol. 70. PMLR, Aug. 2017, pp. 449–458. doi: 10.48550/arXiv.1707.06887.
 """
 import gymnasium as gym
 import jax
@@ -84,7 +84,8 @@ def update(
     b = (tz - z_min) / dz
     l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
     u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
-    dml = (u - b) * next_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
+    # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dml = ((u + (l == u).astype(u.dtype)) - b) * next_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
     dmu = (b - l) * next_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
     
     def project_to_bins(target_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
