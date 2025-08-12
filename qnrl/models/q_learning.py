@@ -1,8 +1,11 @@
+from dataclasses import dataclass, field
+
 from flax import nnx
 import jax.numpy as jnp
 
 # See save/load example: https://github.com/google/flax/blob/main/examples/nnx_toy_examples/08_save_load_checkpoints.py
 
+@dataclass(kw_only=True)
 class QNetworkLinear(nnx.Module):
     """Q-Learning network with linear layers.
     
@@ -18,7 +21,13 @@ class QNetworkLinear(nnx.Module):
         rngs (nnx.Rngs): JAX RNG.
         douts (list[int], optional): Intermediate (middle) layer output dimensions. Defaults to [].
     """
-    def __init__(self, din: int, num_actions: int, *, rngs: nnx.Rngs, douts: list[int] = []):
+    din: int
+    num_actions: int
+    rngs_kwargs: dict[str, int]
+    douts: list[int] = field(default_factory=list)
+    
+    def __init__(self, din: int, num_actions: int, *, rngs_kwargs: dict[str, int], douts: list[int] = []):
+        rngs: nnx.Rngs = nnx.Rngs(**rngs_kwargs)
         dims = [din, *douts, num_actions]
         din_dout = list(zip(dims[:-1], dims[1:]))
         self.layers = [
@@ -28,6 +37,7 @@ class QNetworkLinear(nnx.Module):
         self.din = din
         self.num_actions = num_actions
         self.douts = douts
+        self.rngs_kwargs = rngs_kwargs
     
     @nnx.jit
     def __call__(self, x):
@@ -39,7 +49,7 @@ class QNetworkLinear(nnx.Module):
         x = self.layers[-1](x)
         return x
 
-
+@dataclass(kw_only=True)
 class DistQNetworkLinear(nnx.Module):
     """Distributional Q-learning network with linear layers.
     
@@ -61,6 +71,11 @@ class DistQNetworkLinear(nnx.Module):
     Reference:
         M. G. Bellemare, W. Dabney, and R. Munos, “A distributional perspective on reinforcement learning,” in Proceedings of the 34th international conference on machine learning, D. Precup and Y. W. Teh, Eds., in Proceedings of machine learning research, vol. 70. PMLR, Aug. 2017, pp. 449–458. doi: 10.48550/arXiv.1707.06887.
     """
+    din: int
+    num_actions: int
+    num_atoms: int
+    douts: list[int] = field(default_factory=list)
+
     def __init__(self,
         din: int,
         num_actions: int,
