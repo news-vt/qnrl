@@ -2,12 +2,15 @@ import sys
 import os
 from dataclasses import dataclass, field
 import pathlib
-from typing import Any, Callable, Optional, Union, Annotated, TypeAlias, Type
+from typing import Any, Callable, Optional, Union, Annotated, TypeAlias, Type, ClassVar, Literal
 import datetime
 import json
 import yaml
+import json
+import enum
 
 import jax
+import jax.numpy as jnp
 from flax import nnx
 from flax.training import orbax_utils
 import optax
@@ -19,41 +22,27 @@ from mashumaro.types import Discriminator
 
 from .. import algorithms
 from .. import tools
-from ..models.q_learning import QNetworkLinear
+from ..models.q_learning import QNetworkLinear, DistQNetworkLinear
 
 
-@dataclass
-class RngsConfig:
-    """Config for `jax.nnx.Rngs`."""
-    default: int | list[int]
-    rngs: dict[str, int | list[int] | dict[str, int | list[int]]] | None = None
+SupportedDQNModels: TypeAlias = QNetworkLinear
+SupportedC51Models: TypeAlias = DistQNetworkLinear
 
-    def make(self) -> nnx.Rngs:
-        rngs = (self.rngs if self.rngs is not None else {})
-        return nnx.Rngs(default=self.default, **rngs)
+class OptimizerIdentifier(enum.StrEnum):
+    adam = "adam"
+    sgd = "sgd"
 
-@dataclass
-class QNetworkLinearConfig:
-    """Config for `qnrl.models.q_learning.QNetworkLinear`."""
-    din: int
-    num_actions: int
-    # rngs: RngsConfig
-    rngs: int
-    douts: list[int] = field(default_factory=list)
+@dataclass(kw_only=True)
+class Optimizer:
+    optimizer_id: OptimizerIdentifier
     
-    def make(self) -> 'QNetworkLinear':
-        return QNetworkLinear(
-            din=self.din,
-            num_actions=self.num_actions,
-            # rngs=self.rngs.make(),
-            rngs=nnx.Rngs(self.rngs),
-            douts=self.douts,
-        )
+    def make(self) -> optax.GradientTransformationExtraArgs:
+        raise NotImplementedError
 
-
-@dataclass
-class AdamOptimizerConfig:
+@dataclass(kw_only=True)
+class Adam:
     """Config for `optax.adam`."""
+    optimizer_id: tyro.conf.Fixed[OptimizerIdentifier] = OptimizerIdentifier.adam
     learning_rate: float
     b1: float = 0.9
     b2: float = 0.999
@@ -73,7 +62,28 @@ class AdamOptimizerConfig:
             nesterov=self.nesterov,
         )
 
-@dataclass
+@dataclass(kw_only=True)
+class SGD:
+    """Config for `optax.sgd`."""
+    optimizer_id: tyro.conf.Fixed[OptimizerIdentifier] = OptimizerIdentifier.sgd
+    learning_rate: float
+    momentum: Optional[float] = None
+    nesterov: bool = False
+    accumulator_dtype: Optional[Any] = None
+    
+    def make(self) -> optax.GradientTransformationExtraArgs:
+        return optax.sgd(
+            learning_rate=self.learning_rate,
+            momentum=self.momentum,
+            nesterov=self.nesterov,
+            accumulator_dtype=self.accumulator_dtype,
+        )
+
+SupportedOptimizers: TypeAlias = Union[Adam, SGD]
+
+
+
+@dataclass(kw_only=True)
 class GymConfig:
     """Config for `gymnasium.make`."""
     # Environment string name ID.
@@ -95,7 +105,7 @@ class GymConfig:
         )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CheckpointOptions:
     """Configuration for `orbax.checkpoint.CheckpointManagerOptions`."""
     save_interval_steps: int = 1
@@ -109,14 +119,14 @@ class CheckpointOptions:
             enable_async_checkpointing=self.enable_async_checkpointing,
         )
 
-@dataclass
+@dataclass(kw_only=True)
 class CheckpointConfig:
     """Checkpoint configuration."""
     checkpoint_dir: str | pathlib.Path
     checkpoint_options: CheckpointOptions
 
 
-@dataclass
+@dataclass(kw_only=True)
 class NoneConfig:
     """Empty configuration, mirrors behavior of `None`.
     
@@ -126,13 +136,32 @@ class NoneConfig:
     pass
 
 
-@dataclass
+class AlgorithmIdentifier(enum.StrEnum):
+    """Identifiers for each algorithm."""
+    DQN = "DQN"
+    C51 = "C51"
+
+
+@dataclass(kw_only=True)
 class TrainConfig(DataClassDictMixin):
-    """Configuration for `qnrl.algorithms.dqn.train`."""
+    """Configuration for one of the `qnrl.algorithm.*.train` methods.
+    
+    This class contains a `run()` method, that is intended to invoke the `qnrl.algorithm.*.train()` function, along with any other training procedures. The `run()` method will be called with no arguments.
+    """
     gym: GymConfig # Gymnasium environment configuration.
-    model_policy: QNetworkLinearConfig # Policy model configuration.
-    model_target: QNetworkLinearConfig # Target model configuration.
-    optimizer: AdamOptimizerConfig # Adam optimizer configuration.
+    algorithm: AlgorithmIdentifier
+    
+    def run(self):
+        raise NotImplementedError
+
+
+@dataclass(kw_only=True)
+class DQN(TrainConfig):
+    """Configuration for `qnrl.algorithms.dqn.train`."""
+    algorithm: tyro.conf.Fixed[AlgorithmIdentifier] = AlgorithmIdentifier.DQN # Identifier for algorithm.
+    model_policy: SupportedDQNModels # Policy model configuration.
+    model_target: SupportedDQNModels # Target model configuration.
+    optimizer: SupportedOptimizers
     buffer_size: int = 10_000
     seed: int = 0
     batch_size: int = 128
@@ -146,20 +175,201 @@ class TrainConfig(DataClassDictMixin):
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
     
+    metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
+    
     checkpoint: Union[
         Annotated[CheckpointConfig, tyro.conf.subcommand("checkpoint-on")],
         Annotated[NoneConfig, tyro.conf.subcommand("checkpoint-off")],
     ] = field(default_factory=NoneConfig) # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
+    
+    def run(self):
+        # Validate the metrics file path (if any).
+        if self.metrics_filepath is not None:
+            os.makedirs(self.metrics_filepath.parent, exist_ok=True)
+        
+        # Create the environment.
+        env = self.gym.make()
+        
+        # Create models.
+        model_policy = self.model_policy
+        model_target = self.model_target
+        
+        # Create optimizers.
+        optimizer = nnx.Optimizer(model_policy, self.optimizer.make(), wrt=nnx.Param)
+        
+        # Create checkpoint manager.
+        if isinstance(self.checkpoint, CheckpointConfig):
+            checkpoint_manager = ocp.CheckpointManager(
+                directory=os.path.abspath(self.checkpoint.checkpoint_dir),
+                checkpointers=ocp.PyTreeCheckpointer(),
+                options=self.checkpoint.checkpoint_options.make(),
+            )
+        else:
+            checkpoint_manager = None
+        
+        # Run the training algorithm.
+        history_list = algorithms.dqn.train(
+            seed=self.seed,
+            env=env,
+            model_policy=model_policy,
+            model_target=model_target,
+            optimizer=optimizer,
+            buffer_size=self.buffer_size,
+            batch_size=self.batch_size,
+            total_timesteps=self.total_timesteps,
+            learning_starts=self.learning_starts,
+            policy_update_frequency=self.policy_update_frequency,
+            target_update_frequency=self.target_update_frequency,
+            gamma=self.gamma,
+            tau=self.tau,
+            eps_start=self.eps_start,
+            eps_end=self.eps_end,
+            eps_exploration=self.eps_exploration,
+            checkpoint_manager=checkpoint_manager,
+        )
+        
+        # Convert to dictionary of lists.
+        history_dict = tools.listofdict_to_dictoflist(history_list)
+        # Save training results to file if indicated.
+        if self.metrics_filepath is not None:
+            save_train_results(filepath=self.metrics_filepath, d=history_dict)
 
+
+
+@dataclass(kw_only=True)
+class DQNCartPole(DQN):
+    """DQN configuration for CartPole-v1."""
+    model_policy: QNetworkLinear # Policy model configuration.
+    model_target: QNetworkLinear # Target model configuration.
+    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
+
+@dataclass(kw_only=True)
+class DQNMountainCar(DQN):
+    """DQN configuration for MountainCar-v0."""
+    model_policy: QNetworkLinear # Policy model configuration.
+    model_target: QNetworkLinear # Target model configuration.
+    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
+
+SupportedDQNConfigs: TypeAlias = Union[DQNCartPole, DQNMountainCar]
+
+
+
+@dataclass(kw_only=True)
+class C51(TrainConfig):
+    """Configuration for `qnrl.algorithms.c51.train`."""
+    algorithm: tyro.conf.Fixed[AlgorithmIdentifier] = AlgorithmIdentifier.C51 # Identifier for algorithm.
+    model_policy: DistQNetworkLinear # Policy model configuration.
+    model_target: DistQNetworkLinear # Target model configuration.
+    optimizer: SupportedOptimizers
+    num_atoms: int
+    z_min: float
+    z_max: float
+    buffer_size: int = 10_000
+    seed: int = 0
+    batch_size: int = 128
+    total_timesteps: int = 500_000
+    learning_starts: int = 10_000
+    policy_update_frequency: int = 10 # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
+    target_update_frequency: int = 500 # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    gamma: float = 0.99
+    tau: float = 1.0
+    eps_start: int = 1
+    eps_end: float = 5e-2
+    eps_exploration: float = 0.5
+    
     metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
+    
+    checkpoint: Union[
+        Annotated[CheckpointConfig, tyro.conf.subcommand("checkpoint-on")],
+        Annotated[NoneConfig, tyro.conf.subcommand("checkpoint-off")],
+    ] = field(default_factory=NoneConfig) # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
+    
+    def run(self):
+        # Validate the metrics file path (if any).
+        if self.metrics_filepath is not None:
+            os.makedirs(self.metrics_filepath.parent, exist_ok=True)
+        
+        # Create the environment.
+        env = self.gym.make()
+        
+        # Create models.
+        model_policy = self.model_policy
+        model_target = self.model_target
+        
+        # Create optimizers.
+        optimizer = nnx.Optimizer(model_policy, self.optimizer.make(), wrt=nnx.Param)
+        
+        # Create list of return atoms.
+        atoms = jnp.linspace(start=self.z_min, stop=self.z_max, num=self.num_atoms)
+        
+        # Create checkpoint manager.
+        if isinstance(self.checkpoint, CheckpointConfig):
+            checkpoint_manager = ocp.CheckpointManager(
+                directory=os.path.abspath(self.checkpoint.checkpoint_dir),
+                checkpointers=ocp.PyTreeCheckpointer(),
+                options=self.checkpoint.checkpoint_options.make(),
+            )
+        else:
+            checkpoint_manager = None
+        
+        # Run the training algorithm.
+        history_list = algorithms.c51.train(
+            seed=self.seed,
+            env=env,
+            atoms=atoms,
+            num_atoms=self.num_atoms,
+            z_min=self.z_min,
+            z_max=self.z_max,
+            model_policy=model_policy,
+            model_target=model_target,
+            optimizer=optimizer,
+            buffer_size=self.buffer_size,
+            batch_size=self.batch_size,
+            total_timesteps=self.total_timesteps,
+            learning_starts=self.learning_starts,
+            policy_update_frequency=self.policy_update_frequency,
+            target_update_frequency=self.target_update_frequency,
+            gamma=self.gamma,
+            tau=self.tau,
+            eps_start=self.eps_start,
+            eps_end=self.eps_end,
+            eps_exploration=self.eps_exploration,
+            checkpoint_manager=checkpoint_manager,
+        )
+        
+        # Convert to dictionary of lists.
+        history_dict = tools.listofdict_to_dictoflist(history_list)
+        # Save training results to file if indicated.
+        if self.metrics_filepath is not None:
+            save_train_results(filepath=self.metrics_filepath, d=history_dict)
 
 
-# @dataclass
+@dataclass(kw_only=True)
+class C51CartPole(C51):
+    """C51 configuration for CartPole-v1."""
+    model_policy: DistQNetworkLinear # Policy model configuration.
+    model_target: DistQNetworkLinear # Target model configuration.
+    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
+    
+
+@dataclass(kw_only=True)
+class C51MountainCar(C51):
+    """C51 configuration for MountainCar."""
+    model_policy: DistQNetworkLinear # Policy model configuration.
+    model_target: DistQNetworkLinear # Target model configuration.
+    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
+
+SupportedC51Configs: TypeAlias = Union[C51CartPole, C51MountainCar]
+
+
+
+
+# @dataclass(kw_only=True)
 # class EvalConfig(DataClassDictMixin):
 #     pass
 
 
-# @dataclass
+# @dataclass(kw_only=True)
 # class Config(DataClassDictMixin):
 #     mode: Annotated[Union[
 #         Annotated[TrainConfig, tyro.conf.subcommand("train", prefix_name=False)],
@@ -206,59 +416,74 @@ def load_model(path: str | pathlib.Path, model_create_func: Callable[[], nnx.Mod
     return restore_model(path, model) # Restore from checkpoint path state.
 
 
-def train(config: TrainConfig):
-    print(f"{config = }")
+# def train(config: TrainConfig):
+#     print(f"{config = }")
     
-    # Create the environment.
-    env = config.gym.make()
+#     # Create the environment.
+#     env = config.gym.make()
     
-    # Create models.
-    model_policy = config.model_policy.make()
-    model_target = config.model_target.make()
+#     # Create models.
+#     model_policy = config.model_policy.make()
+#     model_target = config.model_target.make()
     
-    # Create optimizers.
-    optimizer = nnx.Optimizer(model_policy, config.optimizer.make(), wrt=nnx.Param)
+#     # Create optimizers.
+#     optimizer = nnx.Optimizer(model_policy, config.optimizer.make(), wrt=nnx.Param)
     
-    # Create checkpoint manager.
-    if isinstance(config.checkpoint, CheckpointConfig):
-        checkpoint_manager = ocp.CheckpointManager(
-            directory=os.path.abspath(config.checkpoint.checkpoint_dir),
-            checkpointers=ocp.PyTreeCheckpointer(),
-            options=config.checkpoint.checkpoint_options.make(),
-        )
-    else:
-        checkpoint_manager = None
+#     # Create checkpoint manager.
+#     if isinstance(config.checkpoint, CheckpointConfig):
+#         checkpoint_manager = ocp.CheckpointManager(
+#             directory=os.path.abspath(config.checkpoint.checkpoint_dir),
+#             checkpointers=ocp.PyTreeCheckpointer(),
+#             options=config.checkpoint.checkpoint_options.make(),
+#         )
+#     else:
+#         checkpoint_manager = None
     
-    # print(f"{checkpoint_manager = }")
-    # return
+#     # print(f"{checkpoint_manager = }")
+#     # return
     
-    # Run the training algorithm.
-    history_list = algorithms.dqn.train(
-        seed=config.seed,
-        env=env,
-        model_policy=model_policy,
-        model_target=model_target,
-        optimizer=optimizer,
-        buffer_size=config.buffer_size,
-        batch_size=config.batch_size,
-        total_timesteps=config.total_timesteps,
-        learning_starts=config.learning_starts,
-        policy_update_frequency=config.policy_update_frequency,
-        target_update_frequency=config.target_update_frequency,
-        gamma=config.gamma,
-        tau=config.tau,
-        eps_start=config.eps_start,
-        eps_end=config.eps_end,
-        eps_exploration=config.eps_exploration,
-        checkpoint_manager=checkpoint_manager,
-    )
+#     # Run the training algorithm.
+#     history_list = algorithms.dqn.train(
+#         seed=config.seed,
+#         env=env,
+#         model_policy=model_policy,
+#         model_target=model_target,
+#         optimizer=optimizer,
+#         buffer_size=config.buffer_size,
+#         batch_size=config.batch_size,
+#         total_timesteps=config.total_timesteps,
+#         learning_starts=config.learning_starts,
+#         policy_update_frequency=config.policy_update_frequency,
+#         target_update_frequency=config.target_update_frequency,
+#         gamma=config.gamma,
+#         tau=config.tau,
+#         eps_start=config.eps_start,
+#         eps_end=config.eps_end,
+#         eps_exploration=config.eps_exploration,
+#         checkpoint_manager=checkpoint_manager,
+#     )
     
-    # Convert to dictionary of lists.
-    history_dict = tools.listofdict_to_dictoflist(history_list)
-    # Save training results to file if indicated.
-    if config.metrics_filepath is not None:
-        save_train_results(filepath=config.metrics_filepath, d=history_dict)
+#     # Convert to dictionary of lists.
+#     history_dict = tools.listofdict_to_dictoflist(history_list)
+#     # Save training results to file if indicated.
+#     if config.metrics_filepath is not None:
+#         save_train_results(filepath=config.metrics_filepath, d=history_dict)
 
+class DumpFormat(enum.StrEnum):
+    JSON = "JSON"
+    YAML = "YAML"
+
+
+@dataclass(kw_only=True)
+class Args(DataClassDictMixin):
+    # train_config: DQNCartPole
+    train_config: Union[
+        SupportedDQNConfigs,
+        SupportedC51Configs,
+        # DQNCartPole,
+        # C51CartPole,
+    ]
+    dump_config: DumpFormat | None = None
 
 
 if __name__ == "__main__":
@@ -270,16 +495,35 @@ if __name__ == "__main__":
     if argv and argv[0].endswith((".yaml", ".yml",)):
         with open(argv[0]) as f:
             yaml_config = yaml.safe_load(f) or {}
-        default_config = TrainConfig.from_dict(yaml_config)
+        default_config = Args.from_dict(yaml_config)
         argv = argv[1:]
     
     # Instantiate the CLI with defaults loaded from YAML file.
-    config = tyro.cli(TrainConfig, config=(tyro.conf.OmitSubcommandPrefixes,), args=argv, default=default_config)
+    # config = tyro.cli(TrainConfig, config=(tyro.conf.OmitSubcommandPrefixes,), args=argv, default=default_config)
+    # config = tyro.cli(Union[
+    #     TrainConfig,
+    #     DQN,
+    #     DQNCartPole,
+    # ], config=(tyro.conf.OmitSubcommandPrefixes,), args=argv, default=default_config)
     
-    print(f"{config = }")
     
-    # Run training algorithm.
-    train(config=config)
+    args = tyro.cli(Args, config=(tyro.conf.OmitSubcommandPrefixes,), args=argv, default=default_config)
+    
+    
+    if args.dump_config is not None:
+        print(f"{args.dump_config = }")
+        if args.dump_config == DumpFormat.YAML:
+            data = args.to_dict()
+            yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+            print(yaml_string)
+        elif args.dump_config == DumpFormat.JSON:
+            data = args.to_dict()
+            json_string = json.dumps(data, indent=2)
+            print(json_string)
+    else:
+        # Run training algorithm.
+        args.train_config.run()
+        # train(config=config)
     
     ###############
     
@@ -295,14 +539,14 @@ if __name__ == "__main__":
     #     model_policy=QNetworkLinearConfig(din=4, num_actions=2, rngs=42, douts=[120, 84]),
     #     model_target=QNetworkLinearConfig(din=4, num_actions=2, rngs=43, douts=[120, 84]),
     #     batch_size=128,
-    #     optimizer=AdamOptimizerConfig(learning_rate=2.5e-4),
+    #     optimizer=Adam(learning_rate=2.5e-4),
     # ))
     # default = TrainConfig(
     #     gym=GymConfig(env_id="CartPole-v1"),
     #     model_policy=QNetworkLinearConfig(din=4, num_actions=2, rngs=42, douts=[120, 84]),
     #     model_target=QNetworkLinearConfig(din=4, num_actions=2, rngs=43, douts=[120, 84]),
     #     batch_size=128,
-    #     optimizer=AdamOptimizerConfig(learning_rate=2.5e-4),
+    #     optimizer=Adam(learning_rate=2.5e-4),
     #     checkpoint=CheckpointConfig(
     #         checkpoint_dir="./checkpoints",
     #         checkpoint_options=CheckpointOptions(
