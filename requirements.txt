@@ -3,8 +3,10 @@ gymnasium
 ipykernel
 jax~=0.6.0 # Freeze version for compatibility with PennyLane.
 jaxlib~=0.6.0 # Freeze version for compatibility with PennyLane.
+mashumaro
 matplotlib
 numpy
+orbax-checkpoint~=0.11.0
 pennylane~=0.42.0 # Freeze version for compatibility.
 qiskit
 scipy
@@ -12,5 +14,3 @@ seaborn
 sympy
 tqdm
 tyro
-orbax-checkpoint~=0.11.0
-mashumaro
