@@ -12,3 +12,4 @@ seaborn
 sympy
 tqdm
 tyro
+orbax-checkpoint~=0.11.0
