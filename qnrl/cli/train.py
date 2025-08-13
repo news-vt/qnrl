@@ -19,6 +19,8 @@ import tyro
 import orbax.checkpoint as ocp
 from mashumaro.mixins.dict import DataClassDictMixin
 from mashumaro.types import Discriminator
+import rich
+import rich.pretty
 
 from .. import algorithms
 from .. import tools
@@ -373,6 +375,7 @@ SupportedC51Configs: TypeAlias = Union[C51CartPole, C51MountainCar]
 class DumpFormat(enum.StrEnum):
     JSON = enum.auto()
     YAML = enum.auto()
+    PRETTY = enum.auto()
 
 
 # MARK: CLI
@@ -392,10 +395,18 @@ if __name__ == "__main__":
     # Load config from YAML file.
     default_config = None
     argv = sys.argv[1:]
-    if argv and argv[0].endswith((".yaml", ".yml",)):
-        with open(argv[0]) as f:
-            yaml_config = yaml.safe_load(f) or {}
-        default_config = Args.from_dict(yaml_config)
+    if argv:
+        # Load from YAML.
+        if argv[0].endswith((".yaml", ".yml",)):
+            with open(argv[0]) as f:
+                config = yaml.safe_load(f) or {}
+        # Load from JSON.
+        elif argv[0].endswith((".json",)):
+            with open(argv[0]) as f:
+                config = json.load(f) or {}
+        
+        # Load the configuration object.
+        default_config = Args.from_dict(config)
         argv = argv[1:]
     
     # Instantiate the CLI with defaults loaded from YAML file.
@@ -403,15 +414,17 @@ if __name__ == "__main__":
     
     # Dump configuration to various formats.
     if args.dump_config is not None:
-        print(f"{args.dump_config = }")
-        if args.dump_config == DumpFormat.YAML:
-            data = args.to_dict()
-            yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
-            print(yaml_string)
-        elif args.dump_config == DumpFormat.JSON:
-            data = args.to_dict()
-            json_string = json.dumps(data, indent=2)
-            print(json_string)
+        match args.dump_config:
+            case DumpFormat.YAML:
+                data = args.to_dict()
+                yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                print(yaml_string)
+            case DumpFormat.JSON:
+                data = args.to_dict()
+                rich.print_json(data=data, indent=2)
+            case DumpFormat.PRETTY:
+                data = args.to_dict()
+                rich.pretty.pprint(data, expand_all=True)
     else:
         # Run training algorithm.
         args.train_config.run()
