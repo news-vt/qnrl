@@ -18,31 +18,33 @@ import gymnasium as gym
 import tyro
 import orbax.checkpoint as ocp
 from mashumaro.mixins.dict import DataClassDictMixin
+from mashumaro.config import BaseConfig
 from mashumaro.types import Discriminator
 import rich
 import rich.pretty
 
 from .. import algorithms
 from .. import tools
-from ..models.q_learning import QNetworkLinear, DistQNetworkLinear, QuantumQNetworkLinear
+from ..models.q_learning import QNetworkLinear, DistQNetworkLinear, QuantumQNetworkLinear, RescaleInput
 
 # MARK: Optimizers
 
-class OptimizerIdentifier(enum.StrEnum):
+class OptimizerTransformIdentifier(enum.StrEnum):
     ADAM = enum.auto()
-    SGD =enum.auto()
+    SGD = enum.auto()
+    PARTITION = enum.auto()
 
 @dataclass(kw_only=True)
-class Optimizer:
-    optimizer_id: OptimizerIdentifier
+class OptimizerTransform(DataClassDictMixin):
+    optimizer_tx_id: OptimizerTransformIdentifier
     
-    def make(self) -> optax.GradientTransformationExtraArgs:
+    def make(self, model: nnx.Module) -> optax.GradientTransformationExtraArgs:
         raise NotImplementedError
 
 @dataclass(kw_only=True)
-class Adam(Optimizer):
+class Adam(OptimizerTransform):
     """Config for `optax.adam`."""
-    optimizer_id: tyro.conf.Fixed[OptimizerIdentifier] = OptimizerIdentifier.ADAM
+    optimizer_tx_id: OptimizerTransformIdentifier = field(default=OptimizerTransformIdentifier.ADAM, init=False)
     learning_rate: float
     b1: float = 0.9
     b2: float = 0.999
@@ -51,7 +53,7 @@ class Adam(Optimizer):
     mu_dtype: Any = None
     nesterov: bool = False
     
-    def make(self) -> optax.GradientTransformationExtraArgs:
+    def make(self, model: nnx.Module) -> optax.GradientTransformationExtraArgs:
         return optax.adam(
             learning_rate=self.learning_rate,
             b1=self.b1,
@@ -63,15 +65,15 @@ class Adam(Optimizer):
         )
 
 @dataclass(kw_only=True)
-class SGD(Optimizer):
+class SGD(OptimizerTransform):
     """Config for `optax.sgd`."""
-    optimizer_id: tyro.conf.Fixed[OptimizerIdentifier] = OptimizerIdentifier.SGD
+    optimizer_tx_id: OptimizerTransformIdentifier = field(default=OptimizerTransformIdentifier.SGD, init=False)
     learning_rate: float
     momentum: Optional[float] = None
     nesterov: bool = False
     accumulator_dtype: Optional[Any] = None
     
-    def make(self) -> optax.GradientTransformationExtraArgs:
+    def make(self, model: nnx.Module) -> optax.GradientTransformationExtraArgs:
         return optax.sgd(
             learning_rate=self.learning_rate,
             momentum=self.momentum,
@@ -79,12 +81,43 @@ class SGD(Optimizer):
             accumulator_dtype=self.accumulator_dtype,
         )
 
-SupportedOptimizers: TypeAlias = Union[Adam, SGD]
+type NestedDictStr = dict[str, Union[str, NestedDictStr]]
+
+@dataclass(kw_only=True)
+class Partition(OptimizerTransform):
+    optimizer_tx_id: OptimizerTransformIdentifier = field(default=OptimizerTransformIdentifier.PARTITION, init=False)
+    # Optimizer transform for every parameter in the model. Keys should be the leaves of the model parameter tree (i.e., the name of each layer or `nnx.Param`).
+    transforms: dict[str, 'SupportedOptimizerTransforms'] = field(default_factory=dict)
+    pytree: NestedDictStr = field(default_factory=dict)
+    
+    # See: https://github.com/google-deepmind/optax/issues/1148#issuecomment-2515568364
+    def make(self, model: nnx.Module) -> optax.GradientTransformationExtraArgs:
+        # {transform_key_name: GradientTransformationExtraArgs}
+        transforms = {k: v.make(model) for k,v in self.transforms.items()}
+        # Get the model parameters.
+        params = nnx.state(model, nnx.Param)
+        is_param = lambda x: isinstance(x, nnx.Param)
+        # Get the leaves of model parameter tree.
+        # name_map_values = [k[0].key for k, _ in jax.tree.flatten_with_path(params, is_leaf=is_param)[0]]
+        # name_map_values = [k[-1].key for k, _ in jax.tree.flatten_with_path(params, is_leaf=is_param)[0]]
+        name_map_values = [v for _, v in jax.tree.flatten_with_path(self.pytree, is_leaf=is_param)[0]]
+        # print(f"{name_map_values = }")
+        # Assign transform keys to every leaf in the model parameter tree.
+        name_map = jax.tree.unflatten(jax.tree.structure(params, is_leaf=is_param), name_map_values)
+        # print(f"{name_map = }")
+        return optax.transforms.partition(
+            transforms=transforms,
+            param_labels=name_map,
+            # param_labels=nnx.State.replace_by_pure_dict(params, self.pytree),
+        )
+    
+
+SupportedOptimizerTransforms: TypeAlias = Union[Adam, SGD, Partition]
 
 
 # MARK: Environments
 @dataclass(kw_only=True)
-class GymConfig:
+class GymConfig(DataClassDictMixin):
     """Config for `gymnasium.make`."""
     # Environment string name ID.
     env_id: str
@@ -107,7 +140,7 @@ class GymConfig:
 # MARK: Checkpoints
 
 @dataclass(kw_only=True)
-class CheckpointOptions:
+class CheckpointOptions(DataClassDictMixin):
     """Configuration for `orbax.checkpoint.CheckpointManagerOptions`."""
     save_interval_steps: int = 1
     max_to_keep: int | None = None
@@ -121,7 +154,7 @@ class CheckpointOptions:
         )
 
 @dataclass(kw_only=True)
-class CheckpointConfig:
+class CheckpointConfig(DataClassDictMixin):
     """Checkpoint configuration."""
     checkpoint_dir: str | pathlib.Path
     checkpoint_options: CheckpointOptions
@@ -149,6 +182,7 @@ class AlgorithmIdentifier(enum.StrEnum):
 SupportedDQNModels: TypeAlias = Union[
     QuantumQNetworkLinear,
     QNetworkLinear,
+    RescaleInput,
 ]
 SupportedC51Models: TypeAlias = DistQNetworkLinear
 
@@ -159,21 +193,29 @@ class TrainConfig(DataClassDictMixin):
     
     This class contains a `run()` method, that is intended to invoke the `qnrl.algorithm.*.train()` function, along with any other training procedures. The `run()` method will be called with no arguments.
     """
+    name: str  = field(init=False) # Unique name for configuration.
     gym: GymConfig # Gymnasium environment configuration.
-    algorithm: AlgorithmIdentifier
+    algorithm: AlgorithmIdentifier = field(init=False)
     
     def run(self) -> dict:
         raise NotImplementedError
+    
+    class Config(BaseConfig):
+        discriminator = Discriminator(  # <- add discriminator
+            field="name",
+            include_subtypes=True,
+        )
 
 # MARK: DQN
 
 @dataclass(kw_only=True)
 class DQN(TrainConfig):
     """Configuration for `qnrl.algorithms.dqn.train`."""
-    algorithm: tyro.conf.Fixed[AlgorithmIdentifier] = AlgorithmIdentifier.DQN # Identifier for algorithm.
+    name: str = field(default='dqn', init=False)
+    algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.DQN, init=False) # Identifier for algorithm.
     model_policy: SupportedDQNModels # Policy model configuration.
     model_target: SupportedDQNModels # Target model configuration.
-    optimizer: SupportedOptimizers
+    optimizer: SupportedOptimizerTransforms
     buffer_size: int = 10_000
     seed: int = 0
     batch_size: int = 128
@@ -189,10 +231,7 @@ class DQN(TrainConfig):
     
     metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
     
-    checkpoint: Union[
-        Annotated[CheckpointConfig, tyro.conf.subcommand("checkpoint-on")],
-        Annotated[NoneConfig, tyro.conf.subcommand("checkpoint-off")],
-    ] = field(default_factory=NoneConfig) # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
+    checkpoint: CheckpointConfig | None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
     def run(self) -> dict:
         # Validate the metrics file path (if any).
@@ -207,7 +246,7 @@ class DQN(TrainConfig):
         model_target = self.model_target
         
         # Create optimizers.
-        optimizer = nnx.Optimizer(model_policy, self.optimizer.make(), wrt=nnx.Param)
+        optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)
         
         # Create checkpoint manager.
         if isinstance(self.checkpoint, CheckpointConfig):
@@ -253,11 +292,13 @@ class DQN(TrainConfig):
 @dataclass(kw_only=True)
 class DQNCartPole(DQN):
     """DQN configuration for CartPole-v1."""
+    name: str = field(default='dqn-cartpole-v1', init=False)
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
 
 @dataclass(kw_only=True)
 class DQNMountainCar(DQN):
     """DQN configuration for MountainCar-v0."""
+    name: str = field(default='dqn-mountaincar-v0', init=False)
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
 
 SupportedDQNConfigs: TypeAlias = Union[DQNCartPole, DQNMountainCar]
@@ -268,10 +309,11 @@ SupportedDQNConfigs: TypeAlias = Union[DQNCartPole, DQNMountainCar]
 @dataclass(kw_only=True)
 class C51(TrainConfig):
     """Configuration for `qnrl.algorithms.c51.train`."""
-    algorithm: tyro.conf.Fixed[AlgorithmIdentifier] = AlgorithmIdentifier.C51 # Identifier for algorithm.
+    name: str = field(default='c51', init=False)
+    algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.C51, init=False) # Identifier for algorithm.
     model_policy: SupportedC51Models # Policy model configuration.
     model_target: SupportedC51Models # Target model configuration.
-    optimizer: SupportedOptimizers
+    optimizer: SupportedOptimizerTransforms
     num_atoms: int
     z_min: float
     z_max: float
@@ -290,10 +332,7 @@ class C51(TrainConfig):
     
     metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
     
-    checkpoint: Union[
-        Annotated[CheckpointConfig, tyro.conf.subcommand("checkpoint-on")],
-        Annotated[NoneConfig, tyro.conf.subcommand("checkpoint-off")],
-    ] = field(default_factory=NoneConfig) # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
+    checkpoint: CheckpointConfig | None # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
     def run(self) -> dict:
         # Validate the metrics file path (if any).
@@ -308,7 +347,7 @@ class C51(TrainConfig):
         model_target = self.model_target
         
         # Create optimizers.
-        optimizer = nnx.Optimizer(model_policy, self.optimizer.make(), wrt=nnx.Param)
+        optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)
         
         # Create list of return atoms.
         atoms = jnp.linspace(start=self.z_min, stop=self.z_max, num=self.num_atoms)
@@ -360,16 +399,17 @@ class C51(TrainConfig):
 @dataclass(kw_only=True)
 class C51CartPole(C51):
     """C51 configuration for CartPole-v1."""
+    name: str = field(default='c51-cartpole-v1', init=False)
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
 
 
 @dataclass(kw_only=True)
 class C51MountainCar(C51):
     """C51 configuration for MountainCar-v0."""
+    name: str = field(default='c51-mountaincar-v1', init=False)
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
 
 SupportedC51Configs: TypeAlias = Union[C51CartPole, C51MountainCar]
-
 
 class DumpFormat(enum.StrEnum):
     JSON = enum.auto()
@@ -379,102 +419,96 @@ class DumpFormat(enum.StrEnum):
 
 # MARK: CLI
 
+# Union of supported configurations.
+type TrainConfigType = Union[
+    SupportedDQNConfigs,
+    SupportedC51Configs,
+]
+
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
     """Training CLI."""
-    config_file: pathlib.Path | None = None # Optional training configuration file in YAML or JSON format.
-    train_config: Union[
-        SupportedDQNConfigs,
-        SupportedC51Configs,
-    ] | None = None
-    dump_config: DumpFormat | None = None
-    
-    def __post_init__(self):
-        if self.config_file is None and self.train_config is None:
-            raise ValueError("either a config file or config CLI is required")
-        elif self.config_file is not None and self.train_config is not None:
-            raise ValueError("must only specify config file or config CLI")
+    # config: TrainConfigType
+    config: pathlib.Path # Path of YAML or JSON config file.
+    dump: DumpFormat | None = None
 
 
 if __name__ == "__main__":
     
     args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,))
-    argv = sys.argv
-    print(args)
     
-    # Load configuration from file.
-    if args.config_file is not None:
-        argv = argv[2:]
-        config_filepath = str(args.config_file)
-        # Load from YAML.
-        if config_filepath.endswith((".yaml", ".yml",)):
-            with open(config_filepath) as f:
-                config_dict = yaml.safe_load(f) or {}
+    suffix = args.config.suffix
+    match suffix:
+        case ".yaml" | ".yml":
+            with open(args.config) as f:
+                data = yaml.safe_load(f) or {}
             # Load the configuration object.
-            config = Args.from_dict(config_dict)
-            argv = argv[1:]
+            config = TrainConfig.from_dict(data)
         # Load from JSON.
-        elif config_filepath.endswith((".json",)):
-            with open(config_filepath) as f:
-                config_dict = json.load(f) or {}
+        case ".json":
+            with open(args.config) as f:
+                data = json.load(f) or {}
             # Load the configuration object.
-            config = Args.from_dict(config_dict)
-            argv = argv[1:]
-        
-        print(argv)
-    
-        # Run CLI again using config file as defaults.
-        args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,), args=argv, default=config)
-    
-    print(config)
-    print()
-    print(argv)
-    print(args)
-    
-    sys.exit()
-    
-    
-    ###############
-    
-    
-    
-    
-    # Load config from YAML file.
-    default_config = None
-    argv = sys.argv[1:]
-    # Load from YAML.
-    if argv and argv[0].endswith((".yaml", ".yml",)):
-        with open(argv[0]) as f:
-            config = yaml.safe_load(f) or {}
-        # Load the configuration object.
-        default_config = Args.from_dict(config)
-        argv = argv[1:]
-    # Load from JSON.
-    elif argv and argv[0].endswith((".json",)):
-        with open(argv[0]) as f:
-            config = json.load(f) or {}
-        # Load the configuration object.
-        default_config = Args.from_dict(config)
-        argv = argv[1:]
-    
-    # Instantiate the CLI with defaults loaded from YAML file.
-    # args = tyro.cli(Args, config=(tyro.conf.OmitSubcommandPrefixes, tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
-    # args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
-    args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,tyro.conf.ConsolidateSubcommandArgs,), args=argv, default=default_config)
+            config = TrainConfig.from_dict(data)
+        case _:
+            raise ValueError(f"{suffix} is an unsupported file extension")
     
     # Dump configuration to various formats.
-    if args.dump_config is not None:
-        match args.dump_config:
+    if args.dump is not None:
+        match args.dump:
             case DumpFormat.YAML:
-                data = args.to_dict()
+                data = config.to_dict()
                 yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
                 print(yaml_string)
             case DumpFormat.JSON:
-                data = args.to_dict()
-                rich.print_json(data=data, indent=2)
+                data = config.to_dict()
+                json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                rich.print_json(json_string)
             case DumpFormat.PRETTY:
-                data = args.to_dict()
+                data = config.to_dict()
                 rich.pretty.pprint(data, expand_all=True)
     else:
         # Run training algorithm.
-        args.train_config.run()
+        config.run()
+    
+    ################
+    
+    # # Load config from YAML file.
+    # default_config = None
+    # argv = sys.argv[1:]
+    # # Load from YAML.
+    # if argv and argv[0].endswith((".yaml", ".yml",)):
+    #     with open(argv[0]) as f:
+    #         config = yaml.safe_load(f) or {}
+    #     # Load the configuration object.
+    #     default_config = Args.from_dict(config)
+    #     argv = argv[1:]
+    # # Load from JSON.
+    # elif argv and argv[0].endswith((".json",)):
+    #     with open(argv[0]) as f:
+    #         config = json.load(f) or {}
+    #     # Load the configuration object.
+    #     default_config = Args.from_dict(config)
+    #     argv = argv[1:]
+    
+    # # Instantiate the CLI with defaults loaded from YAML file.
+    # # args = tyro.cli(Args, config=(tyro.conf.OmitSubcommandPrefixes, tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
+    # args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
+    # # args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,tyro.conf.ConsolidateSubcommandArgs,), args=argv, default=default_config)
+    
+    # # Dump configuration to various formats.
+    # if args.dump is not None:
+    #     match args.dump:
+    #         case DumpFormat.YAML:
+    #             data = args.to_dict()
+    #             yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+    #             print(yaml_string)
+    #         case DumpFormat.JSON:
+    #             data = args.to_dict()
+    #             rich.print_json(data=data, indent=2)
+    #         case DumpFormat.PRETTY:
+    #             data = args.to_dict()
+    #             rich.pretty.pprint(data, expand_all=True)
+    # else:
+    #     # Run training algorithm.
+    #     args.config.run()
