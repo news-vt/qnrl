@@ -5,17 +5,50 @@ import jax
 from flax import nnx
 import jax.numpy as jnp
 import pennylane as qml
+from mashumaro import DataClassDictMixin
+from mashumaro.config import BaseConfig
+from mashumaro.types import Discriminator
 
 # See save/load example: https://github.com/google/flax/blob/main/examples/nnx_toy_examples/08_save_load_checkpoints.py
 
 
+@dataclass(kw_only=True)
+class SerializableModule(nnx.Module, DataClassDictMixin):
+    module_id: str = field(default='SerializableModule', init=False)
+    
+    def __post_init__(self):
+        self.module_id = self.__class__.__name__
+    
+    class Config(BaseConfig):
+        discriminator = Discriminator(
+            field="module_id",
+            include_subtypes=True,
+        )
+
+
+@dataclass(kw_only=True)
+class RescaleInput(SerializableModule):
+    module_id: str = field(default='RescaleInput', init=False)
+    vec: list[float]
+    nested: SerializableModule
+    
+    def __init__(self, vec: list[float], nested: SerializableModule):
+        self.nested = nested
+        self.vec = jnp.array(vec)
+    
+    @nnx.jit
+    def __call__(self, x):
+        x = x/self.vec
+        x = self.nested(x)
+        return x
 
 
 # https://discuss.pennylane.ai/t/trouble-calling-qjit-compiled-qnode-inside-a-nnx-jit-compiled-flax-nnx-module/7853
 # https://discuss.pennylane.ai/t/error-combining-jax-with-multiple-devices/4934
 # https://discuss.pennylane.ai/t/facing-issues-with-jax-jitting-the-optimization-loop/4274
 @dataclass(kw_only=True)
-class QuantumQNetworkLinear(nnx.Module):
+class QuantumQNetworkLinear(SerializableModule):
+    module_id: str = field(default='QuantumQNetworkLinear', init=False)
     din: int
     num_actions: int
     num_wires: int
@@ -140,7 +173,7 @@ class QuantumQNetworkLinear(nnx.Module):
 
 
 @dataclass(kw_only=True)
-class QNetworkLinear(nnx.Module):
+class QNetworkLinear(SerializableModule):
     """Q-Learning network with linear layers.
     
     Input:
@@ -155,6 +188,7 @@ class QNetworkLinear(nnx.Module):
         rngs (nnx.Rngs): JAX RNG.
         douts (list[int], optional): Intermediate (middle) layer output dimensions. Defaults to [].
     """
+    module_id: str = field(default='QNetworkLinear', init=False)
     din: int
     num_actions: int
     rngs_kwargs: dict[str, int]
@@ -184,7 +218,7 @@ class QNetworkLinear(nnx.Module):
         return x
 
 @dataclass(kw_only=True)
-class DistQNetworkLinear(nnx.Module):
+class DistQNetworkLinear(SerializableModule):
     """Distributional Q-learning network with linear layers.
     
     Creates a probability mass function (PMF) across the space of return-atoms for every action.
@@ -205,6 +239,7 @@ class DistQNetworkLinear(nnx.Module):
     Reference:
         M. G. Bellemare, W. Dabney, and R. Munos, “A distributional perspective on reinforcement learning,” in Proceedings of the 34th international conference on machine learning, D. Precup and Y. W. Teh, Eds., in Proceedings of machine learning research, vol. 70. PMLR, Aug. 2017, pp. 449–458. doi: 10.48550/arXiv.1707.06887.
     """
+    module_id: str = field(default='DistQNetworkLinear', init=False)
     din: int
     num_actions: int
     num_atoms: int
