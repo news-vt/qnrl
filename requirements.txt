@@ -9,6 +9,7 @@ numpy
 orbax-checkpoint~=0.11.0
 pennylane~=0.42.0 # Freeze version for compatibility.
 qiskit
+rich
 scipy
 seaborn
 sympy
