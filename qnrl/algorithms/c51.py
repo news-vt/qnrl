@@ -9,10 +9,12 @@ import gymnasium as gym
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from flax.training import orbax_utils
 from tqdm import tqdm
 import optax
 import numpy as np
 from typing import Any
+import orbax.checkpoint as ocp
 
 # from .algorithm import TrainingAlgorithm
 from ..buffers import ReplayBuffer
@@ -113,9 +115,8 @@ def update(
 
 
 def train(
-    env: gym.Env,
-    buffer_size: int,
     seed: int,
+    env: gym.Env,
     atoms: jax.Array,
     num_atoms: int,
     z_min: float,
@@ -123,6 +124,7 @@ def train(
     model_policy: nnx.Module,
     model_target: nnx.Module,
     optimizer: nnx.Optimizer,
+    buffer_size: int,
     batch_size: int,
     total_timesteps: int, # Max number of training steps.
     learning_starts: int, # Training step index where model training commences.
@@ -133,6 +135,7 @@ def train(
     eps_start: float,
     eps_end: float,
     eps_exploration: float,
+    checkpoint_manager: ocp.CheckpointManager | None = None,
     ) -> list[dict[str, Any]]:
     """Categorical DQN (C51).
 
@@ -230,6 +233,12 @@ def train(
                     history.append(meta)
                     pbar_postfix.update(**meta)
                     pbar.set_postfix(pbar_postfix)
+                    
+                    # Checkpoint model.
+                    if checkpoint_manager is not None:
+                        state = nnx.state(model_policy) # Get the current model state.
+                        save_args = orbax_utils.save_args_from_target(state)
+                        checkpoint_manager.save(t, state, save_kwargs={'save_args': save_args}) # Preserve state via checkpoint.
                 
                 # Update the target model by replacing its parameters with those of the policy model.
                 if t % target_update_frequency == 0:
