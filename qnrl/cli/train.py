@@ -24,7 +24,7 @@ import rich.pretty
 
 from .. import algorithms
 from .. import tools
-from ..models.q_learning import QNetworkLinear, DistQNetworkLinear
+from ..models.q_learning import QNetworkLinear, DistQNetworkLinear, QuantumQNetworkLinear
 
 # MARK: Optimizers
 
@@ -146,7 +146,10 @@ class AlgorithmIdentifier(enum.StrEnum):
 
 
 # Lists of supported model classes for each algorithm.
-SupportedDQNModels: TypeAlias = QNetworkLinear
+SupportedDQNModels: TypeAlias = Union[
+    QuantumQNetworkLinear,
+    QNetworkLinear,
+]
 SupportedC51Models: TypeAlias = DistQNetworkLinear
 
 
@@ -159,7 +162,7 @@ class TrainConfig(DataClassDictMixin):
     gym: GymConfig # Gymnasium environment configuration.
     algorithm: AlgorithmIdentifier
     
-    def run(self):
+    def run(self) -> dict:
         raise NotImplementedError
 
 # MARK: DQN
@@ -191,7 +194,7 @@ class DQN(TrainConfig):
         Annotated[NoneConfig, tyro.conf.subcommand("checkpoint-off")],
     ] = field(default_factory=NoneConfig) # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
-    def run(self):
+    def run(self) -> dict:
         # Validate the metrics file path (if any).
         if self.metrics_filepath is not None:
             os.makedirs(self.metrics_filepath.parent, exist_ok=True)
@@ -242,21 +245,19 @@ class DQN(TrainConfig):
         # Save training results to file if indicated.
         if self.metrics_filepath is not None:
             tools.save_train_results(filepath=self.metrics_filepath, d=history_dict)
+        
+        return history_dict
 
 
 
 @dataclass(kw_only=True)
 class DQNCartPole(DQN):
     """DQN configuration for CartPole-v1."""
-    model_policy: QNetworkLinear # Policy model configuration.
-    model_target: QNetworkLinear # Target model configuration.
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
 
 @dataclass(kw_only=True)
 class DQNMountainCar(DQN):
     """DQN configuration for MountainCar-v0."""
-    model_policy: QNetworkLinear # Policy model configuration.
-    model_target: QNetworkLinear # Target model configuration.
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
 
 SupportedDQNConfigs: TypeAlias = Union[DQNCartPole, DQNMountainCar]
@@ -294,7 +295,7 @@ class C51(TrainConfig):
         Annotated[NoneConfig, tyro.conf.subcommand("checkpoint-off")],
     ] = field(default_factory=NoneConfig) # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
-    def run(self):
+    def run(self) -> dict:
         # Validate the metrics file path (if any).
         if self.metrics_filepath is not None:
             os.makedirs(self.metrics_filepath.parent, exist_ok=True)
@@ -353,20 +354,18 @@ class C51(TrainConfig):
         if self.metrics_filepath is not None:
             tools.save_train_results(filepath=self.metrics_filepath, d=history_dict)
 
+        return history_dict
+
 
 @dataclass(kw_only=True)
 class C51CartPole(C51):
     """C51 configuration for CartPole-v1."""
-    model_policy: DistQNetworkLinear # Policy model configuration.
-    model_target: DistQNetworkLinear # Target model configuration.
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
 
 
 @dataclass(kw_only=True)
 class C51MountainCar(C51):
     """C51 configuration for MountainCar-v0."""
-    model_policy: DistQNetworkLinear # Policy model configuration.
-    model_target: DistQNetworkLinear # Target model configuration.
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
 
 SupportedC51Configs: TypeAlias = Union[C51CartPole, C51MountainCar]
