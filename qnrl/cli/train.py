@@ -382,14 +382,62 @@ class DumpFormat(enum.StrEnum):
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
     """Training CLI."""
+    config_file: pathlib.Path | None = None # Optional training configuration file in YAML or JSON format.
     train_config: Union[
         SupportedDQNConfigs,
         SupportedC51Configs,
-    ]
+    ] | None = None
     dump_config: DumpFormat | None = None
+    
+    def __post_init__(self):
+        if self.config_file is None and self.train_config is None:
+            raise ValueError("either a config file or config CLI is required")
+        elif self.config_file is not None and self.train_config is not None:
+            raise ValueError("must only specify config file or config CLI")
 
 
 if __name__ == "__main__":
+    
+    args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,))
+    argv = sys.argv
+    print(args)
+    
+    # Load configuration from file.
+    if args.config_file is not None:
+        argv = argv[2:]
+        config_filepath = str(args.config_file)
+        # Load from YAML.
+        if config_filepath.endswith((".yaml", ".yml",)):
+            with open(config_filepath) as f:
+                config_dict = yaml.safe_load(f) or {}
+            # Load the configuration object.
+            config = Args.from_dict(config_dict)
+            argv = argv[1:]
+        # Load from JSON.
+        elif config_filepath.endswith((".json",)):
+            with open(config_filepath) as f:
+                config_dict = json.load(f) or {}
+            # Load the configuration object.
+            config = Args.from_dict(config_dict)
+            argv = argv[1:]
+        
+        print(argv)
+    
+        # Run CLI again using config file as defaults.
+        args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,), args=argv, default=config)
+    
+    print(config)
+    print()
+    print(argv)
+    print(args)
+    
+    sys.exit()
+    
+    
+    ###############
+    
+    
+    
     
     # Load config from YAML file.
     default_config = None
