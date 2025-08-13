@@ -32,6 +32,17 @@ class JAXJSONEncoder(json.JSONEncoder):
             return int(obj)
         return super().default(obj)
 
+def make_combined_json_encoder(*encoder_classes: type[json.JSONEncoder]):
+    class _Combined(json.JSONEncoder):
+        def default(self, obj):
+            for enc_cls in encoder_classes:
+                try:
+                    return enc_cls().default(obj)
+                except TypeError:
+                    pass
+            return super().default(obj)
+    return _Combined
+
 
 def listofdict_to_dictoflist(listofdict: list[dict]) -> dict[str,list]:
     """Convert a list of dictionaries into dictionary of lists.
