@@ -410,7 +410,9 @@ if __name__ == "__main__":
         argv = argv[1:]
     
     # Instantiate the CLI with defaults loaded from YAML file.
-    args = tyro.cli(Args, config=(tyro.conf.OmitSubcommandPrefixes, tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
+    # args = tyro.cli(Args, config=(tyro.conf.OmitSubcommandPrefixes, tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
+    # args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
+    args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,tyro.conf.ConsolidateSubcommandArgs,), args=argv, default=default_config)
     
     # Dump configuration to various formats.
     if args.dump_config is not None:
