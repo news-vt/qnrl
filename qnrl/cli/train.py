@@ -395,16 +395,17 @@ if __name__ == "__main__":
     # Load config from YAML file.
     default_config = None
     argv = sys.argv[1:]
-    if argv:
-        # Load from YAML.
-        if argv[0].endswith((".yaml", ".yml",)):
-            with open(argv[0]) as f:
-                config = yaml.safe_load(f) or {}
-        # Load from JSON.
-        elif argv[0].endswith((".json",)):
-            with open(argv[0]) as f:
-                config = json.load(f) or {}
-        
+    # Load from YAML.
+    if argv and argv[0].endswith((".yaml", ".yml",)):
+        with open(argv[0]) as f:
+            config = yaml.safe_load(f) or {}
+        # Load the configuration object.
+        default_config = Args.from_dict(config)
+        argv = argv[1:]
+    # Load from JSON.
+    elif argv and argv[0].endswith((".json",)):
+        with open(argv[0]) as f:
+            config = json.load(f) or {}
         # Load the configuration object.
         default_config = Args.from_dict(config)
         argv = argv[1:]
