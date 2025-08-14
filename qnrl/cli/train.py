@@ -25,7 +25,7 @@ import rich.pretty
 
 from .. import algorithms
 from .. import tools
-from ..models.q_learning import QNetworkLinear, DistQNetworkLinear, QuantumQNetworkLinear, RescaleInput
+from ..models.q_learning import SerializableModule, QNetworkLinear, DistQNetworkLinear, QuantumQNetworkLinear, RescaleInput
 
 # MARK: Optimizers
 
@@ -81,7 +81,7 @@ class SGD(OptimizerTransform):
             accumulator_dtype=self.accumulator_dtype,
         )
 
-type NestedDictStr = dict[str, Union[str, NestedDictStr]]
+type NestedDictStr = dict[str | int, Union[str | int, NestedDictStr]]
 
 @dataclass(kw_only=True)
 class Partition(OptimizerTransform):
@@ -104,7 +104,6 @@ class Partition(OptimizerTransform):
         # print(f"{name_map_values = }")
         # Assign transform keys to every leaf in the model parameter tree.
         name_map = jax.tree.unflatten(jax.tree.structure(params, is_leaf=is_param), name_map_values)
-        # print(f"{name_map = }")
         return optax.transforms.partition(
             transforms=transforms,
             param_labels=name_map,
@@ -213,9 +212,9 @@ class DQN(TrainConfig):
     """Configuration for `qnrl.algorithms.dqn.train`."""
     name: str = field(default='dqn', init=False)
     algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.DQN, init=False) # Identifier for algorithm.
-    model_policy: SupportedDQNModels # Policy model configuration.
-    model_target: SupportedDQNModels # Target model configuration.
-    optimizer: SupportedOptimizerTransforms
+    model_policy: SerializableModule # SupportedDQNModels # Policy model configuration.
+    model_target: SerializableModule # SupportedDQNModels # Target model configuration.
+    optimizer: OptimizerTransform
     buffer_size: int = 10_000
     seed: int = 0
     batch_size: int = 128
@@ -231,7 +230,7 @@ class DQN(TrainConfig):
     
     metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
     
-    checkpoint: CheckpointConfig | None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
+    checkpoint: CheckpointConfig | None = None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
     def run(self) -> dict:
         # Validate the metrics file path (if any).
@@ -313,7 +312,7 @@ class C51(TrainConfig):
     algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.C51, init=False) # Identifier for algorithm.
     model_policy: SupportedC51Models # Policy model configuration.
     model_target: SupportedC51Models # Target model configuration.
-    optimizer: SupportedOptimizerTransforms
+    optimizer: OptimizerTransform
     num_atoms: int
     z_min: float
     z_max: float
@@ -332,7 +331,7 @@ class C51(TrainConfig):
     
     metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
     
-    checkpoint: CheckpointConfig | None # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
+    checkpoint: CheckpointConfig | None = None # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
     def run(self) -> dict:
         # Validate the metrics file path (if any).
@@ -429,7 +428,7 @@ type TrainConfigType = Union[
 class Args(DataClassDictMixin):
     """Training CLI."""
     # config: TrainConfigType
-    config: pathlib.Path # Path of YAML or JSON config file.
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     dump: DumpFormat | None = None
 
 
@@ -450,6 +449,17 @@ if __name__ == "__main__":
                 data = json.load(f) or {}
             # Load the configuration object.
             config = TrainConfig.from_dict(data)
+        # Load from Python.
+        case ".py":
+            import importlib.util
+            mod_name = f"{args.config.stem}"
+            spec = importlib.util.spec_from_file_location(mod_name, args.config)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            try:
+                config = mod.config
+            except:
+                raise ValueError(f"could not load config from {args.config}")
         case _:
             raise ValueError(f"{suffix} is an unsupported file extension")
     
