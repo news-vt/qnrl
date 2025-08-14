@@ -29,17 +29,14 @@ class SerializableModule(nnx.Module, DataClassDictMixin):
 @dataclass(kw_only=True)
 class RescaleInput(SerializableModule):
     module_id: str = field(default='RescaleInput', init=False)
-    vec: list[float]
-    nested: SerializableModule
+    scale: list[float]
     
-    def __init__(self, vec: list[float], nested: SerializableModule):
-        self.nested = nested
-        self.vec = jnp.array(vec)
+    def __init__(self, scale: list[float]):
+        self.scale = scale
     
     @nnx.jit
     def __call__(self, x):
-        x = x/self.vec
-        x = self.nested(x)
+        x = x/jnp.array(self.scale)
         return x
 
 
