@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from functools import partial, reduce
+from typing import Callable, Any
 
 import jax
 from flax import nnx
@@ -24,6 +25,22 @@ class SerializableModule(nnx.Module, DataClassDictMixin):
             field="module_id",
             include_subtypes=True,
         )
+
+
+@dataclass(kw_only=True)
+class Sequential(nnx.Sequential, SerializableModule):
+    module_id: str = field(default='Sequential', init=False)
+    layers: list[SerializableModule]
+    
+    def __iter__(self):
+        yield self.layers
+    
+    def __getitem__(self, key):
+        return self.layers[key]
+    
+    @nnx.jit
+    def __call__(self, x):
+        return super().__call__(x)
 
 
 @dataclass(kw_only=True)
