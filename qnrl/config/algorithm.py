@@ -25,17 +25,8 @@ class AlgorithmIdentifier(enum.StrEnum):
     C51 = enum.auto()
 
 
-# Lists of supported model classes for each algorithm.
-SupportedDQNModels: TypeAlias = Union[
-    QuantumQNetworkLinear,
-    QNetworkLinear,
-    RescaleInput,
-]
-SupportedC51Models: TypeAlias = DistQNetworkLinear
-
-
 @dataclass(kw_only=True)
-class TrainConfig(DataClassDictMixin):
+class AlgorithmConfig(DataClassDictMixin):
     """Configuration for one of the `qnrl.algorithm.*.train` methods.
     
     This class contains a `run()` method, that is intended to invoke the `qnrl.algorithm.*.train()` function, along with any other training procedures. The `run()` method will be called with no arguments.
@@ -56,12 +47,12 @@ class TrainConfig(DataClassDictMixin):
 # MARK: DQN
 
 @dataclass(kw_only=True)
-class DQN(TrainConfig):
+class DQN(AlgorithmConfig):
     """Configuration for `qnrl.algorithms.dqn.train`."""
     name: str = field(default='dqn', init=False)
     algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.DQN, init=False) # Identifier for algorithm.
-    model_policy: SerializableModule # SupportedDQNModels # Policy model configuration.
-    model_target: SerializableModule # SupportedDQNModels # Target model configuration.
+    model_policy: SerializableModule # Policy model configuration.
+    model_target: SerializableModule # Target model configuration.
     optimizer: OptimizerTransform
     buffer_size: int = 10_000
     seed: int = 0
@@ -154,12 +145,12 @@ SupportedDQNConfigs: TypeAlias = Union[DQNCartPole, DQNMountainCar]
 # MARK: C51
 
 @dataclass(kw_only=True)
-class C51(TrainConfig):
+class C51(AlgorithmConfig):
     """Configuration for `qnrl.algorithms.c51.train`."""
     name: str = field(default='c51', init=False)
     algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.C51, init=False) # Identifier for algorithm.
-    model_policy: SupportedC51Models # Policy model configuration.
-    model_target: SupportedC51Models # Target model configuration.
+    model_policy: SerializableModule # Policy model configuration.
+    model_target: SerializableModule # Target model configuration.
     optimizer: OptimizerTransform
     num_atoms: int
     z_min: float

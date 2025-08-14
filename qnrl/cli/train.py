@@ -26,16 +26,9 @@ class DumpFormat(enum.StrEnum):
     YAML = enum.auto()
     PRETTY = enum.auto()
 
-# Union of supported configurations.
-type TrainConfigType = Union[
-    SupportedDQNConfigs,
-    SupportedC51Configs,
-]
-
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
     """Training CLI."""
-    # config: TrainConfigType
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     dump: DumpFormat | None = None
 
@@ -50,13 +43,13 @@ if __name__ == "__main__":
             with open(args.config) as f:
                 data = yaml.safe_load(f) or {}
             # Load the configuration object.
-            config = TrainConfig.from_dict(data)
+            config = AlgorithmConfig.from_dict(data)
         # Load from JSON.
         case ".json":
             with open(args.config) as f:
                 data = json.load(f) or {}
             # Load the configuration object.
-            config = TrainConfig.from_dict(data)
+            config = AlgorithmConfig.from_dict(data)
         # Load from Python.
         case ".py":
             mod = tools.load_python_module_from_filepath(args.config)
