@@ -25,7 +25,7 @@ import rich.pretty
 
 from .. import algorithms
 from .. import tools
-from ..models.q_learning import SerializableModule, QNetworkLinear, DistQNetworkLinear, QuantumQNetworkLinear, RescaleInput
+from ..modules import SerializableModule, QNetworkLinear, DistQNetworkLinear, QuantumQNetworkLinear, RescaleInput
 
 # MARK: Optimizers
 
