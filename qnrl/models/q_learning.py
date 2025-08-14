@@ -25,6 +25,11 @@ class SerializableModule(nnx.Module, DataClassDictMixin):
             field="module_id",
             include_subtypes=True,
         )
+    
+    @nnx.jit
+    def __call__(self, x):
+        """Default call function returns the input unchanged."""
+        return x
 
 
 @dataclass(kw_only=True)
