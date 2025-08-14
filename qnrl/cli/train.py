@@ -451,13 +451,9 @@ if __name__ == "__main__":
             config = TrainConfig.from_dict(data)
         # Load from Python.
         case ".py":
-            import importlib.util
-            mod_name = f"{args.config.stem}"
-            spec = importlib.util.spec_from_file_location(mod_name, args.config)
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
+            mod = tools.load_python_module_from_filepath(args.config)
             try:
-                config = mod.config
+                config = mod.config # The configuration must be saved in a variable called `config`.
             except:
                 raise ValueError(f"could not load config from {args.config}")
         case _:

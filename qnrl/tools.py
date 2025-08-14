@@ -1,6 +1,8 @@
 import json
 import pathlib
 import datetime
+import importlib.util
+import types
 from typing import Callable
 
 from flax import nnx
@@ -101,3 +103,12 @@ def load_model(path: str | pathlib.Path, model_create_func: Callable[[], nnx.Mod
     """Load a Flax NNX model from a given checkpoint path."""
     model = nnx.eval_shape(model_create_func) # Create the model with abstract shapes.
     return restore_model(path, model) # Restore from checkpoint path state.
+
+
+def load_python_module_from_filepath(path: pathlib.Path) -> types.ModuleType:
+    """Load a Python module from filepath."""
+    mod_name = f"{path.stem}"
+    spec = importlib.util.spec_from_file_location(mod_name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
