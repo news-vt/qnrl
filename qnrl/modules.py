@@ -12,24 +12,35 @@ from mashumaro.types import Discriminator
 
 # See save/load example: https://github.com/google/flax/blob/main/examples/nnx_toy_examples/08_save_load_checkpoints.py
 
+def module_tagger(cls):
+    """Tag serializable modules by their class name."""
+    return cls.__name__
+
 
 @dataclass(kw_only=True)
 class SerializableModule(nnx.Module, DataClassDictMixin):
-    module_id: str = field(default='SerializableModule', init=False)
+    """Base class for Flax NNX modules that can be serialized to dictionaries.
     
-    def __post_init__(self):
-        self.module_id = self.__class__.__name__
-    
+    Variants of this class are distinguished via the `"type"` field that is auto-generated upon serialization. By default, this `"type"` field is the class string name `cls.__name__`. See the `module_tagger` function at module scope.
+    """
     class Config(BaseConfig):
         discriminator = Discriminator(
-            field="module_id",
+            field="type",
             include_subtypes=True,
+            variant_tagger_fn=module_tagger,
         )
     
     @nnx.jit
     def __call__(self, x):
         """Default call function returns the input unchanged."""
         return x
+    
+    def __pre_serialize__(self):
+        return self
+    
+    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        d['type'] = module_tagger(type(self))
+        return d
 
 
 @dataclass(kw_only=True)
@@ -58,7 +69,6 @@ class Sequential(SerializableModule):
             },
         }
     """
-    module_id: str = field(default='Sequential', init=False)
     layers: list[SerializableModule] | dict[str, SerializableModule]
     key_order: list[int] | list[str] # Private layer key ordering.
     
@@ -78,6 +88,8 @@ class Sequential(SerializableModule):
         return self.layers[key]
     
     def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        # Get serialization of parent.
+        d = super().__post_serialize__(d)
         # Preserve original input key order due to quirk of `nnx.jit`.
         if isinstance(d['layers'], dict):
             d['layers'] = {key: d['layers'][key] for key in self.key_order}
@@ -92,7 +104,7 @@ class Sequential(SerializableModule):
 
 @dataclass(kw_only=True)
 class RescaleInput(SerializableModule):
-    module_id: str = field(default='RescaleInput', init=False)
+    """Divides input by scaling vector `x/scale`."""
     scale: list[float]
     
     def __init__(self, scale: list[float]):
@@ -104,15 +116,25 @@ class RescaleInput(SerializableModule):
         return x
 
 
+# https://discuss.pennylane.ai/t/trouble-calling-qjit-compiled-qnode-inside-a-nnx-jit-compiled-flax-nnx-module/7853
+# https://discuss.pennylane.ai/t/error-combining-jax-with-multiple-devices/4934
+# https://discuss.pennylane.ai/t/facing-issues-with-jax-jitting-the-optimization-loop/4274
 @dataclass(kw_only=True)
-class QuantumModule(SerializableModule):
-    module_id: str = field(default='QuantumModule', init=False)
+class QuantumQNetworkLinear(SerializableModule):
+    din: int
+    num_actions: int
+    num_wires: int
+    num_layers: int
     rngs_kwargs: dict[str, int]
-    device_name: str = field(default="default.qubit")
+    device_name: str = "default.qubit"
     diff_method: str | None = None
     shots: int | None = None
-    
+
     def __init__(self,
+        din: int,
+        num_actions: int,
+        num_wires: int,
+        num_layers: int,
         *,
         rngs_kwargs: dict[str, int],
         device_name: str = "default.qubit",
@@ -121,97 +143,22 @@ class QuantumModule(SerializableModule):
         ):
         self.rngs_kwargs = rngs_kwargs
         self.rngs: nnx.Rngs = nnx.Rngs(**rngs_kwargs)
-        self.device_name = device_name
-        self.diff_method = diff_method
-        self.shots = shots
-        
-        self.circuit_kwargs = dict()
-    
-    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
-        d.pop('circuit_kwargs', None) # Remove circuit keyword arguments.
-        return d
-    
-    @nnx.jit
-    def __call__(self, x):
-        key = self.rngs.default() # Generate new random key for circuit measurement.
-        # print(f"{x.shape = }")
-        x = self.run_circuit(
-            key=key,
-            device_name=self.device_name,
-            diff_method=self.diff_method,
-            shots=self.shots,
-            inputs=x,
-            **self.circuit_kwargs,
-        ) # List of measurements, where each measurement is batched.
-        # Reverse the shape to get back into a form acceptable for future layers.
-        x = jnp.array(x).T # (batch,*,)
-        return x
-    
-    @staticmethod
-    def circuit(
-        inputs: jax.Array, # (num_wires,1)
-        **kwargs,
-        ):
-        raise NotImplementedError
-
-    @staticmethod
-    @partial(nnx.jit, static_argnames=['device_name', 'shots', 'diff_method', 'num_wires', 'num_layers'])
-    def run_circuit(
-        # All device and QNode parameters.
-        key: jax.Array,
-        device_name: str,
-        shots: int | None,
-        diff_method: str | None,
-        # All circuit-specific arguments go below.
-        inputs: jax.Array, # (num_wires,1)
-        weights: jax.Array, # (num_layers,num_wires,3)
-        num_wires: int,
-        num_layers: int,
-        ):
-        device = qml.device(name=device_name, shots=shots, seed=key)
-        qnode = qml.QNode(func=QuantumQNetworkLinear.circuit, device=device, interface="jax", diff_method=diff_method)
-        qnode_vmap = nnx.vmap(qnode, in_axes=(0, None, None, None), out_axes=0)
-        return qnode_vmap(
-            inputs=inputs,
-            weights=weights,
-            num_wires=num_wires,
-            num_layers=num_layers,
-        )
-
-# https://discuss.pennylane.ai/t/trouble-calling-qjit-compiled-qnode-inside-a-nnx-jit-compiled-flax-nnx-module/7853
-# https://discuss.pennylane.ai/t/error-combining-jax-with-multiple-devices/4934
-# https://discuss.pennylane.ai/t/facing-issues-with-jax-jitting-the-optimization-loop/4274
-@dataclass(kw_only=True)
-class QuantumQNetworkLinear(SerializableModule):
-    module_id: str = field(default='QuantumQNetworkLinear', init=False)
-    din: int
-    num_actions: int
-    num_wires: int
-    num_layers: int
-    rngs_kwargs: dict[str, int]
-
-    def __init__(self, din: int, num_actions: int, num_wires: int, num_layers: int, *, rngs_kwargs: dict[str, int]):
-        rngs: nnx.Rngs = nnx.Rngs(**rngs_kwargs)
-
-        self.rngs_kwargs = rngs_kwargs
         self.din = din
         self.num_actions = num_actions
         self.num_wires = num_wires
         self.num_layers = num_layers
+        self.device_name = device_name
+        self.diff_method = diff_method
+        self.shots = shots
         
         self.circ_inputs_shape = (num_wires,1,) # Each qubit has (Rx,).
         self.circ_weights_shape = (num_layers+1,num_wires,3,) # Each qubit has (Rx, Ry, Rz).
         self.circ_outputs_shape = num_wires
         
-        self.layer_project_input = nnx.Linear(in_features=din, out_features=reduce(lambda x,y: x*y, self.circ_inputs_shape), rngs=rngs)
-        self.layer_project_output = nnx.Linear(in_features=num_wires, out_features=num_actions, rngs=rngs)
+        self.layer_project_input = nnx.Linear(in_features=din, out_features=reduce(lambda x,y: x*y, self.circ_inputs_shape), rngs=self.rngs)
+        self.layer_project_output = nnx.Linear(in_features=num_wires, out_features=num_actions, rngs=self.rngs)
         
-        key = rngs.default()
-        self.circ = self.make_circuit(num_wires=num_wires, num_layers=num_layers, shots=100, key=key)
-        # 
-        # self.circuit_key = rngs.default()
-        #####
-        self.circ_weights = nnx.Param(jax.random.uniform(rngs.params(), shape=self.circ_weights_shape, minval=0, maxval=jnp.pi))
+        self.circ_weights = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_shape, minval=0, maxval=jnp.pi))
     
     @nnx.jit
     def __call__(self, x):
@@ -219,8 +166,18 @@ class QuantumQNetworkLinear(SerializableModule):
         # Input must be batched for input into the circuit.
         x = jnp.reshape(x, (-1, *self.circ_inputs_shape,))
         # Output of circuit will be reverse-shaped list with shape `(num_wires,batch,)` due to how batching is handled with pennylane measurements.
-        x = self.circ(x, self.circ_weights) # list of `num_wires`, where each index has shape `batch`.
-        # Reverse the shape to get back into a form acceptable for future layers.
+        key = self.rngs.default() # Generate new random key for circuit measurement.
+        x = self.run_circuit(
+            key=key,
+            device_name=self.device_name,
+            diff_method=self.diff_method,
+            shots=self.shots,
+            inputs=x,
+            weights=self.circ_weights,
+            num_wires=self.num_wires,
+            num_layers=self.num_layers,
+        )
+        # # Reverse the shape to get back into a form acceptable for future layers.
         x = jnp.array(x).T # (batch,num_wires,)
         x = self.layer_project_output(x)
         return x
@@ -291,20 +248,35 @@ class QuantumQNetworkLinear(SerializableModule):
         var(phi=weights[-1], wires=wires)
         
         return [qml.expval(qml.PauliZ(wires=w)) for w in wires]
-    
-    @classmethod
-    # @partial(jax.jit, static_argnames=['cls', 'num_wires', 'num_layers', 'shots'])
-    def make_circuit(cls, num_wires: int, num_layers: int, shots: int, *, key: jax.Array):
-        device = qml.device(name="default.qubit", shots=shots, seed=key)
-        qnode = qml.QNode(func=lambda inputs, weights: cls.circuit(inputs, weights, num_wires, num_layers), device=device, interface="jax-jit")
-        # return qnode
-        return jax.vmap(qnode, in_axes=(0, None), out_axes=0) # (inputs, weights), Input is to be batched, weights is not.
-        # return jax.vmap(qnode, in_axes=(0, None)) # (inputs, weights), Input is to be batched, weights is not.
-    
+
     # TODO method that is JIT that calls the circuit and returns result.
-    # @classmethod
-    # # @partial(jax.jit, static_argnames=['cls', 'num_wires', 'num_layers', 'shots'])
-    # def run_circuit(cls, )
+    @staticmethod
+    @partial(nnx.jit, static_argnames=['device_name', 'shots', 'diff_method', 'num_wires', 'num_layers'])
+    def run_circuit(
+        # All device and QNode parameters.
+        key: jax.Array,
+        device_name: str,
+        shots: int | None,
+        diff_method: str | None,
+        # All circuit-specific arguments go below.
+        inputs: jax.Array, # (num_wires,1)
+        weights: jax.Array, # (num_layers,num_wires,3)
+        num_wires: int,
+        num_layers: int,
+        ):
+        device = qml.device(name=device_name, shots=shots, seed=key)
+        qnode = qml.QNode(func=QuantumQNetworkLinear.circuit, device=device, interface="jax", diff_method=diff_method)
+        qnode_vmap = nnx.vmap(
+            f=qnode,
+            in_axes=(0, None, None, None), # (inputs, weights, num_wires, num_layers)
+            out_axes=0, # inputs
+        )
+        return qnode_vmap(
+            inputs=inputs,
+            weights=weights,
+            num_wires=num_wires,
+            num_layers=num_layers,
+        )
 
 
 @dataclass(kw_only=True)
@@ -323,7 +295,6 @@ class QNetworkLinear(SerializableModule):
         rngs (nnx.Rngs): JAX RNG.
         douts (list[int], optional): Intermediate (middle) layer output dimensions. Defaults to [].
     """
-    module_id: str = field(default='QNetworkLinear', init=False)
     din: int
     num_actions: int
     rngs_kwargs: dict[str, int]
@@ -374,7 +345,6 @@ class DistQNetworkLinear(SerializableModule):
     Reference:
         M. G. Bellemare, W. Dabney, and R. Munos, “A distributional perspective on reinforcement learning,” in Proceedings of the 34th international conference on machine learning, D. Precup and Y. W. Teh, Eds., in Proceedings of machine learning research, vol. 70. PMLR, Aug. 2017, pp. 449–458. doi: 10.48550/arXiv.1707.06887.
     """
-    module_id: str = field(default='DistQNetworkLinear', init=False)
     din: int
     num_actions: int
     num_atoms: int
