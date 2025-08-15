@@ -4,3 +4,6 @@ from . import tools
 from . import cli
 from . import modules
 from . import metric
+from . import checkpoint
+from . import gym
+from . import optimizer
