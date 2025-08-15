@@ -7,7 +7,9 @@ from flax import nnx
 import optax
 from mashumaro.mixins.dict import DataClassDictMixin
 
-# MARK: Optimizers
+def optimizer_tagger(cls):
+    """Tag serializable optimizers by their class name in lower-case format."""
+    return cls.__name__.lower()
 
 class OptimizerTransformIdentifier(enum.StrEnum):
     ADAM = enum.auto()
@@ -16,15 +18,24 @@ class OptimizerTransformIdentifier(enum.StrEnum):
 
 @dataclass(kw_only=True)
 class OptimizerTransform(DataClassDictMixin):
-    optimizer_tx_id: OptimizerTransformIdentifier
     
     def make(self, model: nnx.Module) -> optax.GradientTransformationExtraArgs:
         raise NotImplementedError
+    
+    def __pre_serialize__(self):
+        return self
+    
+    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        # Re-build serialization dictionary by creating a `type` field as the first key.
+        d = {
+            'type': optimizer_tagger(type(self)), # Discriminator field.
+            **d,
+        }
+        return d
 
 @dataclass(kw_only=True)
 class Adam(OptimizerTransform):
     """Config for `optax.adam`."""
-    optimizer_tx_id: OptimizerTransformIdentifier = field(default=OptimizerTransformIdentifier.ADAM, init=False)
     learning_rate: float
     b1: float = 0.9
     b2: float = 0.999
@@ -47,7 +58,6 @@ class Adam(OptimizerTransform):
 @dataclass(kw_only=True)
 class SGD(OptimizerTransform):
     """Config for `optax.sgd`."""
-    optimizer_tx_id: OptimizerTransformIdentifier = field(default=OptimizerTransformIdentifier.SGD, init=False)
     learning_rate: float
     momentum: Optional[float] = None
     nesterov: bool = False
@@ -65,7 +75,6 @@ type NestedDictStr = dict[str | int, Union[str | int, NestedDictStr]]
 
 @dataclass(kw_only=True)
 class Partition(OptimizerTransform):
-    optimizer_tx_id: OptimizerTransformIdentifier = field(default=OptimizerTransformIdentifier.PARTITION, init=False)
     # Optimizer transform for every parameter in the model. Keys should be the leaves of the model parameter tree (i.e., the name of each layer or `nnx.Param`).
     transforms: dict[str, 'SupportedOptimizerTransforms'] = field(default_factory=dict)
     pytree: NestedDictStr = field(default_factory=dict)
