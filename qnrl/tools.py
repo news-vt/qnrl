@@ -3,13 +3,15 @@ import pathlib
 import datetime
 import importlib.util
 import types
-from typing import Callable
+from typing import Callable, Literal
+import gzip
 
 from flax import nnx
 import orbax.checkpoint as ocp
 from flax.training import orbax_utils
 import jax.numpy as jnp
 import numpy as np
+import yaml
 
 class NumpyJSONEncoder(json.JSONEncoder):
     """Serializes numpy objects for JSON support."""
@@ -64,20 +66,97 @@ def listofdict_to_dictoflist(listofdict: list[dict]) -> dict[str,list]:
     return res
 
 
-def save_train_results(filepath: str | pathlib.Path, d: dict):
-    """Save training result dictionary to JSON file."""
+def save_train_results(filepath: str | pathlib.Path, d: dict, **kwargs):
+    """Save training result dictionary to JSON file.
+    
+    Supported file formats:
+    - `'.json'`: JSON.
+    - `'.json.gz'`: Compressed JSON using `gzip`.
+    - `'.yaml' | '.yml'`: YAML.
+    - `'.yaml.gz' | '.yml.gz'`: Compressed YAML using `gzip`.
+    - `'.npy'`: Numpy via `jnp.save()`.
+    - `'.npz'`: Numpy via `jnp.savez()` if `compressed=False`, or `np.savez_compressed()` if `compressed=True`.
+    """
     # Convert filepath to string and format with arguments.
-    filepath = str(filepath).format(
+    filepath = pathlib.Path(str(filepath).format(
         datetime=datetime.datetime.now().isoformat(),
-    )
-    with open(filepath, 'w+') as f:
-        json.dump(d, f, cls=JAXJSONEncoder)
+    ))
+    # Check file extension type.
+    match filepath.suffixes:
+        case [] | ['.json'] | ['.json', '.gz']:
+            if '.gz' in filepath.suffixes:
+                with gzip.open(str(filepath), 'wt+', encoding="utf-8") as f:
+                    kwargs_default = dict(cls=make_combined_json_encoder(NumpyJSONEncoder, JAXJSONEncoder))
+                    json.dump(d, f, **{**kwargs_default, **kwargs})
+            else:
+                with open(str(filepath), 'w+') as f:
+                    kwargs_default = dict(cls=make_combined_json_encoder(NumpyJSONEncoder, JAXJSONEncoder))
+                    json.dump(d, f, **{**kwargs_default, **kwargs})
+        case ['.yaml'] | ['.yml'] | ['.yaml', '.gz'] | ['.yml', '.gz']:
+            if '.gz' in filepath.suffixes:
+                with gzip.open(str(filepath), 'wt+', encoding="utf-8") as f:
+                    yaml.dump(d, f, **kwargs)
+            else:
+                with open(str(filepath), 'w+') as f:
+                    yaml.dump(d, f, **kwargs)
+        case ['.npy']:
+            jnp.save(str(filepath), d, allow_pickle=True)
+        case ['.npz']:
+            if kwargs.get('compressed', False):
+                np.savez_compressed(str(filepath), **d, allow_pickle=True) # No JAX variant of `jnp.savez_compressed()`.
+            else:
+                jnp.savez(str(filepath), **d, allow_pickle=True)
+        case _:
+            raise ValueError(f"{filepath.suffix} is an unsupported metric file type.")
 
 
 def load_train_results(filepath: str | pathlib.Path) -> dict:
-    """Load training result dictionary from JSON file."""
-    with open(str(filepath), 'r') as f:
-        return json.load(f)
+    """Load training result dictionary from JSON file.
+    
+    Supported file formats:
+    - `'.json'`: JSON.
+    - `'.json.gz'`: Compressed JSON using `gzip`.
+    - `'.yaml' | '.yml'`: YAML.
+    - `'.yaml.gz' | '.yml.gz'`: Compressed YAML using `gzip`.
+    - `'.npy' | '.npz'`: Numpy. Returned result will be a dictionary.
+    """
+    filepath = pathlib.Path(filepath)
+    
+    # Check file extension type.
+    match filepath.suffixes:
+        case [] | ['.json'] | ['.json', '.gz']:
+            if '.gz' in filepath.suffixes:
+                with gzip.open(str(filepath), 'rt') as f:
+                    return json.load(f)
+            else:
+                with open(str(filepath), 'r') as f:
+                    return json.load(f)
+        case ['.yaml'] | ['.yml'] | ['.yaml', '.gz'] | ['.yml', '.gz']:
+            if '.gz' in filepath.suffixes:
+                with gzip.open(str(filepath), 'rt') as f:
+                    return yaml.safe_load(f)
+            else:
+                with open(str(filepath), 'r') as f:
+                    return yaml.safe_load(f)
+        case ['.npy']:
+            return jnp.load(str(filepath), allow_pickle=True).item() # Result is an object array containing a single dictionary, so call `.item()` to get the dictionary object stored within the array.
+        case ['.npz']:
+            return dict(jnp.load(str(filepath), allow_pickle=True)) # Result is already a dictionary.
+        case _:
+            raise ValueError(f"{filepath.suffix} is an unsupported metric file type.")
+
+
+def serialize_train_results(d: dict, type: Literal['json', 'yaml', 'yml'], **kwargs) -> str:
+    """Serialize training results to an encoded string in format `['json', 'yaml', 'yml']`."""
+    match type:
+        case 'json':
+            kwargs_default = dict(cls=make_combined_json_encoder(NumpyJSONEncoder, JAXJSONEncoder))
+            return json.dumps(d, **{**kwargs_default, **kwargs})
+        case 'yaml' | 'yml':
+            kwargs_default = dict(sort_keys=False, default_flow_style=False, indent=2)
+            return yaml.dump(d, **{**kwargs_default, **kwargs})
+        case _:
+            raise ValueError(f"{type} is an unsupported metric file type.")
 
 
 def save_model(path: str | pathlib.Path, model: nnx.Module):
