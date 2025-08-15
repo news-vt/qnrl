@@ -3,7 +3,7 @@ import pathlib
 import datetime
 import importlib.util
 import types
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 import gzip
 
 from flax import nnx
@@ -66,7 +66,7 @@ def listofdict_to_dictoflist(listofdict: list[dict]) -> dict[str,list]:
     return res
 
 
-def save_train_results(filepath: str | pathlib.Path, d: dict, **kwargs):
+def save_train_results(filepath: str | pathlib.Path, obj: Any, **kwargs):
     """Save training result dictionary to JSON file.
     
     Supported file formats:
@@ -87,30 +87,30 @@ def save_train_results(filepath: str | pathlib.Path, d: dict, **kwargs):
             if '.gz' in filepath.suffixes:
                 with gzip.open(str(filepath), 'wt+', encoding="utf-8") as f:
                     kwargs_default = dict(cls=make_combined_json_encoder(NumpyJSONEncoder, JAXJSONEncoder))
-                    json.dump(d, f, **{**kwargs_default, **kwargs})
+                    json.dump(obj, f, **{**kwargs_default, **kwargs})
             else:
                 with open(str(filepath), 'w+') as f:
                     kwargs_default = dict(cls=make_combined_json_encoder(NumpyJSONEncoder, JAXJSONEncoder))
-                    json.dump(d, f, **{**kwargs_default, **kwargs})
+                    json.dump(obj, f, **{**kwargs_default, **kwargs})
         case ['.yaml'] | ['.yml'] | ['.yaml', '.gz'] | ['.yml', '.gz']:
             if '.gz' in filepath.suffixes:
                 with gzip.open(str(filepath), 'wt+', encoding="utf-8") as f:
-                    yaml.dump(d, f, **kwargs)
+                    yaml.dump(obj, f, **kwargs)
             else:
                 with open(str(filepath), 'w+') as f:
-                    yaml.dump(d, f, **kwargs)
+                    yaml.dump(obj, f, **kwargs)
         case ['.npy']:
-            jnp.save(str(filepath), d, allow_pickle=True)
+            jnp.save(str(filepath), obj, allow_pickle=True)
         case ['.npz']:
             if kwargs.get('compressed', False):
-                np.savez_compressed(str(filepath), **d, allow_pickle=True) # No JAX variant of `jnp.savez_compressed()`.
+                np.savez_compressed(str(filepath), obj, allow_pickle=True) # No JAX variant of `jnp.savez_compressed()`.
             else:
-                jnp.savez(str(filepath), **d, allow_pickle=True)
+                jnp.savez(str(filepath), obj, allow_pickle=True)
         case _:
             raise ValueError(f"{filepath.suffix} is an unsupported metric file type.")
 
 
-def load_train_results(filepath: str | pathlib.Path) -> dict:
+def load_train_results(filepath: str | pathlib.Path) -> Any:
     """Load training result dictionary from JSON file.
     
     Supported file formats:
@@ -138,23 +138,21 @@ def load_train_results(filepath: str | pathlib.Path) -> dict:
             else:
                 with open(str(filepath), 'r') as f:
                     return yaml.safe_load(f)
-        case ['.npy']:
-            return jnp.load(str(filepath), allow_pickle=True).item() # Result is an object array containing a single dictionary, so call `.item()` to get the dictionary object stored within the array.
-        case ['.npz']:
-            return dict(jnp.load(str(filepath), allow_pickle=True)) # Result is already a dictionary.
+        case ['.npy'] | ['.npz']:
+            return jnp.load(str(filepath), allow_pickle=True)
         case _:
             raise ValueError(f"{filepath.suffix} is an unsupported metric file type.")
 
 
-def serialize_train_results(d: dict, type: Literal['json', 'yaml', 'yml'], **kwargs) -> str:
+def serialize_train_results(obj: Any, type: Literal['json', 'yaml', 'yml'], **kwargs) -> str:
     """Serialize training results to an encoded string in format `['json', 'yaml', 'yml']`."""
     match type:
         case 'json':
             kwargs_default = dict(cls=make_combined_json_encoder(NumpyJSONEncoder, JAXJSONEncoder))
-            return json.dumps(d, **{**kwargs_default, **kwargs})
+            return json.dumps(obj, **{**kwargs_default, **kwargs})
         case 'yaml' | 'yml':
             kwargs_default = dict(sort_keys=False, default_flow_style=False, indent=2)
-            return yaml.dump(d, **{**kwargs_default, **kwargs})
+            return yaml.dump(obj, **{**kwargs_default, **kwargs})
         case _:
             raise ValueError(f"{type} is an unsupported metric file type.")
 
