@@ -17,7 +17,10 @@ from .. import tools
 from .. import algorithms
 
 
-# MARK: Training config
+def algorithm_tagger(cls):
+    """Tag serializable algorithms by their class name."""
+    return cls.__name__
+
 
 class AlgorithmIdentifier(enum.StrEnum):
     """Identifiers for each algorithm."""
@@ -31,7 +34,6 @@ class AlgorithmConfig(DataClassDictMixin):
     
     This class contains a `run()` method, that is intended to invoke the `qnrl.algorithm.*.train()` function, along with any other training procedures. The `run()` method will be called with no arguments.
     """
-    name: str  = field(init=False) # Unique name for configuration.
     gym: GymConfig # Gymnasium environment configuration.
     algorithm: AlgorithmIdentifier = field(init=False)
     
@@ -39,17 +41,28 @@ class AlgorithmConfig(DataClassDictMixin):
         raise NotImplementedError
     
     class Config(BaseConfig):
-        discriminator = Discriminator(  # <- add discriminator
-            field="name",
+        discriminator = Discriminator(
+            field="type",
             include_subtypes=True,
+            variant_tagger_fn=algorithm_tagger,
         )
+    
+    def __pre_serialize__(self):
+        return self
+    
+    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        # Re-build serialization dictionary by creating a `type` field as the first key.
+        d = {
+            'type': module_tagger(type(self)), # Discriminator field.
+            **d,
+        }
+        return d
 
 # MARK: DQN
 
 @dataclass(kw_only=True)
 class DQN(AlgorithmConfig):
     """Configuration for `qnrl.algorithms.dqn.train`."""
-    name: str = field(default='dqn', init=False)
     algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.DQN, init=False) # Identifier for algorithm.
     model_policy: SerializableModule # Policy model configuration.
     model_target: SerializableModule # Target model configuration.
@@ -130,13 +143,11 @@ class DQN(AlgorithmConfig):
 @dataclass(kw_only=True)
 class DQNCartPole(DQN):
     """DQN configuration for CartPole-v1."""
-    name: str = field(default='dqn-cartpole-v1', init=False)
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
 
 @dataclass(kw_only=True)
 class DQNMountainCar(DQN):
     """DQN configuration for MountainCar-v0."""
-    name: str = field(default='dqn-mountaincar-v0', init=False)
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
 
 SupportedDQNConfigs: TypeAlias = Union[DQNCartPole, DQNMountainCar]
@@ -147,7 +158,6 @@ SupportedDQNConfigs: TypeAlias = Union[DQNCartPole, DQNMountainCar]
 @dataclass(kw_only=True)
 class C51(AlgorithmConfig):
     """Configuration for `qnrl.algorithms.c51.train`."""
-    name: str = field(default='c51', init=False)
     algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.C51, init=False) # Identifier for algorithm.
     model_policy: SerializableModule # Policy model configuration.
     model_target: SerializableModule # Target model configuration.
@@ -237,14 +247,12 @@ class C51(AlgorithmConfig):
 @dataclass(kw_only=True)
 class C51CartPole(C51):
     """C51 configuration for CartPole-v1."""
-    name: str = field(default='c51-cartpole-v1', init=False)
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
 
 
 @dataclass(kw_only=True)
 class C51MountainCar(C51):
     """C51 configuration for MountainCar-v0."""
-    name: str = field(default='c51-mountaincar-v1', init=False)
     gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
 
 SupportedC51Configs: TypeAlias = Union[C51CartPole, C51MountainCar]
