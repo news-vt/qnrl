@@ -29,16 +29,32 @@ class DumpFormat(enum.StrEnum):
     YAML = enum.auto()
     PRETTY = enum.auto()
 
+
+@dataclass(kw_only=True)
+class Dump(DataClassDictMixin):
+    """Dump the given configuration to various supported formats."""
+    format: DumpFormat
+
+
+@dataclass(kw_only=True)
+class Run(DataClassDictMixin):
+    """Run training algorithm using the given config."""
+    pass
+
+
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
     """Training CLI."""
     config: pathlib.Path # Path of config file in format [yaml, json, python].
-    dump: DumpFormat | None = None
+    mode: Union[
+        Dump,
+        Run,
+    ]
 
 
 if __name__ == "__main__":
     
-    args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,))
+    args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues, tyro.conf.OmitSubcommandPrefixes,))
     
     suffix = args.config.suffix
     match suffix:
@@ -64,8 +80,8 @@ if __name__ == "__main__":
             raise ValueError(f"{suffix} is an unsupported file extension")
     
     # Dump configuration to various formats.
-    if args.dump is not None:
-        match args.dump:
+    if isinstance(args.mode, Dump):
+        match args.mode.format:
             case DumpFormat.YAML:
                 data = config.to_dict()
                 yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
@@ -77,48 +93,7 @@ if __name__ == "__main__":
             case DumpFormat.PRETTY:
                 data = config.to_dict()
                 rich.pretty.pprint(data, expand_all=True)
-    else:
-        # Run training algorithm.
+
+    # Run training algorithm.
+    elif isinstance(args.mode, Run):
         config.run()
-    
-    ################
-    
-    # # Load config from YAML file.
-    # default_config = None
-    # argv = sys.argv[1:]
-    # # Load from YAML.
-    # if argv and argv[0].endswith((".yaml", ".yml",)):
-    #     with open(argv[0]) as f:
-    #         config = yaml.safe_load(f) or {}
-    #     # Load the configuration object.
-    #     default_config = Args.from_dict(config)
-    #     argv = argv[1:]
-    # # Load from JSON.
-    # elif argv and argv[0].endswith((".json",)):
-    #     with open(argv[0]) as f:
-    #         config = json.load(f) or {}
-    #     # Load the configuration object.
-    #     default_config = Args.from_dict(config)
-    #     argv = argv[1:]
-    
-    # # Instantiate the CLI with defaults loaded from YAML file.
-    # # args = tyro.cli(Args, config=(tyro.conf.OmitSubcommandPrefixes, tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
-    # args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,), args=argv, default=default_config)
-    # # args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues,tyro.conf.ConsolidateSubcommandArgs,), args=argv, default=default_config)
-    
-    # # Dump configuration to various formats.
-    # if args.dump is not None:
-    #     match args.dump:
-    #         case DumpFormat.YAML:
-    #             data = args.to_dict()
-    #             yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
-    #             print(yaml_string)
-    #         case DumpFormat.JSON:
-    #             data = args.to_dict()
-    #             rich.print_json(data=data, indent=2)
-    #         case DumpFormat.PRETTY:
-    #             data = args.to_dict()
-    #             rich.pretty.pprint(data, expand_all=True)
-    # else:
-    #     # Run training algorithm.
-    #     args.config.run()
