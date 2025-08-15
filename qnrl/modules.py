@@ -39,7 +39,11 @@ class SerializableModule(nnx.Module, DataClassDictMixin):
         return self
     
     def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
-        d['type'] = module_tagger(type(self))
+        # Re-build serialization dictionary by creating a `type` field as the first key.
+        d = {
+            'type': module_tagger(type(self)), # Discriminator field.
+            **d,
+        }
         return d
 
 
