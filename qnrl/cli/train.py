@@ -12,11 +12,14 @@ import rich
 import rich.pretty
 
 from .. import tools
-from ..config.optimizer import *
-from ..config.gym import *
-from ..config.checkpoint import *
-from ..config.algorithm import *
+from ..optimizer import *
+from ..gym import *
+from ..checkpoint import *
+from ..algorithms import *
 
+
+import jax
+jax.config.update("jax_enable_x64", True) # Enable double-precision for quantum models (default is single-precision).
 
 
 # MARK: CLI
@@ -43,13 +46,13 @@ if __name__ == "__main__":
             with open(args.config) as f:
                 data = yaml.safe_load(f) or {}
             # Load the configuration object.
-            config = AlgorithmConfig.from_dict(data)
+            config = algorithm.Algorithm.from_dict(data)
         # Load from JSON.
         case ".json":
             with open(args.config) as f:
                 data = json.load(f) or {}
             # Load the configuration object.
-            config = AlgorithmConfig.from_dict(data)
+            config = algorithm.Algorithm.from_dict(data)
         # Load from Python.
         case ".py":
             mod = tools.load_python_module_from_filepath(args.config)

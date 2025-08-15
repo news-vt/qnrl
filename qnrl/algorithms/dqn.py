@@ -7,6 +7,8 @@ Fixed target freezes the target Q-network for a set number of steps, after which
 Reference:
     V. Mnih et al., “Human-level control through deep reinforcement learning,” Nature, vol. 518, no. 7540, pp. 529–533, Feb. 2015, doi: 10.1038/nature14236.
 """
+from dataclasses import dataclass, field
+import os
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
@@ -16,10 +18,16 @@ import orbax.checkpoint as ocp
 from tqdm import tqdm
 import optax
 import numpy as np
-from typing import Any
+from typing import Any, Union
 
-# from .algorithm import TrainingAlgorithm
+from .. import tools
+from .algorithm import Algorithm, AlgorithmIdentifier
+from ..checkpoint import CheckpointConfig
+from ..gym import GymConfig
+from ..modules import SerializableModule
+from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer
+from ..metric import MetricManager
 
 
 @nnx.jit
@@ -99,6 +107,7 @@ def train(
     eps_end: float,
     eps_exploration: float,
     checkpoint_manager: ocp.CheckpointManager | None = None,
+    metric_manager: MetricManager | None = None
     ) -> list[dict[str, Any]]:
     """Deep Q-Learning (DQN) algorithm with experience replay and fixed target.
     
@@ -162,9 +171,13 @@ def train(
                     episode_length=info['episode']['l'],
                     episode_time=info['episode']['t'],
                 )
-                history.append(meta)
+                # history.append(meta)
                 pbar_postfix.update(**meta)
                 pbar.set_postfix(pbar_postfix)
+                
+                # Save metrics.
+                if metric_manager is not None:
+                    metric_manager.save(t, meta)
             
             # Update models once sufficient environment interactions have been buffered.
             if t > learning_starts:
@@ -190,9 +203,13 @@ def train(
                         loss_step=t,
                         loss=loss,
                     )
-                    history.append(meta)
+                    # history.append(meta)
                     pbar_postfix.update(**meta)
                     pbar.set_postfix(pbar_postfix)
+                    
+                    # Save metrics.
+                    if metric_manager is not None:
+                        metric_manager.save(t, meta)
                     
                     # Checkpoint model.
                     if checkpoint_manager is not None:
@@ -212,7 +229,110 @@ def train(
         pass
     
     # Wait until checkpoint async operations have completed.
+    if metric_manager is not None:
+        metric_manager.wait_until_finished()
+    
+    # Wait until checkpoint async operations have completed.
     if checkpoint_manager is not None:
         checkpoint_manager.wait_until_finished()
 
     return history
+
+
+# MARK: DQN
+
+@dataclass(kw_only=True)
+class DQN(Algorithm):
+    """Configuration for `qnrl.algorithms.dqn.train`."""
+    algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.DQN, init=False) # Identifier for algorithm.
+    model_policy: SerializableModule # Policy model configuration.
+    model_target: SerializableModule # Target model configuration.
+    optimizer: OptimizerTransform
+    buffer_size: int = 10_000
+    seed: int = 0
+    batch_size: int = 128
+    total_timesteps: int = 500_000
+    learning_starts: int = 10_000
+    policy_update_frequency: int = 10 # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
+    target_update_frequency: int = 500 # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    gamma: float = 0.99
+    tau: float = 1.0
+    eps_start: int = 1
+    eps_end: float = 5e-2
+    eps_exploration: float = 0.5
+    
+    # metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
+    metric_manager: MetricManager | None = None
+    
+    checkpoint: CheckpointConfig | None = None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
+    
+    def run(self) -> dict:
+        # # Validate the metrics file path (if any).
+        # if self.metrics_filepath is not None:
+        #     os.makedirs(self.metrics_filepath.parent, exist_ok=True)
+        
+        # Create the environment.
+        env = self.gym.make()
+        
+        # Create models.
+        model_policy = self.model_policy
+        model_target = self.model_target
+        
+        # Create optimizers.
+        optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)
+        
+        # Create checkpoint manager.
+        if isinstance(self.checkpoint, CheckpointConfig):
+            checkpoint_manager = ocp.CheckpointManager(
+                directory=os.path.abspath(self.checkpoint.checkpoint_dir),
+                checkpointers=ocp.PyTreeCheckpointer(),
+                options=self.checkpoint.checkpoint_options.make(),
+            )
+        else:
+            checkpoint_manager = None
+        
+        # Run the training algorithm.
+        history_list = train(
+            seed=self.seed,
+            env=env,
+            model_policy=model_policy,
+            model_target=model_target,
+            optimizer=optimizer,
+            buffer_size=self.buffer_size,
+            batch_size=self.batch_size,
+            total_timesteps=self.total_timesteps,
+            learning_starts=self.learning_starts,
+            policy_update_frequency=self.policy_update_frequency,
+            target_update_frequency=self.target_update_frequency,
+            gamma=self.gamma,
+            tau=self.tau,
+            eps_start=self.eps_start,
+            eps_end=self.eps_end,
+            eps_exploration=self.eps_exploration,
+            checkpoint_manager=checkpoint_manager,
+            metric_manager=self.metric_manager,
+        )
+        
+        # Convert to dictionary of lists.
+        history_dict = tools.listofdict_to_dictoflist(history_list)
+        # # Save training results to file if indicated.
+        # if self.metrics_file is not None:
+        #     self.metrics_file.save(history_dict)
+        # # if self.metrics_filepath is not None:
+        # #     tools.save_train_results(filepath=self.metrics_filepath, d=history_dict)
+        
+        return history_dict
+
+
+
+@dataclass(kw_only=True)
+class DQNCartPole(DQN):
+    """DQN configuration for CartPole-v1."""
+    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
+
+@dataclass(kw_only=True)
+class DQNMountainCar(DQN):
+    """DQN configuration for MountainCar-v0."""
+    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
+
+type SupportedDQNConfigs = Union[DQNCartPole, DQNMountainCar]
