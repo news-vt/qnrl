@@ -104,6 +104,80 @@ class RescaleInput(SerializableModule):
         return x
 
 
+@dataclass(kw_only=True)
+class QuantumModule(SerializableModule):
+    module_id: str = field(default='QuantumModule', init=False)
+    rngs_kwargs: dict[str, int]
+    device_name: str = field(default="default.qubit")
+    diff_method: str | None = None
+    shots: int | None = None
+    
+    def __init__(self,
+        *,
+        rngs_kwargs: dict[str, int],
+        device_name: str = "default.qubit",
+        diff_method: str | None = None,
+        shots: int | None = None,
+        ):
+        self.rngs_kwargs = rngs_kwargs
+        self.rngs: nnx.Rngs = nnx.Rngs(**rngs_kwargs)
+        self.device_name = device_name
+        self.diff_method = diff_method
+        self.shots = shots
+        
+        self.circuit_kwargs = dict()
+    
+    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        d.pop('circuit_kwargs', None) # Remove circuit keyword arguments.
+        return d
+    
+    @nnx.jit
+    def __call__(self, x):
+        key = self.rngs.default() # Generate new random key for circuit measurement.
+        # print(f"{x.shape = }")
+        x = self.run_circuit(
+            key=key,
+            device_name=self.device_name,
+            diff_method=self.diff_method,
+            shots=self.shots,
+            inputs=x,
+            **self.circuit_kwargs,
+        ) # List of measurements, where each measurement is batched.
+        # Reverse the shape to get back into a form acceptable for future layers.
+        x = jnp.array(x).T # (batch,*,)
+        return x
+    
+    @staticmethod
+    def circuit(
+        inputs: jax.Array, # (num_wires,1)
+        **kwargs,
+        ):
+        raise NotImplementedError
+
+    @staticmethod
+    @partial(nnx.jit, static_argnames=['device_name', 'shots', 'diff_method', 'num_wires', 'num_layers'])
+    def run_circuit(
+        # All device and QNode parameters.
+        key: jax.Array,
+        device_name: str,
+        shots: int | None,
+        diff_method: str | None,
+        # All circuit-specific arguments go below.
+        inputs: jax.Array, # (num_wires,1)
+        weights: jax.Array, # (num_layers,num_wires,3)
+        num_wires: int,
+        num_layers: int,
+        ):
+        device = qml.device(name=device_name, shots=shots, seed=key)
+        qnode = qml.QNode(func=QuantumQNetworkLinear.circuit, device=device, interface="jax", diff_method=diff_method)
+        qnode_vmap = nnx.vmap(qnode, in_axes=(0, None, None, None), out_axes=0)
+        return qnode_vmap(
+            inputs=inputs,
+            weights=weights,
+            num_wires=num_wires,
+            num_layers=num_layers,
+        )
+
 # https://discuss.pennylane.ai/t/trouble-calling-qjit-compiled-qnode-inside-a-nnx-jit-compiled-flax-nnx-module/7853
 # https://discuss.pennylane.ai/t/error-combining-jax-with-multiple-devices/4934
 # https://discuss.pennylane.ai/t/facing-issues-with-jax-jitting-the-optimization-loop/4274
