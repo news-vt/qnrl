@@ -35,6 +35,15 @@ class DumpFormat(enum.StrEnum):
 class DumpAlgorithm(DataClassDictMixin):
     """Dump the given configuration to various supported formats.
     
+    Pretty-print configuration:
+    >>> cli --config <file> dump --format pretty
+    
+    Dump configuration to JSON file:
+    >>> cli --config <file> dump --format json
+    
+    Dump configuration to YAML file:
+    >>> cli --config <file> dump --format yaml
+    
     Extract metric file path:
     >>> cli --config <file> dump --format json | jq '.metric_manager.path'
     """
