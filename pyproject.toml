@@ -1,0 +1,17 @@
+[project]
+name = "qnrl"
+version = "1.0.0"
+authors = [
+    {name = "Alexander DeRieux", email = "derieux@vt.edu"},
+    {name = "Walid Saad", email = "walids@vt.edu"},
+]
+requires-python = ">=3.12, <3.13" # Fixing ==3.12 here.
+license = {text = "CC BY 4.0"}
+dynamic = ["dependencies", "optional-dependencies"] # See section "tool.setuptools.dynamic".
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies = {dev = { file = ["requirements-dev.txt"] }} # Install using options "[dev]".
+
+[tool.setuptools.packages]
+find = { exclude = ["metrics", "figures*", "scripts*", "experiments*", "experiment_output*"] }  # Scanning implicit namespaces is active by default
