@@ -16,12 +16,12 @@ class MetricManager(DataClassDictMixin):
     
     _history: list[dict[str, Any]] = field(default_factory=list, init=False)
     
-    @property
-    def history(self) -> list[dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
+        """Return history as list of time-sorted dictionary metric entries."""
         return self._history
-    
-    @property
-    def metrics(self) -> dict[str, Any]:
+
+    def get_metrics(self) -> dict[str, Any]:
+        """Return metrics as dictionary of lists."""
         return tools.listofdict_to_dictoflist(self._history) # list[dict] -> dict[str, Any]
     
     def __post_init__(self):
