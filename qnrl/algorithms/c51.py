@@ -27,6 +27,11 @@ from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer
 from ..metric import MetricManager
 
+# https://docs.cleanrl.dev/rl-algorithms/c51/#implemented-variants
+# https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/c51_jax.py
+# https://github.com/archsyscall/DistRL-TensorFlow2?tab=readme-ov-file#qrdqn
+# https://github.com/archsyscall/DistRL-TensorFlow2/blob/master/C51/C51.py
+
 
 @nnx.jit
 def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
@@ -306,16 +311,7 @@ class C51(Algorithm):
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
     
-    # metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
-    # metrics_file: MetricFile | None = None
-    metric_manager: MetricManager | None = None
-    
-    checkpoint: CheckpointConfig | None = None # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
-    
-    def run(self) -> dict:
-        # # Validate the metrics file path (if any).
-        # if self.metrics_filepath is not None:
-        #     os.makedirs(self.metrics_filepath.parent, exist_ok=True)
+    def run(self) -> list:
         
         # Create the environment.
         env = self.gym.make()
@@ -365,16 +361,8 @@ class C51(Algorithm):
             checkpoint_manager=checkpoint_manager,
             metric_manager=self.metric_manager,
         )
-        
-        # Convert to dictionary of lists.
-        history_dict = tools.listofdict_to_dictoflist(history_list)
-        # # Save training results to file if indicated.
-        # if self.metrics_file is not None:
-        #     self.metrics_file.save(history_dict)
-        # # if self.metrics_filepath is not None:
-        # #     tools.save_train_results(filepath=self.metrics_filepath, d=history_dict)
 
-        return history_dict
+        return history_list
 
 
 @dataclass(kw_only=True)
