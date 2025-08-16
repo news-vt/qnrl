@@ -113,7 +113,7 @@ class Run(DataClassDictMixin):
 class Plot(DataClassDictMixin):
     """Plot metric data using X/Y data keys.
     
-    If you are unsure of what keys exist, see `InspectMetrics`.
+    If you are unsure of what keys exist, see `InfoMetrics`.
     """
     type: Literal['terminal', 'matplotlib'] = 'terminal'
     x: str # X-axis data key.
