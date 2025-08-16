@@ -39,10 +39,10 @@ class DumpAlgorithm(DataClassDictMixin):
     >>> cli --config <file> dump --format pretty
     
     Dump configuration to JSON file:
-    >>> cli --config <file> dump --format json
+    >>> cli --config <file> dump --format json | <outfile>.json
     
     Dump configuration to YAML file:
-    >>> cli --config <file> dump --format yaml
+    >>> cli --config <file> dump --format yaml | <outfile>.yaml
     
     Extract metric file path:
     >>> cli --config <file> dump --format json | jq '.metric_manager.path'
