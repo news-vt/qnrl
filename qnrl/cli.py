@@ -165,7 +165,17 @@ class InfoMetrics(DataClassDictMixin):
             metrics = metric_manager.get_metrics()
             
             # Collect metric information.
-            data = [dict(key=key, shape=list(jnp.array(val).shape), dtype=str(jnp.array(val).dtype)) for key, val in metrics.items()]
+            data = [dict(
+                key=key,
+                shape=list(jnp.array(val).shape),
+                dtype=str(jnp.array(val).dtype),
+                min=jnp.array(val).min().item(),
+                max=jnp.array(val).max().item(),
+                argmin=jnp.array(val).argmin().item(),
+                argmax=jnp.array(val).argmax().item(),
+                mean=jnp.array(val).mean().item(),
+                std=jnp.array(val).std().item(),
+            ) for key, val in metrics.items()]
             
             # Dump.
             match self.format:
