@@ -152,8 +152,11 @@ class InfoMetrics(DataClassDictMixin):
     
     This is different than dumping the entire metrics file. See `DumpMetrics` for dumping entire metric file contents.
     
-    For example, to extract all metric keys run:
+    Extract all metric keys:
     >>> cli --config <file> metrics info --format json | jq '.[].key'
+    
+    Extract keys `{key, min, argmin}` from metrics:
+    >>> cli --config <file> metrics info --format json | jq 'map({key, min, argmin})'
     """
     format: DumpFormat = DumpFormat.PRETTY
 
