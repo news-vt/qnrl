@@ -108,7 +108,7 @@ class Run(DataClassDictMixin):
     def main(self, config: algorithm.Algorithm):
         config.run() # Run training algorithm.
 
-
+# TODO add live update https://github.com/piccolomo/plotext/blob/master/readme/environments.md#rich
 @dataclass(kw_only=True)
 class Plot(DataClassDictMixin):
     """Plot metric data using X/Y data keys.
