@@ -10,6 +10,7 @@ import tyro
 from mashumaro.mixins.dict import DataClassDictMixin
 import rich
 import rich.pretty
+import jax.numpy as jnp
 
 from . import tools
 from .optimizer import *
@@ -32,7 +33,11 @@ class DumpFormat(enum.StrEnum):
 
 @dataclass(kw_only=True)
 class DumpAlgorithm(DataClassDictMixin):
-    """Dump the given configuration to various supported formats."""
+    """Dump the given configuration to various supported formats.
+    
+    Extract metric file path:
+    >>> cli --config <file> dump --format json | jq '.metric_manager.path'
+    """
     format: DumpFormat
     
     def main(self, config: algorithm.Algorithm):
@@ -52,7 +57,11 @@ class DumpAlgorithm(DataClassDictMixin):
 
 @dataclass(kw_only=True)
 class DumpMetrics(DataClassDictMixin):
-    """Dump the given configuration to various supported formats."""
+    """Dump the given configuration to various supported formats.
+    
+    Extract all metric keys:
+    >>> cli --config <file> metrics dump --type dict --format json | jq 'keys'
+    """
     format: DumpFormat
     type: Literal['list', 'dict'] = 'dict' # Dump as either time-sorted history list, or metrics dictionary.
     
@@ -93,51 +102,93 @@ class Run(DataClassDictMixin):
 
 @dataclass(kw_only=True)
 class Plot(DataClassDictMixin):
+    """Plot metric data using X/Y data keys.
+    
+    If you are unsure of what keys exist, see `InspectMetrics`.
+    """
+    type: Literal['terminal', 'matplotlib'] = 'terminal'
+    x: str # X-axis data key.
+    y: str # Y-axis data key.
+    
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
             # Load metrics.
             metric_manager = config.metric_manager
             metric_manager.load()
-            
-            import plotext as plt
             metrics = metric_manager.get_metrics()
             
-            # plt.figure()
-            plt.plot(metrics['loss_step'], metrics['loss'])
-            plt.xlabel('loss_step')
-            plt.ylabel('loss')
-            plt.show()
+            match self.type:
+                case 'terminal':
+                    import plotext as plt
+                    
+                    plt.plot(metrics[self.x], metrics[self.y])
+                    plt.xlabel(self.x)
+                    plt.ylabel(self.y)
+                    plt.show()
 
-            # plt.figure()
-            plt.clf()
-            plt.plot(metrics['episode_step'], metrics['episode_reward'])
-            plt.xlabel('episode_step')
-            plt.ylabel('episode_reward')
-            plt.show()
+                case 'matplotlib':
+                    import matplotlib.pyplot as plt
+                    
+                    plt.plot(metrics[self.x], metrics[self.y])
+                    plt.xlabel(self.x)
+                    plt.ylabel(self.y)
+                    plt.show()
+        else:
+            raise ValueError("no metric manager provided")
+
+
+@dataclass(kw_only=True)
+class InfoMetrics(DataClassDictMixin):
+    """Get metric information.
+    
+    This is different than dumping the entire metrics file. See `DumpMetrics` for dumping entire metric file contents.
+    
+    For example, to extract all metric keys run:
+    >>> cli --config <file> metrics info --format json | jq '.[].key'
+    """
+    format: DumpFormat = DumpFormat.PRETTY
+
+    def main(self, config: algorithm.Algorithm):
+        if config.metric_manager is not None:
+            # Load metrics.
+            metric_manager = config.metric_manager
+            metric_manager.load()
+            metrics = metric_manager.get_metrics()
+            
+            # Collect metric information.
+            data = [dict(key=key, shape=list(jnp.array(val).shape), dtype=str(jnp.array(val).dtype)) for key, val in metrics.items()]
+            
+            # Dump.
+            match self.format:
+                case DumpFormat.YAML:
+                    yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                    print(yaml_string)
+                case DumpFormat.JSON:
+                    json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                    rich.print_json(json_string)
+                case DumpFormat.PRETTY:
+                    rich.pretty.pprint(data, expand_all=True)
+            
         else:
             raise ValueError("no metric manager provided")
 
 
 @dataclass(kw_only=True)
 class Metrics(DataClassDictMixin):
+    """Interact with metrics file."""
     mode: Union[
         Annotated[DumpMetrics, tyro.conf.subcommand(name='dump')],
+        Annotated[InfoMetrics, tyro.conf.subcommand(name='info')],
         Plot,
     ]
     
     def main(self, config: algorithm.Algorithm):
-        # Dump metrics to standard output.
-        if isinstance(self.mode, DumpMetrics):
-            self.mode.main(config)
-        
-        # Plot metric results.
-        elif isinstance(self.mode, Plot):
-            self.mode.main(config)
+        self.mode.main(config)
 
 
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
-    """Training CLI."""
+    """Algorithm CLI."""
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     mode: Union[
         Annotated[DumpAlgorithm, tyro.conf.subcommand(name='dump')],
