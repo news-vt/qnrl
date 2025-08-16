@@ -6,7 +6,9 @@ from mashumaro.mixins.dict import DataClassDictMixin
 from mashumaro.config import BaseConfig
 from mashumaro.types import Discriminator
 
-from ..gym import *
+from ..checkpoint import CheckpointConfig
+from ..metric import MetricManager
+from ..gym import GymConfig
 
 
 def algorithm_tagger(cls):
@@ -28,6 +30,11 @@ class Algorithm(DataClassDictMixin):
     """
     gym: GymConfig # Gymnasium environment configuration.
     algorithm: AlgorithmIdentifier = field(init=False)
+    
+    # metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
+    metric_manager: MetricManager | None = None
+    
+    checkpoint: CheckpointConfig | None = None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
     def run(self) -> dict:
         raise NotImplementedError
