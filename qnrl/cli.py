@@ -11,11 +11,11 @@ from mashumaro.mixins.dict import DataClassDictMixin
 import rich
 import rich.pretty
 
-from .. import tools
-from ..optimizer import *
-from ..gym import *
-from ..checkpoint import *
-from ..algorithms import *
+from . import tools
+from .optimizer import *
+from .gym import *
+from .checkpoint import *
+from .algorithms import *
 
 
 import jax
