@@ -7,7 +7,7 @@ Fixed target freezes the target Q-network for a set number of steps, after which
 Reference:
     V. Mnih et al., “Human-level control through deep reinforcement learning,” Nature, vol. 518, no. 7540, pp. 529–533, Feb. 2015, doi: 10.1038/nature14236.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import os
 import gymnasium as gym
 import jax
@@ -18,12 +18,10 @@ import orbax.checkpoint as ocp
 from tqdm import tqdm
 import optax
 import numpy as np
-from typing import Any, Union
+from typing import Any
 
-from .. import tools
-from .algorithm import Algorithm, AlgorithmIdentifier
+from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
-from ..gym import GymConfig
 from ..modules import SerializableModule
 from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer
@@ -244,7 +242,6 @@ def train(
 @dataclass(kw_only=True)
 class DQN(Algorithm):
     """Configuration for `qnrl.algorithms.dqn.train`."""
-    algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.DQN, init=False) # Identifier for algorithm.
     model_policy: SerializableModule # Policy model configuration.
     model_target: SerializableModule # Target model configuration.
     optimizer: OptimizerTransform
@@ -262,7 +259,7 @@ class DQN(Algorithm):
     eps_exploration: float = 0.5
     
     def run(self) -> list:
-        
+
         # Create the environment.
         env = self.gym.make()
         
@@ -306,17 +303,3 @@ class DQN(Algorithm):
         )
         
         return history_list
-
-
-
-@dataclass(kw_only=True)
-class DQNCartPole(DQN):
-    """DQN configuration for CartPole-v1."""
-    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
-
-@dataclass(kw_only=True)
-class DQNMountainCar(DQN):
-    """DQN configuration for MountainCar-v0."""
-    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
-
-type SupportedDQNConfigs = Union[DQNCartPole, DQNMountainCar]

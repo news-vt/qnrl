@@ -5,7 +5,7 @@ Distributional reinforcement learning variant of DQN.
 Reference:
     M. G. Bellemare, W. Dabney, and R. Munos, “A distributional perspective on reinforcement learning,” in Proceedings of the 34th international conference on machine learning, D. Precup and Y. W. Teh, Eds., in Proceedings of machine learning research, vol. 70. PMLR, Aug. 2017, pp. 449–458. doi: 10.48550/arXiv.1707.06887.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import os
 import gymnasium as gym
 import jax
@@ -15,13 +15,11 @@ from flax.training import orbax_utils
 from tqdm import tqdm
 import optax
 import numpy as np
-from typing import Any, Union
+from typing import Any
 import orbax.checkpoint as ocp
 
-from ..  import tools
-from .algorithm import Algorithm, AlgorithmIdentifier
+from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
-from ..gym import GymConfig
 from ..modules import SerializableModule
 from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer
@@ -291,7 +289,6 @@ def train(
 @dataclass(kw_only=True)
 class C51(Algorithm):
     """Configuration for `qnrl.algorithms.c51.train`."""
-    algorithm: AlgorithmIdentifier = field(default=AlgorithmIdentifier.C51, init=False) # Identifier for algorithm.
     model_policy: SerializableModule # Policy model configuration.
     model_target: SerializableModule # Target model configuration.
     optimizer: OptimizerTransform
@@ -363,17 +360,3 @@ class C51(Algorithm):
         )
 
         return history_list
-
-
-@dataclass(kw_only=True)
-class C51CartPole(C51):
-    """C51 configuration for CartPole-v1."""
-    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="CartPole-v1")) # Gymnasium environment configuration.
-
-
-@dataclass(kw_only=True)
-class C51MountainCar(C51):
-    """C51 configuration for MountainCar-v0."""
-    gym: GymConfig = field(default_factory=lambda: GymConfig(env_id="MountainCar-v0")) # Gymnasium environment configuration.
-
-type SupportedC51Configs = Union[C51CartPole, C51MountainCar]

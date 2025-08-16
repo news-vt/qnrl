@@ -13,13 +13,7 @@ from ..gym import GymConfig
 
 def algorithm_tagger(cls):
     """Tag serializable algorithms by their class name."""
-    return cls.__name__
-
-
-class AlgorithmIdentifier(enum.StrEnum):
-    """Identifiers for each algorithm."""
-    DQN = enum.auto()
-    C51 = enum.auto()
+    return cls.__name__.lower()
 
 
 @dataclass(kw_only=True)
@@ -29,11 +23,7 @@ class Algorithm(DataClassDictMixin):
     This class contains a `run()` method, that is intended to invoke the `qnrl.algorithm.*.train()` function, along with any other training procedures. The `run()` method will be called with no arguments.
     """
     gym: GymConfig # Gymnasium environment configuration.
-    algorithm: AlgorithmIdentifier = field(init=False)
-    
-    # metrics_filepath: pathlib.Path | None = None # Path for metric file with optional format flags. If this option is not specified, then the metrics will not be saved.
-    metric_manager: MetricManager | None = None
-    
+    metric_manager: MetricManager | None = None # Metric management configuration.
     checkpoint: CheckpointConfig | None = None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
     def run(self) -> dict:

@@ -4,6 +4,7 @@ from qnrl.algorithms.dqn import *
 from qnrl.optimizer import *
 from qnrl.metric import *
 from qnrl.modules import *
+from qnrl.gym import *
 
 FILEPATH = Path(__file__)
 
@@ -11,10 +12,11 @@ FILEPATH = Path(__file__)
 NAME = FILEPATH.stem # Same as filename without extension.
 
 # Experiment configuration.
-config = DQNCartPole(
+config = DQN(
     metric_manager=MetricManager(
         path=(FILEPATH.parent/"../metrics"/Path(f"{NAME}.json")).resolve(),
     ),
+    gym=GymConfig(env_id="CartPole-v1"),
     model_policy=Sequential(
         layers={
             'RescaleInput': RescaleInput(scale=[2.4, 2.5, 0.21, 2.5]),
