@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import pathlib
-from typing import Union
+from typing import Annotated, Literal, Union
 import json
 import yaml
 import json
@@ -31,15 +31,108 @@ class DumpFormat(enum.StrEnum):
 
 
 @dataclass(kw_only=True)
-class Dump(DataClassDictMixin):
+class DumpAlgorithm(DataClassDictMixin):
     """Dump the given configuration to various supported formats."""
     format: DumpFormat
+    
+    def main(self, config: algorithm.Algorithm):
+        match self.format:
+            case DumpFormat.YAML:
+                data = config.to_dict()
+                yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                print(yaml_string)
+            case DumpFormat.JSON:
+                data = config.to_dict()
+                json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                rich.print_json(json_string)
+            case DumpFormat.PRETTY:
+                data = config.to_dict()
+                rich.pretty.pprint(data, expand_all=True)
+
+
+@dataclass(kw_only=True)
+class DumpMetrics(DataClassDictMixin):
+    """Dump the given configuration to various supported formats."""
+    format: DumpFormat
+    type: Literal['list', 'dict'] = 'dict' # Dump as either time-sorted history list, or metrics dictionary.
+    
+    def main(self, config: algorithm.Algorithm):
+        if config.metric_manager is not None:
+            # Load metrics.
+            metric_manager = config.metric_manager
+            metric_manager.load()
+
+            match self.type:
+                case 'list':
+                    data = metric_manager.get_history()
+                case 'dict':
+                    data = metric_manager.get_metrics()
+                case _:
+                    raise ValueError(f"{self.type} is not a supported metric dump type")
+
+            match self.format:
+                case DumpFormat.YAML:
+                    yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                    print(yaml_string)
+                case DumpFormat.JSON:
+                    json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                    rich.print_json(json_string)
+                case DumpFormat.PRETTY:
+                    rich.pretty.pprint(data, expand_all=True)
+        else:
+            raise ValueError("no metric manager provided")
 
 
 @dataclass(kw_only=True)
 class Run(DataClassDictMixin):
     """Run training algorithm using the given config."""
-    pass
+    
+    def main(self, config: algorithm.Algorithm):
+        config.run() # Run training algorithm.
+
+
+@dataclass(kw_only=True)
+class Plot(DataClassDictMixin):
+    def main(self, config: algorithm.Algorithm):
+        if config.metric_manager is not None:
+            # Load metrics.
+            metric_manager = config.metric_manager
+            metric_manager.load()
+            
+            import plotext as plt
+            metrics = metric_manager.get_metrics()
+            
+            # plt.figure()
+            plt.plot(metrics['loss_step'], metrics['loss'])
+            plt.xlabel('loss_step')
+            plt.ylabel('loss')
+            plt.show()
+
+            # plt.figure()
+            plt.clf()
+            plt.plot(metrics['episode_step'], metrics['episode_reward'])
+            plt.xlabel('episode_step')
+            plt.ylabel('episode_reward')
+            plt.show()
+        else:
+            raise ValueError("no metric manager provided")
+
+
+@dataclass(kw_only=True)
+class Metrics(DataClassDictMixin):
+    mode: Union[
+        Annotated[DumpMetrics, tyro.conf.subcommand(name='dump')],
+        Plot,
+    ]
+    
+    def main(self, config: algorithm.Algorithm):
+        # Dump metrics to standard output.
+        if isinstance(self.mode, DumpMetrics):
+            self.mode.main(config)
+        
+        # Plot metric results.
+        elif isinstance(self.mode, Plot):
+            self.mode.main(config)
 
 
 @dataclass(kw_only=True)
@@ -47,8 +140,9 @@ class Args(DataClassDictMixin):
     """Training CLI."""
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     mode: Union[
-        Dump,
+        Annotated[DumpAlgorithm, tyro.conf.subcommand(name='dump')],
         Run,
+        Metrics,
     ]
 
 
@@ -79,21 +173,5 @@ if __name__ == "__main__":
         case _:
             raise ValueError(f"{suffix} is an unsupported file extension")
     
-    # Dump configuration to various formats.
-    if isinstance(args.mode, Dump):
-        match args.mode.format:
-            case DumpFormat.YAML:
-                data = config.to_dict()
-                yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
-                print(yaml_string)
-            case DumpFormat.JSON:
-                data = config.to_dict()
-                json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
-                rich.print_json(json_string)
-            case DumpFormat.PRETTY:
-                data = config.to_dict()
-                rich.pretty.pprint(data, expand_all=True)
-
-    # Run training algorithm.
-    elif isinstance(args.mode, Run):
-        config.run()
+    # Run program mode.
+    args.mode.main(config)
