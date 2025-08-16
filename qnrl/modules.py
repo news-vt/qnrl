@@ -353,15 +353,17 @@ class DistQNetworkLinear(SerializableModule):
     num_actions: int
     num_atoms: int
     douts: list[int] = field(default_factory=list)
+    rngs_kwargs: dict[str, int]
 
     def __init__(self,
         din: int,
         num_actions: int,
         num_atoms: int,
         *,
-        rngs: nnx.Rngs,
+        rngs_kwargs: dict[str, int],
         douts: list[int] = [],
         ):
+        rngs: nnx.Rngs = nnx.Rngs(**rngs_kwargs)
         
         # Organize dimensions so that the output of one is the input of another.
         dims = [din, *douts, num_actions * num_atoms]
@@ -374,6 +376,7 @@ class DistQNetworkLinear(SerializableModule):
         self.num_actions = num_actions
         self.num_atoms = num_atoms
         self.douts = douts
+        self.rngs_kwargs = rngs_kwargs
     
     @nnx.jit
     def __call__(self, x):
