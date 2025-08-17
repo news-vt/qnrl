@@ -494,8 +494,8 @@ class QuantumNativeQNetwork(SerializableModule):
             n_layers=self.n_layers,
             U_atoms=self.U_atoms,
         )
-        # Filter output based on number of actions.
-        # If number of actions is not a multiple of 2, then filter out the excess actions on the qubit register.
+        # Filter circuit output based on number of "active" actions.
+        # If desired number of actions is not a multiple of 2, then filter out the excess actions on the qubit register (i.e., more actions can be represented on the register and we don't care about them).
         x = x[:,jnp.array(self.active_action_idx, dtype=int)] # (batch,n_actions,)
         
         # # Take softmax to renormalize selected actions.
