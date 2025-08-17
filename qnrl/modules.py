@@ -607,8 +607,8 @@ class QuantumNativeQNetwork(SerializableModule):
         }
         
         # Equal superposition of all actions for each policy.
-        for w in wiredict['actions']:
-            qml.Hadamard(wires=w)
+        # Use `StatePrep` here because there may be fewer "active" actions than the total number of actions supported by the number of qubits in the action register. This ensures that all "inactive" actions have 0 amplitude.
+        qml.StatePrep(jnp.ones(shape=(n_actions,)), wires=wiredict['actions'], normalize=True, pad_with=0)
         
         # Prepare the n-th power of the m-th moment of the returns distribution.
         for _ in range(n_reuploads):
