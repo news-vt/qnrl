@@ -683,3 +683,310 @@ class QuantumNativeQNetwork(SerializableModule):
             n_layers=n_layers,
             U_atoms=U_atoms,
         )
+
+
+
+
+#############
+#############
+#############
+#############
+#############
+
+
+
+@dataclass(kw_only=True)
+class QuantumNativeQNetworkCascade(SerializableModule):
+    """Cascaded variant of quantum-native (distributional) Q-value network to prevent memory explosion for high values of `n_reuploads`."""
+    din: int
+    # n_policies: int
+    # """Number of policies to optimize (will require `ceil(log2(n))` qubits)."""
+    n_actions: int
+    """Number of actions (will require `ceil(log2(n))` qubits)."""
+    n_returns: int
+    """Number of return atoms (will require `ceil(log2(n))` qubits)."""
+    z_min: float
+    z_max: float
+    m_moment: int
+    """m-th moment of the return atoms distribution (`E[Z^m]`)."""
+    n_reuploads: int
+    """n-th power of the expectation over the return atoms distribution (`E[Z]^n`)."""
+    n_layers: int
+    """Number of re-upload layers to use for the return-atom distribution unitary."""
+    rngs_kwargs: dict[str, int]
+    device_name: str = "default.qubit"
+    diff_method: str | None = None
+    shots: int | None = None
+    
+    def __post_init__(self):
+        self.rngs: nnx.Rngs = nnx.Rngs(**self.rngs_kwargs)
+        
+        # Compute qubit count based on number of policies, actions, and return atoms.
+        # self.d_policies = int(jnp.ceil(jnp.log2(self.n_policies))) # Qubit count for policies to optimize.
+        self.d_actions = int(jnp.ceil(jnp.log2(self.n_actions))) # Qubit count for actions.
+        self.d_returns = int(jnp.ceil(jnp.log2(self.n_returns))) # Qubit count for return atoms.
+        
+        # Collect indices of actions based on the total number of actions that can be represented by the number of qubits on the action register.
+        self.all_action_idx = list(range(2**self.d_actions)) # All actions represented in the action qubit register.
+        self.active_action_idx = list(range(self.n_actions)) # Indices of actions that are being used on the action qubit register.
+        self.inactive_action_idx = list(set(self.all_action_idx) - set(self.active_action_idx)) # Indices of actions that are not being used on the action qubit register.
+        
+        # Create list of return atoms.
+        self.atoms = jnp.linspace(start=self.z_min, stop=self.z_max, num=self.n_returns)
+        # Create non-linear trace non-increasing Kraus matrix of returns atoms.
+        atoms_values = nnx.softmax(self.atoms) # Normalize to probability distribution.
+        atoms_values = jnp.sqrt(atoms_values * self.n_returns) # Ensure that L2-norm of quantum state amplitude will produce the atom probability (i.e., $|amp|^2 = prob$).
+        atoms_values = atoms_values / atoms_values.max() # Ensure maximum value is 1.
+        if self.n_returns != 2**self.d_returns: # Pad with zeros if return atoms shape is not a power of 2.
+            atoms_values = jnp.pad(atoms_values, (0,2**self.d_returns - self.n_returns), mode='constant')
+        self.U_atoms = jnp.diag(atoms_values)
+        
+        # TODO returns probability matrix with shape (n_policy,n_action,n_return).
+        # self.returns_probs_matrix = nnx.Param(
+        #     nnx.softmax( # Normalize to make it a probability vector (sums to 1).
+        #         x=jax.random.normal( # Atom probabilities sampled from normal distribution.
+        #             key=self.rngs.params(),
+        #             # shape=(self.n_policies, self.n_actions, self.n_returns),
+        #             shape=(self.n_actions, self.n_returns),
+        #         ),
+        #         axis=-1, # Softmax over `n_returns` dimension.
+        #     )
+        # )
+        
+        # Weights for return-atom distribution generation.
+        # Every action gets their own return-atom distribution unitary.
+        self.circ_weights_shape = (self.n_actions,self.n_layers,self.d_returns,3,) # Each qubit has (Rx, Ry, Rz).
+        self.circ_weights = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_shape, minval=0, maxval=jnp.pi))
+        ####
+        # self.circ_weights_base = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_shape, minval=0, maxval=jnp.pi))
+        # self.circ_weights = [
+        #     self.circ_weights_base for _ in range(self.n_reuploads)
+        # ] # Same parameter for each reupload layer.
+        # # self.circ_weights = [
+        # #     nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_shape, minval=0, maxval=jnp.pi))
+        # #     for _ in range(self.n_reuploads)
+        # # ] # (n_reuploads,n_actions,n_layers,d_returns,3,)
+        
+        
+        # Inputs to circuit will be encoded onto the return-atom wires.
+        self.circ_inputs_shape = (self.d_returns,1,) # Each qubit has (Rx,).
+        self.layer_project_input = nnx.Linear(in_features=self.din, out_features=reduce(lambda x,y: x*y, self.circ_inputs_shape), rngs=self.rngs)
+    
+    @nnx.jit
+    def __call__(self, x): # (batch,din,)
+        # Project input into shape that is compatible with the quantum circuit.
+        x = self.layer_project_input(x)
+        # Input must be batched for input into the circuit.
+        x = jnp.reshape(x, (-1, *self.circ_inputs_shape,)) # (batch,d_returns,1,)
+        # Prepare the n-th power of the m-th moment of the returns distribution.
+        key = self.rngs.default() # Generate new random key for circuit measurement.
+        probs_actions = jnp.ones(shape=(x.shape[0], self.n_actions,), dtype='float64')
+        for _ in range(self.n_reuploads):
+            # jax.debug.print("[QuantumNativeQNetworkCascade] Upload {n}: start, {probs_actions}", n=n, probs_actions=probs_actions)
+            # Run quantum circuit.
+            key, subkey = jax.random.split(key=key)
+            probs_actions = self.run_circuit( # (batch,2**d_actions,)
+                # All device and QNode parameters.
+                key=subkey,
+                device_name=self.device_name,
+                shots=self.shots,
+                diff_method=self.diff_method,
+                # Circuit arguments.
+                inputs=x,
+                probs_actions=probs_actions,
+                weights=self.circ_weights,
+                # weights=self.circ_weights[n],
+                n_actions=self.n_actions,
+                d_actions=self.d_actions,
+                d_returns=self.d_returns,
+                m_moment=self.m_moment,
+                n_layers=self.n_layers,
+                U_atoms=self.U_atoms,
+            )
+            # Filter circuit output based on number of "active" actions.
+            # If desired number of actions is not a multiple of 2, then filter out the excess actions on the qubit register (i.e., more actions can be represented on the register and we don't care about them).
+            probs_actions = probs_actions[:,jnp.array(self.active_action_idx, dtype=int)] # (batch,n_actions,)
+            # Ensure probabilities are normalized after the filter.
+            probs_actions = probs_actions / probs_actions.sum(axis=-1, keepdims=True)
+            # jax.debug.print("[QuantumNativeQNetworkCascade] Upload {n}: done, {probs_actions}", n=n, probs_actions=probs_actions)
+        return probs_actions
+    
+    @staticmethod
+    def circuit(
+        inputs: jax.Array, # (d_returns,1,)
+        probs_actions: jax.Array,
+        weights: jax.Array, # (n_actions,n_layers,d_returns,3,)
+        n_actions: int,
+        d_actions: int,
+        d_returns: int,
+        m_moment: int,
+        n_layers: int,
+        U_atoms: jax.Array,
+        ):
+        
+        def var(phi: jax.Array, wires: list[int]):
+            """Variational layer.
+
+            Args:
+                phi (jax.Array): Variational parameters for the layer of shape `(num_wires,3)`.
+                wires (list[int]): List of wires.
+            """
+            for w in wires:
+                qml.RX(phi=phi[w,0], wires=w)
+                qml.RY(phi=phi[w,1], wires=w)
+                qml.RZ(phi=phi[w,2], wires=w)
+        
+        def circ(wires: list[int]):
+            """Circular entanglement layer using `CZ`.
+
+            Args:
+                wires (list[int]): List of wires.
+            """
+            for w0, w1 in zip(wires, wires[1:]):
+                qml.CZ(wires=[w0, w1])
+            if len(wires) != 2:
+                qml.CZ(wires=[wires[0], wires[-1]])
+        
+        def enc(phi: jax.Array, wires: list[int]):
+            """Encoding layer using `RX`.
+
+            Args:
+                phi (jax.Array): Encoding parameters for the layer of shape `(num_wires,1)`.
+                wires (list[int]): _description_
+            """
+            for w in wires:
+                qml.RX(phi=phi[w,0], wires=w)
+        
+        def reset(wires: list[int]):
+            """Measure the given qubits to collapse their state, then reset to zero."""
+            for w in wires:
+                qml.measure(wires=w, reset=True)
+        
+        def get_ops_for_returns_distribution(
+            inputs: jax.Array, # (d_returns,1,)
+            weights: jax.Array, # (n_layers,d_returns,3,)
+            n_layers: int,
+            wires: list[int],
+            ):
+            """Return-atom distribution unitary.
+            
+            Layered variational, circular-entanglement, and encoding circuit.
+            """
+            for l in range(n_layers):
+                var(phi=weights[l], wires=wires)
+                circ(wires=wires)
+                enc(phi=inputs, wires=wires)
+            var(phi=weights[-1], wires=wires) # Final variational layer at the end.
+        
+        def prepare_returns_probability_distribution(
+            inputs: jax.Array, # (d_returns,1,)
+            weights: jax.Array, # (n_actions,n_layers,d_returns,3,)
+            n_actions: int,
+            n_layers: int,
+            wires_actions: list[int],
+            wires_returns: list[int],
+            ):
+            ops = [
+                qml.prod(get_ops_for_returns_distribution)(
+                    inputs=inputs,
+                    weights=weights[a],
+                    n_layers=n_layers,
+                    wires=wires_returns,
+                )
+                for a in range(n_actions)
+            ]
+            qml.Select(ops, control=wires_actions)
+        
+        def prepare_m_moment(
+            m_moment: int,
+            U_atoms: jax.Array,
+            wires_returns: list[int],
+            ):
+            # Apply the (non-unitary) return-atom-value operation.
+            # qml.QubitUnitary(U_returns_atoms, wires=wires_returns, unitary_check=False) # We know it's not unitary, so don't check.
+            for _ in range(m_moment):
+                qml.QubitUnitary(U_atoms, wires=wires_returns, unitary_check=False) # We know it's not unitary, so don't check.
+        
+        # Create wires.
+        num_wires = d_actions + d_returns
+        wirelist = list(range(num_wires)) # All wires.
+        wiredict = { # Wires separated into blocks for each section.
+            'actions': wirelist[:d_actions],
+            'returns': wirelist[d_actions:]
+        }
+        
+        # Equal superposition of all actions for each policy.
+        # Use `StatePrep` here because there may be fewer "active" actions than the total number of actions supported by the number of qubits in the action register. This ensures that all "inactive" actions have 0 amplitude.
+        qml.StatePrep(probs_actions, wires=wiredict['actions'], normalize=True, pad_with=0)
+        
+        # Prepare returns probability distribution for every policy.
+        prepare_returns_probability_distribution(
+            inputs=inputs,
+            weights=weights,
+            n_actions=n_actions,
+            n_layers=n_layers,
+            wires_actions=wiredict['actions'],
+            wires_returns=wiredict['returns'],
+        )
+        # Prepare the m-th moment of the returns distribution.
+        prepare_m_moment(
+            m_moment=m_moment,
+            U_atoms=U_atoms,
+            wires_returns=wiredict['returns'],
+        )
+        # Measure the return-atom qubits to collapse their state, then reset to zero.
+        reset(wires=wiredict['returns'])
+        
+        return qml.probs(wires=wiredict['actions'])
+        # return (
+        #     qml.probs(wires=wiredict['actions']),
+        #     qml.probs(wires=wiredict['returns']),
+        # )
+
+    @staticmethod
+    @partial(nnx.jit, static_argnames=[
+        # Device and QNode parameters.
+        'device_name', 'shots', 'diff_method',
+        # Circuit parameters.
+        'n_actions',
+        'd_actions',
+        'd_returns',
+        'm_moment',
+        'n_layers',
+        'U_atoms',
+    ])
+    def run_circuit(
+        # All device and QNode parameters.
+        key: jax.Array,
+        device_name: str,
+        shots: int | None,
+        diff_method: str | None,
+        # Circuit arguments.
+        inputs: jax.Array, # (d_returns,1,)
+        weights: jax.Array, # (n_actions,n_layers,d_returns,3,)
+        probs_actions: jax.Array,
+        n_actions: int,
+        d_actions: int,
+        d_returns: int,
+        m_moment: int,
+        n_layers: int,
+        U_atoms: jax.Array,
+        ):
+        device = qml.device(name=device_name, shots=shots, seed=key)
+        qnode = qml.QNode(func=QuantumNativeQNetworkCascade.circuit, device=device, interface="jax", diff_method=diff_method)
+        qnode_vmap = nnx.vmap(
+            f=qnode,
+            in_axes=(0, 0, *([None]*7)), # (inputs, probs_actions, weights, n_actions, d_actions, d_returns, m_moment, n_layers, U_atoms)
+            out_axes=0, # inputs
+        )
+        return qnode_vmap(
+            inputs=inputs,
+            probs_actions=probs_actions,
+            weights=weights,
+            n_actions=n_actions,
+            d_actions=d_actions,
+            d_returns=d_returns,
+            m_moment=m_moment,
+            n_layers=n_layers,
+            U_atoms=U_atoms,
+        )
