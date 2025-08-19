@@ -7,6 +7,7 @@ from typing import Any, Callable, Literal
 import gzip
 
 from flax import nnx
+import jax
 import orbax.checkpoint as ocp
 from flax.training import orbax_utils
 import jax.numpy as jnp
@@ -189,3 +190,19 @@ def load_python_module_from_filepath(path: pathlib.Path) -> types.ModuleType:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def inspect_flax_nnx_model(model: nnx.Module, include_raw_parameters: bool = False) -> dict[str, Any]:
+    """Get details of Flax NNX model in serializable dictionary format."""
+    params = nnx.state(model, nnx.Param)
+    total_params = int(sum(np.prod(x.shape) for x in jax.tree_util.tree_leaves(params)))
+    param_shapes = jax.tree_util.tree_map(lambda p: p.shape, params)
+    d = {
+        'parameters': {
+            'total': total_params, # Total number of parameters.
+            'shapes': nnx.to_pure_dict(param_shapes), # Model parameter shapes in PyTree format.
+        },
+    }
+    if include_raw_parameters:
+        d['parameters']['param'] = nnx.to_pure_dict(params) # Model parameters in PyTree format.
+    return d

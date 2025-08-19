@@ -48,25 +48,16 @@ class InfoModel(DataClassDictMixin):
     """Output model parameters, but WARNING this can be very slow and verbose."""
     
     def main(self, config: algorithm.Algorithm):
-        
         data = []
         for field in fields(config):
             if field.type is SerializableModule:
+                # Get the model object.
                 model = getattr(config, field.name)
-                params = nnx.state(model, nnx.Param)
-                total_params = int(sum(np.prod(x.shape) for x in jax.tree_util.tree_leaves(params)))
-                param_shapes = jax.tree_util.tree_map(lambda p: p.shape, params)
-                
-                d = dict(
-                    name=field.name,
-                    parameters=dict(
-                        total=total_params, # Total number of parameters.
-                        shapes=nnx.to_pure_dict(param_shapes), # Model parameter shapes in PyTree format.
-                        # params=nnx.to_pure_dict(params), # Model parameters in PyTree format.
-                    ),
-                )
-                if self.include_raw_parameters:
-                    d['parameters']['param'] = nnx.to_pure_dict(params) # Model parameters in PyTree format.
+                # Inspect the model.
+                d = tools.inspect_flax_nnx_model(model=model, include_raw_parameters=self.include_raw_parameters)
+                # Add model name as field.
+                d['name'] = field.name
+                # Add inspection object to summary report.
                 data.append(d)
         
         match self.format:
