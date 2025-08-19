@@ -50,7 +50,7 @@ def epsilon_greedy_policy(
     return action
 
 
-# TODO QnRL loss should compare the quantum states of the return-atom dist between the policy model and the target model w.r.t. the policy model's action distribution. Input the policy model's predicted action distribution, then prepare 2 return-atom circuits using the policy and target model's circuit_weights. Then run quantum wasserstein distance or quantum KL divergence to compare the quantum states of the two return-atom registers.
+# TODO QnRL loss should compare the quantum states of the return-atom dist between the policy model and the target model w.r.t. the policy model's action distribution. Input the policy model's predicted action distribution, then prepare 2 return-atom circuits using the policy and target model's circuit_weights. Then run quantum wasserstein distance or quantum KL divergence to compare the quantum states of the two return-atom registers. 
 
 @nnx.jit
 def update(
