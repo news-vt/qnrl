@@ -196,11 +196,11 @@ def inspect_flax_nnx_model(model: nnx.Module, include_raw_parameters: bool = Fal
     """Get details of Flax NNX model in serializable dictionary format."""
     params = nnx.state(model, nnx.Param)
     total_params = int(sum(np.prod(x.shape) for x in jax.tree_util.tree_leaves(params)))
-    param_shapes = jax.tree_util.tree_map(lambda p: p.shape, params)
+    info = jax.tree_util.tree_map(lambda p: dict(shape=p.shape, dtype=str(p.dtype)), params)
     d = {
         'parameters': {
             'total': total_params, # Total number of parameters.
-            'shapes': nnx.to_pure_dict(param_shapes), # Model parameter shapes in PyTree format.
+            'info': nnx.to_pure_dict(info), # Model parameter information in PyTree format.
         },
     }
     if include_raw_parameters:
