@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 import pathlib
 from typing import Annotated, Literal, Union
 import json
@@ -10,6 +10,7 @@ import tyro
 from mashumaro.mixins.dict import DataClassDictMixin
 import rich
 import rich.pretty
+import numpy as np
 import jax.numpy as jnp
 
 from . import tools
@@ -17,6 +18,7 @@ from .optimizer import *
 from .gym import *
 from .checkpoint import *
 from .algorithms import *
+from .modules import SerializableModule
 
 
 import jax
@@ -29,6 +31,41 @@ class DumpFormat(enum.StrEnum):
     JSON = enum.auto()
     YAML = enum.auto()
     PRETTY = enum.auto()
+
+
+@dataclass(kw_only=True)
+class InfoModel(DataClassDictMixin):
+    """Dump the model parameter information specified in the given algorithm.
+    """
+    format: DumpFormat
+    
+    def main(self, config: algorithm.Algorithm):
+        
+        data = []
+        for field in fields(config):
+            if field.type is SerializableModule:
+                model = getattr(config, field.name)
+                params = nnx.state(model, nnx.Param)
+                total_params = int(sum(np.prod(x.shape) for x in jax.tree_util.tree_leaves(params)))
+                param_shapes = jax.tree_util.tree_map(lambda p: p.shape, params)
+                data.append(dict(
+                    name=field.name,
+                    parameters=dict(
+                        total=total_params, # Total number of parameters.
+                        shapes=nnx.to_pure_dict(param_shapes), # Model parameter shapes in PyTree format.
+                        # params=nnx.to_pure_dict(params), # Model parameters in PyTree format.
+                    ),
+                ))
+        
+        match self.format:
+            case DumpFormat.YAML:
+                yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                print(yaml_string)
+            case DumpFormat.JSON:
+                json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                rich.print_json(json_string)
+            case DumpFormat.PRETTY:
+                rich.pretty.pprint(data, expand_all=True)
 
 
 @dataclass(kw_only=True)
@@ -214,6 +251,7 @@ class Args(DataClassDictMixin):
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     mode: Union[
         Annotated[DumpAlgorithm, tyro.conf.subcommand(name='dump')],
+        Annotated[InfoModel, tyro.conf.subcommand(name='info-model')],
         Run,
         Metrics,
     ]
