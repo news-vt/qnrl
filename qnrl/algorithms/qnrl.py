@@ -50,6 +50,8 @@ def epsilon_greedy_policy(
     return action
 
 
+# TODO QnRL loss should compare the quantum states of the return-atom dist between the policy model and the target model w.r.t. the policy model's action distribution. Input the policy model's predicted action distribution, then prepare 2 return-atom circuits using the policy and target model's circuit_weights. Then run quantum wasserstein distance or quantum KL divergence to compare the quantum states of the two return-atom registers.
+
 @nnx.jit
 def update(
     optimizer: nnx.Optimizer,
@@ -65,9 +67,14 @@ def update(
     """Deep Q-learning policy model update."""
     def loss_fn(model, x, y):
         """KL-divergence loss."""
+        # y_hat = model(x) # (batch, n_actions), Probability distribution over the actions.
+        # y_hat = jnp.log(y_hat) # Convert to log-prob.
+        # loss = optax.kl_divergence(log_predictions=y_hat, targets=y) # (batch,)
+        # return loss.mean()
+        ####
         y_hat = model(x) # (batch, n_actions), Probability distribution over the actions.
-        y_hat = jnp.log(y_hat) # Convert to log-prob.
-        loss = optax.kl_divergence(log_predictions=y_hat, targets=y) # (batch,)
+        y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
         return loss.mean()
     
     target_next_pmfs = model_target(next_observations) # (batch_size, n_actions)
