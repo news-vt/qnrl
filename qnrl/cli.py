@@ -36,8 +36,16 @@ class DumpFormat(enum.StrEnum):
 @dataclass(kw_only=True)
 class InfoModel(DataClassDictMixin):
     """Dump the model parameter information specified in the given algorithm.
+    
+    Extract model names and total number of parameters:
+    >>> cli --config <file> info-model --format json | jq 'map({name: .name, total: .parameters.total})'
+    
+    Extract model names and raw parameters in PyTree dictionary format:
+    >>> cli --config <file> info-model --include-parameters --format json | jq 'map({name: .name, param: .parameters.param})'
     """
     format: DumpFormat
+    include_parameters: tyro.conf.FlagCreatePairsOff[bool] = False
+    """Output model parameters, but WARNING this can be very slow and verbose."""
     
     def main(self, config: algorithm.Algorithm):
         
@@ -48,14 +56,18 @@ class InfoModel(DataClassDictMixin):
                 params = nnx.state(model, nnx.Param)
                 total_params = int(sum(np.prod(x.shape) for x in jax.tree_util.tree_leaves(params)))
                 param_shapes = jax.tree_util.tree_map(lambda p: p.shape, params)
-                data.append(dict(
+                
+                d = dict(
                     name=field.name,
                     parameters=dict(
                         total=total_params, # Total number of parameters.
                         shapes=nnx.to_pure_dict(param_shapes), # Model parameter shapes in PyTree format.
                         # params=nnx.to_pure_dict(params), # Model parameters in PyTree format.
                     ),
-                ))
+                )
+                if self.include_parameters:
+                    d['parameters']['param'] = nnx.to_pure_dict(params) # Model parameters in PyTree format.
+                data.append(d)
         
         match self.format:
             case DumpFormat.YAML:
