@@ -41,10 +41,10 @@ class InfoModel(DataClassDictMixin):
     >>> cli --config <file> info-model --format json | jq 'map({name: .name, total: .parameters.total})'
     
     Extract model names and raw parameters in PyTree dictionary format:
-    >>> cli --config <file> info-model --include-parameters --format json | jq 'map({name: .name, param: .parameters.param})'
+    >>> cli --config <file> info-model --include-raw-parameters --format json | jq 'map({name: .name, param: .parameters.param})'
     """
     format: DumpFormat
-    include_parameters: tyro.conf.FlagCreatePairsOff[bool] = False
+    include_raw_parameters: tyro.conf.FlagCreatePairsOff[bool] = False
     """Output model parameters, but WARNING this can be very slow and verbose."""
     
     def main(self, config: algorithm.Algorithm):
@@ -65,7 +65,7 @@ class InfoModel(DataClassDictMixin):
                         # params=nnx.to_pure_dict(params), # Model parameters in PyTree format.
                     ),
                 )
-                if self.include_parameters:
+                if self.include_raw_parameters:
                     d['parameters']['param'] = nnx.to_pure_dict(params) # Model parameters in PyTree format.
                 data.append(d)
         
