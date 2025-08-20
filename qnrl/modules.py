@@ -992,4 +992,4 @@ class QuantumNativeQNetworkCascade(SerializableModule):
         )
 
 
-# TODO split QnRL into multiple stages: 1) a circuit that uses amplitude kickback to generate an action distribuion using shots>0 and diffmethod=None, 2) a circuit that ingests the action distribuion from #1 and samples the return-atom distribution (which is a weighted average of all the action return-atom distributions) using shots=None and diffmethod='backprop'.
+# TODO split QnRL into multiple stages: 1) a circuit that uses amplitude kickback to generate an action distribuion using shots>0 and diffmethod=None, 2) a circuit that ingests the action distribuion from #1 and samples the return-atom distribution (which is a weighted average of all the action return-atom distributions) using shots=None and diffmethod='backprop', 3) perform DRL optimization using the return-atom distribution from #2.
