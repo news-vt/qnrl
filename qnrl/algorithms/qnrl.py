@@ -172,8 +172,8 @@ def update(
 def train(
     seed: int,
     env: gym.Env,
-    model_policy: nnx.Module,
-    model_target: nnx.Module,
+    model_policy: QuantumNativeQNetworkSplit,
+    model_target: QuantumNativeQNetworkSplit,
     optimizer: nnx.Optimizer,
     # 
     buffer_size: int,
@@ -326,8 +326,8 @@ def train(
 @dataclass(kw_only=True)
 class QnRL(Algorithm):
     """Configuration for `qnrl.algorithms.c51.train`."""
-    model_policy: SerializableModule # Policy model configuration.
-    model_target: SerializableModule # Target model configuration.
+    model_policy: QuantumNativeQNetworkSplit # Policy model configuration.
+    model_target: QuantumNativeQNetworkSplit # Target model configuration.
     optimizer: OptimizerTransform
     buffer_size: int = 10_000
     seed: int = 0
