@@ -77,12 +77,6 @@ def update(
     # Generate batch of return-atom distributions for every action.
     # next_pmfs = model_target(next_observations) # (batch_size, num_actions, n_atoms)
     
-    # Generate return PMF for next observation, which is weighted based on expectation for each action.
-    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
-    next_pmfs = model_target.call_gen_return_dist(next_observations) # (batch_size, n_atoms)
-    
-    
-    
     # # Compute estimated Q-value, which is the expected value of the return-atom distribution.
     # next_vals = (next_pmfs * atoms).sum(axis=-1) # (batch_size, num_actions)
     
@@ -91,6 +85,17 @@ def update(
     
     # # Get the return-atom distribution corresponding to the optimum action.
     # next_pmfs = next_pmfs[batch_idx, next_action] # (batch_size, n_atoms)
+    
+    
+    ######
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # next_pmfs = model_target.call_gen_return_dist(next_observations) # (batch_size,n_atoms)
+    next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    next_actions = jnp.argmax(next_action_pmfs, axis=-1).item() # (batch,)
+    next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    ######
 
 
     # next_pmfs = next_pmfs[:, next_action] # (batch_size, n_atoms)
