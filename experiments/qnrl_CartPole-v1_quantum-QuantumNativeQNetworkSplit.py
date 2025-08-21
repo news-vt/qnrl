@@ -31,6 +31,7 @@ shots=100
 config = QnRL(
     metric_manager=MetricManager(
         path=(FILEPATH.parent/"../metrics"/Path(f"{NAME}.json")).resolve(),
+        save_frequency=100, # Every 100 steps.
     ),
     checkpoint=CheckpointConfig(
         checkpoint_dir=(FILEPATH.parent/"../checkpoints"/Path(f"{NAME}")).resolve(),
