@@ -261,7 +261,7 @@ class DQN(Algorithm):
     def run(self) -> list:
 
         # Create the environment.
-        env = self.gym.make()
+        env = self.env.make()
         
         # Create models.
         model_policy = self.model_policy

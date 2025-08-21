@@ -27,7 +27,7 @@ config = C51(
             enable_async_checkpointing=True,
         ),
     ),
-    gym=GymConfig(env_id="CartPole-v1"),
+    env=EnvConfig(env_id="CartPole-v1"),
     num_atoms=num_atoms,
     z_min=-100,
     z_max=100,

@@ -25,7 +25,7 @@ config = DQN(
             enable_async_checkpointing=True,
         ),
     ),
-    gym=GymConfig(env_id="MountainCar-v0"),
+    env=EnvConfig(env_id="MountainCar-v0"),
     model_policy=Sequential(
         layers={
             'QNetworkLinear': QNetworkLinear(

@@ -8,7 +8,7 @@ from mashumaro.types import Discriminator
 
 from ..checkpoint import CheckpointConfig
 from ..metric import MetricManager
-from ..gym import GymConfig
+from ..gym import EnvConfig, EnvWrapperConfig
 
 
 def algorithm_tagger(cls):
@@ -22,7 +22,7 @@ class Algorithm(DataClassDictMixin):
     
     This class contains a `run()` method, that is intended to invoke the `qnrl.algorithm.*.train()` function, along with any other training procedures. The `run()` method will be called with no arguments.
     """
-    gym: GymConfig # Gymnasium environment configuration.
+    env: EnvConfig | EnvWrapperConfig # Gymnasium environment configuration.
     metric_manager: MetricManager | None = None # Metric management configuration.
     checkpoint: CheckpointConfig | None = None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     

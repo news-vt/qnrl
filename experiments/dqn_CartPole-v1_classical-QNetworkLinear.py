@@ -25,7 +25,7 @@ config = DQN(
             enable_async_checkpointing=True,
         ),
     ),
-    gym=GymConfig(env_id="CartPole-v1"),
+    env=EnvConfig(env_id="CartPole-v1"),
     model_policy=Sequential(
         layers={
             'RescaleInput': RescaleInput(scale=[2.4, 2.5, 0.21, 2.5]),

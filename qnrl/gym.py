@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 
+import jax.numpy as jnp
 import gymnasium as gym
 from mashumaro.mixins.dict import DataClassDictMixin
 
+
 # MARK: Environments
 @dataclass(kw_only=True)
-class GymConfig(DataClassDictMixin):
+class EnvConfig(DataClassDictMixin):
     """Config for `gymnasium.make`."""
     # Environment string name ID.
     env_id: str
@@ -24,3 +26,26 @@ class GymConfig(DataClassDictMixin):
             max_episode_steps=self.max_episode_steps,
             **kwargs,
         )
+
+
+@dataclass(kw_only=True)
+class EnvWrapperConfig(DataClassDictMixin):
+    """Config for `gymnasium.wrappers.*`."""
+    env: 'EnvConfig | EnvWrapperConfig'
+    
+    def make(self) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = self.env.make()
+        return env
+
+
+@dataclass(kw_only=True)
+class ScaleObservation(EnvWrapperConfig):
+    """Transforms observation via `obs/scale`."""
+    scale: float | list[float]
+    
+    def make(self) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = super().make()
+        env = gym.wrappers.TransformObservation(env, lambda obs: obs / jnp.array(self.scale), env.observation_space)
+        return env

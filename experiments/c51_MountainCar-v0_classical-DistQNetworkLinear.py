@@ -27,7 +27,7 @@ config = C51(
             enable_async_checkpointing=True,
         ),
     ),
-    gym=GymConfig(env_id="MountainCar-v0"),
+    env=EnvConfig(env_id="MountainCar-v0"),
     num_atoms=num_atoms,
     z_min=-100,
     z_max=100,
