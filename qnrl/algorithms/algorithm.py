@@ -26,7 +26,7 @@ class Algorithm(DataClassDictMixin):
     metric_manager: MetricManager | None = None # Metric management configuration.
     checkpoint: CheckpointConfig | None = None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
     
-    def run(self) -> dict:
+    def train(self) -> dict:
         raise NotImplementedError
     
     class Config(BaseConfig):

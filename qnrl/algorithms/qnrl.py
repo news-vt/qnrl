@@ -342,7 +342,7 @@ class QnRL(Algorithm):
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
     
-    def run(self) -> list:
+    def train(self) -> list:
         
         # Create the environment.
         env = self.env.make()

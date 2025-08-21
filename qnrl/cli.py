@@ -142,11 +142,11 @@ class DumpMetrics(DataClassDictMixin):
 
 
 @dataclass(kw_only=True)
-class Run(DataClassDictMixin):
+class Train(DataClassDictMixin):
     """Run training algorithm using the given config."""
     
     def main(self, config: algorithm.Algorithm):
-        config.run() # Run training algorithm.
+        config.train() # Run training algorithm.
 
 # TODO add live update https://github.com/piccolomo/plotext/blob/master/readme/environments.md#rich
 @dataclass(kw_only=True)
@@ -290,7 +290,7 @@ class Args(DataClassDictMixin):
     mode: Union[
         Annotated[DumpAlgorithm, tyro.conf.subcommand(name='dump')],
         Annotated[InfoModel, tyro.conf.subcommand(name='info-model')],
-        Run,
+        Train,
         Metrics,
     ]
 
