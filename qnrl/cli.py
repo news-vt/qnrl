@@ -152,12 +152,22 @@ class Train(DataClassDictMixin):
 @dataclass(kw_only=True)
 class Eval(DataClassDictMixin):
     """Run evaluation algorithm using the given config."""
+    format: DumpFormat = DumpFormat.PRETTY
     
     def main(self, config: algorithm.Algorithm):
         history_list = config.eval() # Run training algorithm.
+        # Convert to dictionary of lists.
+        data = tools.listofdict_to_dictoflist(history_list)
         
-        history_dict = tools.listofdict_to_dictoflist(history_list)
-        rich.pretty.pprint(history_dict, expand_all=True)
+        match self.format:
+            case DumpFormat.YAML:
+                yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                print(yaml_string)
+            case DumpFormat.JSON:
+                json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                rich.print_json(json_string)
+            case DumpFormat.PRETTY:
+                rich.pretty.pprint(data, expand_all=True)
 
 
 # TODO add live update https://github.com/piccolomo/plotext/blob/master/readme/environments.md#rich

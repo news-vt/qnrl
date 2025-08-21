@@ -336,26 +336,48 @@ def eval(
     history = []
 
     observation, _ = env.reset() # Reset the environment.
-    for t in range(total_timesteps):
+    
+    # Iteratively step through environment.
+    pbar = tqdm(range(total_timesteps), unit='step', leave=True)
+    pbar_postfix = dict() # Current progress bar postfix content.
+    for t in pbar:
         pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
         action = jnp.argmax(pmfs, axis=-1).item() # ()
         next_observation, reward, done, truncation, info = env.step(action)
         
-        history.append({
+        meta = {
             'pmfs': pmfs,
             'action': action,
             'reward': reward,
+            'observation': observation,
+            'next_observation': next_observation,
+            'done': done,
+        }
+        history.append(meta)
+        pbar_postfix.update({
+            'reward': reward,
         })
+        pbar.set_postfix(pbar_postfix)
+        
+        # Record episode statistics.
+        if "episode" in info:
+            meta = dict(
+                episode_step=t,
+                episode_reward=info['episode']['r'],
+                episode_length=info['episode']['l'],
+                episode_time=info['episode']['t'],
+            )
+            history.append(meta)
+            pbar_postfix.update({
+                'reward': reward,
+            })
+            pbar.set_postfix(pbar_postfix)
         
         # Update current observation with next observation.
         observation = next_observation.copy()
         
         if done:
             break
-    
-    history.append({
-        'info': info,
-    })
     
     return history
 
