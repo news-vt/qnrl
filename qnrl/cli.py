@@ -158,6 +158,14 @@ class Plot(DataClassDictMixin):
     type: Literal['terminal', 'matplotlib'] = 'terminal'
     x: str # X-axis data key.
     y: str # Y-axis data key.
+    x_min: float | None = None # X-axis range min.
+    x_max: float | None = None # X-axis range max.
+    y_min: float | None = None # Y-axis range min.
+    y_max: float | None = None # Y-axis range max.
+    clip_x_min: float | None = None # Clip min X-axis data.
+    clip_x_max: float | None = None # Clip max X-axis data.
+    clip_y_min: float | None = None # Clip min Y-axis data.
+    clip_y_max: float | None = None # Clip max Y-axis data.
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
@@ -166,21 +174,52 @@ class Plot(DataClassDictMixin):
             metric_manager.load()
             metrics = metric_manager.get_metrics()
             
+            x_data = np.array(metrics[self.x])
+            y_data = np.array(metrics[self.y])
+            
+            # Clip X-axis data.
+            if self.clip_x_min is not None:
+                idx = x_data >= self.clip_x_min
+                x_data = x_data[idx]
+                y_data = y_data[idx]
+            if self.clip_x_max is not None:
+                idx = x_data <= self.clip_x_max
+                x_data = x_data[idx]
+                y_data = y_data[idx]
+            
+            # Clip Y-axis data.
+            if self.clip_y_min is not None:
+                idx = y_data >= self.clip_y_min
+                x_data = x_data[idx]
+                y_data = y_data[idx]
+            if self.clip_y_max is not None:
+                idx = y_data <= self.clip_y_max
+                x_data = x_data[idx]
+                y_data = y_data[idx]
+            
             match self.type:
                 case 'terminal':
                     import plotext as plt
                     
-                    plt.plot(metrics[self.x], metrics[self.y])
+                    plt.plot(x_data, y_data)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
+                    
+                    plt.xlim(left=self.x_min, right=self.x_max)
+                    plt.ylim(lower=self.y_min, upper=self.y_max)
+                    
                     plt.show()
 
                 case 'matplotlib':
                     import matplotlib.pyplot as plt
                     
-                    plt.plot(metrics[self.x], metrics[self.y])
+                    plt.plot(x_data, y_data)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
+                    
+                    plt.xlim(left=self.x_min, right=self.x_max)
+                    plt.ylim(bottom=self.y_min, top=self.y_max)
+                    
                     plt.show()
         else:
             raise ValueError("no metric manager provided")
