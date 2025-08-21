@@ -323,6 +323,43 @@ def train(
     return history
 
 
+def eval(
+    seed: int,
+    env: gym.Env,
+    model_policy: QuantumNativeQNetworkSplit,
+    total_timesteps: int, # Max number of training steps.
+    ) -> list:
+
+    # Apply several additional wrappers on the environment to ensure functionality.
+    env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
+    
+    history = []
+
+    observation, _ = env.reset() # Reset the environment.
+    for t in range(total_timesteps):
+        pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
+        action = jnp.argmax(pmfs, axis=-1).item() # ()
+        next_observation, reward, done, truncation, info = env.step(action)
+        
+        history.append({
+            'pmfs': pmfs,
+            'action': action,
+            'reward': reward,
+        })
+        
+        # Update current observation with next observation.
+        observation = next_observation.copy()
+        
+        if done:
+            break
+    
+    history.append({
+        'info': info,
+    })
+    
+    return history
+
+
 @dataclass(kw_only=True)
 class QnRL(Algorithm):
     """Configuration for `qnrl.algorithms.c51.train`."""
@@ -386,4 +423,37 @@ class QnRL(Algorithm):
             metric_manager=self.metric_manager,
         )
 
+        return history_list
+    
+    def eval(self) -> list:
+        
+        # Create the environment.
+        env = self.env.make()
+        
+        # Create models.
+        model_policy = self.model_policy
+
+        # Create checkpoint manager and restore latest model state.
+        if isinstance(self.checkpoint, CheckpointConfig):
+            checkpoint_manager = ocp.CheckpointManager(
+                directory=os.path.abspath(self.checkpoint.checkpoint_dir),
+                checkpointers=ocp.PyTreeCheckpointer(),
+                options=self.checkpoint.checkpoint_options.make(),
+            )
+            
+            # Restore model state from checkpoint.
+            original_state = nnx.state(model_policy)
+            step_to_restore = checkpoint_manager.latest_step()
+            restored_state = checkpoint_manager.restore(step_to_restore, items=original_state)
+            nnx.update(model_policy, restored_state)
+        else:
+            checkpoint_manager = None
+        
+        history_list = eval(
+            seed=self.seed,
+            env=env,
+            model_policy=model_policy,
+            total_timesteps=self.total_timesteps,
+        )
+        
         return history_list

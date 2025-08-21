@@ -28,6 +28,9 @@ class Algorithm(DataClassDictMixin):
     
     def train(self) -> dict:
         raise NotImplementedError
+
+    def eval(self) -> dict:
+        raise NotImplementedError
     
     class Config(BaseConfig):
         discriminator = Discriminator(

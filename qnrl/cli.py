@@ -148,6 +148,15 @@ class Train(DataClassDictMixin):
     def main(self, config: algorithm.Algorithm):
         config.train() # Run training algorithm.
 
+
+@dataclass(kw_only=True)
+class Eval(DataClassDictMixin):
+    """Run training algorithm using the given config."""
+    
+    def main(self, config: algorithm.Algorithm):
+        config.eval() # Run training algorithm.
+
+
 # TODO add live update https://github.com/piccolomo/plotext/blob/master/readme/environments.md#rich
 @dataclass(kw_only=True)
 class Plot(DataClassDictMixin):
