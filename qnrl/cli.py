@@ -303,6 +303,7 @@ class Args(DataClassDictMixin):
         Annotated[DumpAlgorithm, tyro.conf.subcommand(name='dump')],
         Annotated[InfoModel, tyro.conf.subcommand(name='info-model')],
         Train,
+        Eval,
         Metrics,
     ]
 
