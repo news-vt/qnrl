@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
-from ..modules import SerializableModule
+from ..modules import QuantumNativeQNetworkSplit, SerializableModule
 from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer
 from ..metric import MetricManager
@@ -29,7 +29,7 @@ def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: 
 # TODO refactor for QnRL
 def epsilon_greedy_policy(
     env: gym.Env,
-    model_policy: nnx.Module,
+    model_policy: QuantumNativeQNetworkSplit,
     observation: jax.Array,
     t: int, # Current time step.
     duration: int, # Total number of time steps for epsilon decay.
@@ -45,7 +45,9 @@ def epsilon_greedy_policy(
     if jax.random.uniform(key=key) < eps: # Explore via random action selection.
         action = env.action_space.sample()
     else:
-        pmfs = model_policy(observation) # (batch,n_actions,)
+        # pmfs = model_policy(observation) # (batch,n_actions,)
+        # action = jnp.argmax(pmfs, axis=-1).item() # ()
+        pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
         action = jnp.argmax(pmfs, axis=-1).item() # ()
     return action
 
@@ -55,34 +57,116 @@ def epsilon_greedy_policy(
 @nnx.jit
 def update(
     optimizer: nnx.Optimizer,
-    model_policy: nnx.Module,
-    model_target: nnx.Module,
+    model_policy: QuantumNativeQNetworkSplit,
+    model_target: QuantumNativeQNetworkSplit,
     observations: jax.Array,
-    # actions: jax.Array,
+    actions: jax.Array,
     next_observations: jax.Array,
-    # rewards: jax.Array,
-    # dones: jax.Array,
-    # gamma: float,
-    ) -> float:
-    """Deep Q-learning policy model update."""
-    def loss_fn(model, x, y):
-        """KL-divergence loss."""
-        # y_hat = model(x) # (batch, n_actions), Probability distribution over the actions.
-        # y_hat = jnp.log(y_hat) # Convert to log-prob.
-        # loss = optax.kl_divergence(log_predictions=y_hat, targets=y) # (batch,)
-        # return loss.mean()
-        ####
-        y_hat = model(x) # (batch, n_actions), Probability distribution over the actions.
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    ):
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # batch_idx = jnp.arange(actions.shape[0])
+    
+    # Generate batch of return-atom distributions for every action.
+    # next_pmfs = model_target(next_observations) # (batch_size, num_actions, n_atoms)
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    next_pmfs = model_target.call_gen_return_dist(next_observations) # (batch_size, n_atoms)
+    
+    
+    
+    # # Compute estimated Q-value, which is the expected value of the return-atom distribution.
+    # next_vals = (next_pmfs * atoms).sum(axis=-1) # (batch_size, num_actions)
+    
+    # # Determine the optimum action according to max (greedy) Q-value estimate.
+    # next_action = jnp.argmax(next_vals, axis=-1) # (batch_size,)
+    
+    # # Get the return-atom distribution corresponding to the optimum action.
+    # next_pmfs = next_pmfs[batch_idx, next_action] # (batch_size, n_atoms)
+
+
+    # next_pmfs = next_pmfs[:, next_action] # (batch_size, n_atoms)
+    # Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    # Project the current atoms to the target atoms.
+    dz = atoms[1] - atoms[0] # Delta z.
+    b = (tz - z_min) / dz
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dml = ((u + (l == u).astype(u.dtype)) - b) * next_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
+    dmu = (b - l) * next_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
+    
+    def project_to_bins(target_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
+        """Project an instance of return atoms. Apply to batches using `jax.vmap`."""
+        target_pmfs = target_pmfs.at[l.astype(jnp.int32)].add(dml)
+        target_pmfs = target_pmfs.at[u.astype(jnp.int32)].add(dmu)
+        return target_pmfs
+    
+    target_pmfs = jax.vmap(project_to_bins)(jnp.zeros_like(next_pmfs), l, u, dml, dmu)
+    
+    # Categorical cross-entropy loss.
+    def cross_entropy_loss(model, x, probs_actions, y):
+        # batch_idx = jnp.arange(x.shape[0])
+        # y_hat = model(x)
+        # # Get the return-atom distribution corresponding to the given actions.
+        # y_hat = y_hat[batch_idx, actions.squeeze()] # (batch_size, n_atoms)
+        # 
+        # y_hat = model.call_gen_return_dist(x) # (batch_size, n_atoms)
+        y_hat = model.call_gen_return_dist_NEW(x, probs_actions) # (batch_size, n_atoms)
+        # 
         y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
         loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
         return loss.mean()
     
-    target_next_pmfs = model_target(next_observations) # (batch_size, n_actions)
+    # Get action PMF outside of gradient computation.
+    probs_actions = model_policy.call_gen_action_dist(observations)
     
-    loss, grads = nnx.value_and_grad(loss_fn)(model=model_policy, x=observations, y=target_next_pmfs)
+    loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, probs_actions=probs_actions, y=target_pmfs)
     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
     
     return loss
+
+# @nnx.jit
+# def update(
+#     optimizer: nnx.Optimizer,
+#     model_policy: nnx.Module,
+#     model_target: nnx.Module,
+#     observations: jax.Array,
+#     # actions: jax.Array,
+#     next_observations: jax.Array,
+#     # rewards: jax.Array,
+#     # dones: jax.Array,
+#     # gamma: float,
+#     ) -> float:
+#     """Deep Q-learning policy model update."""
+#     def loss_fn(model, x, y):
+#         """KL-divergence loss."""
+#         # y_hat = model(x) # (batch, n_actions), Probability distribution over the actions.
+#         # y_hat = jnp.log(y_hat) # Convert to log-prob.
+#         # loss = optax.kl_divergence(log_predictions=y_hat, targets=y) # (batch,)
+#         # return loss.mean()
+#         ####
+#         y_hat = model(x) # (batch, n_actions), Probability distribution over the actions.
+#         y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+#         loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
+#         return loss.mean()
+    
+#     target_next_pmfs = model_target(next_observations) # (batch_size, n_actions)
+    
+#     loss, grads = nnx.value_and_grad(loss_fn)(model=model_policy, x=observations, y=target_next_pmfs)
+#     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+#     return loss
 
 
 def train(
@@ -98,6 +182,7 @@ def train(
     learning_starts: int, # Training step index where model training commences.
     policy_update_frequency: int, # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
     target_update_frequency: int, # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    gamma: float,
     tau: float,
     # 
     eps_start: float,
@@ -190,11 +275,11 @@ def train(
                         model_policy=model_policy,
                         model_target=model_target,
                         observations=minibatch.observations,
-                        # minibatch.actions,
+                        actions=minibatch.actions,
                         next_observations=minibatch.next_observations,
-                        # minibatch.rewards,
-                        # minibatch.dones,
-                        # gamma,
+                        rewards=minibatch.rewards,
+                        dones=minibatch.dones,
+                        gamma=gamma,
                     )
                     
                     # Update the history and progress bar.
@@ -251,6 +336,7 @@ class QnRL(Algorithm):
     learning_starts: int = 10_000
     policy_update_frequency: int = 10 # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
     target_update_frequency: int = 500 # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    gamma: float = 0.99
     tau: float = 1.0
     eps_start: int = 1
     eps_end: float = 5e-2
@@ -291,6 +377,7 @@ class QnRL(Algorithm):
             learning_starts=self.learning_starts,
             policy_update_frequency=self.policy_update_frequency,
             target_update_frequency=self.target_update_frequency,
+            gamma=self.gamma,
             tau=self.tau,
             eps_start=self.eps_start,
             eps_end=self.eps_end,
