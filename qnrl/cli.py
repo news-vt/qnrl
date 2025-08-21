@@ -151,10 +151,13 @@ class Train(DataClassDictMixin):
 
 @dataclass(kw_only=True)
 class Eval(DataClassDictMixin):
-    """Run training algorithm using the given config."""
+    """Run evaluation algorithm using the given config."""
     
     def main(self, config: algorithm.Algorithm):
-        config.eval() # Run training algorithm.
+        history_list = config.eval() # Run training algorithm.
+        
+        history_dict = tools.listofdict_to_dictoflist(history_list)
+        rich.pretty.pprint(history_dict, expand_all=True)
 
 
 # TODO add live update https://github.com/piccolomo/plotext/blob/master/readme/environments.md#rich
