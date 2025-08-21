@@ -162,10 +162,6 @@ class Plot(DataClassDictMixin):
     x_max: float | None = None # X-axis range max.
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
-    clip_x_min: float | None = None # Clip min X-axis data.
-    clip_x_max: float | None = None # Clip max X-axis data.
-    clip_y_min: float | None = None # Clip min Y-axis data.
-    clip_y_max: float | None = None # Clip max Y-axis data.
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
@@ -178,22 +174,22 @@ class Plot(DataClassDictMixin):
             y_data = np.array(metrics[self.y])
             
             # Clip X-axis data.
-            if self.clip_x_min is not None:
-                idx = x_data >= self.clip_x_min
+            if self.x_min is not None:
+                idx = x_data >= self.x_min
                 x_data = x_data[idx]
                 y_data = y_data[idx]
-            if self.clip_x_max is not None:
-                idx = x_data <= self.clip_x_max
+            if self.x_max is not None:
+                idx = x_data <= self.x_max
                 x_data = x_data[idx]
                 y_data = y_data[idx]
             
             # Clip Y-axis data.
-            if self.clip_y_min is not None:
-                idx = y_data >= self.clip_y_min
+            if self.y_min is not None:
+                idx = y_data >= self.y_min
                 x_data = x_data[idx]
                 y_data = y_data[idx]
-            if self.clip_y_max is not None:
-                idx = y_data <= self.clip_y_max
+            if self.y_max is not None:
+                idx = y_data <= self.y_max
                 x_data = x_data[idx]
                 y_data = y_data[idx]
             
