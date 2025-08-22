@@ -389,10 +389,17 @@ def eval(
     env: gym.Env,
     model_policy: QuantumNativeQNetworkSplit,
     total_timesteps: int, # Max number of training steps.
+    policy_greedy: bool = True, # Greedy or stochastic policy.
     ) -> list:
 
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
+    
+    # Seed random generators.
+    np.random.seed(seed)
+    env.action_space.seed(seed)
+    key = jax.random.PRNGKey(seed)
+    key, subkey = jax.random.split(key)
     
     history = []
 
@@ -402,12 +409,20 @@ def eval(
     pbar = tqdm(range(total_timesteps), unit='step', leave=True)
     pbar_postfix = dict() # Current progress bar postfix content.
     for t in pbar:
-        pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
-        action = jnp.argmax(pmfs, axis=-1).item() # ()
+        # action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
+        # action = jnp.argmax(action_pmf, axis=-1).item() # ()
+        # 
+        action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
+        if policy_greedy:
+            action = jnp.argmax(action_pmf, axis=-1).item() # ()
+        else:
+            key, subkey = jax.random.split(key)
+            action = jax.random.choice(key=subkey, a=model_policy.n_actions, p=action_pmf).item()
+        # 
         next_observation, reward, done, truncation, info = env.step(action)
         
         meta = {
-            'pmfs': pmfs,
+            'pmfs': action_pmf,
             'action': action,
             'reward': reward,
             'observation': observation,
