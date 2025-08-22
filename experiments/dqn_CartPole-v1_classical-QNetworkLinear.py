@@ -26,7 +26,7 @@ config = DQN(
         ),
     ),
     env=EnvConfig(env_id="CartPole-v1"),
-    model_policy=Sequential(
+    model=Sequential(
         layers={
             'RescaleInput': RescaleInput(scale=[2.4, 2.5, 0.21, 2.5]),
             'QNetworkLinear': QNetworkLinear(
@@ -34,17 +34,6 @@ config = DQN(
                 num_actions=2,
                 douts=[120, 84],
                 rngs_kwargs=dict(default=42),
-            ),
-        },
-    ),
-    model_target=Sequential(
-        layers={
-            'RescaleInput': RescaleInput(scale=[2.4, 2.5, 0.21, 2.5]),
-            'QNetworkLinear': QNetworkLinear(
-                din=4,
-                num_actions=2,
-                douts=[120, 84],
-                rngs_kwargs=dict(default=43),
             ),
         },
     ),

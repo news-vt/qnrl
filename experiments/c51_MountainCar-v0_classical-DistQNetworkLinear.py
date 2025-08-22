@@ -31,18 +31,7 @@ config = C51(
     num_atoms=num_atoms,
     z_min=-100,
     z_max=100,
-    model_policy=Sequential(
-        layers={
-            'QNetworkLinear': DistQNetworkLinear(
-                din=2,
-                num_actions=3,
-                num_atoms=num_atoms,
-                douts=[120, 84],
-                rngs_kwargs=dict(default=42),
-            ),
-        },
-    ),
-    model_target=Sequential(
+    model=Sequential(
         layers={
             'QNetworkLinear': DistQNetworkLinear(
                 din=2,

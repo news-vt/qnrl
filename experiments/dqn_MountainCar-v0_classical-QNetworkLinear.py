@@ -26,23 +26,13 @@ config = DQN(
         ),
     ),
     env=EnvConfig(env_id="MountainCar-v0"),
-    model_policy=Sequential(
+    model=Sequential(
         layers={
             'QNetworkLinear': QNetworkLinear(
                 din=2,
                 num_actions=3,
                 douts=[120, 84],
                 rngs_kwargs=dict(default=42),
-            ),
-        },
-    ),
-    model_target=Sequential(
-        layers={
-            'QNetworkLinear': QNetworkLinear(
-                din=2,
-                num_actions=3,
-                douts=[120, 84],
-                rngs_kwargs=dict(default=43),
             ),
         },
     ),

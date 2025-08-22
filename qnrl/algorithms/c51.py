@@ -289,8 +289,9 @@ def train(
 @dataclass(kw_only=True)
 class C51(Algorithm):
     """Configuration for `qnrl.algorithms.c51.train`."""
-    model_policy: SerializableModule # Policy model configuration.
-    model_target: SerializableModule # Target model configuration.
+    # model_policy: SerializableModule # Policy model configuration.
+    # model_target: SerializableModule # Target model configuration.
+    model: SerializableModule # Target model configuration.
     optimizer: OptimizerTransform
     num_atoms: int
     z_min: float
@@ -313,9 +314,14 @@ class C51(Algorithm):
         # Create the environment.
         env = self.env.make()
         
-        # Create models.
-        model_policy = self.model_policy
-        model_target = self.model_target
+        # # Create models.
+        # model_policy = self.model_policy
+        # model_target = self.model_target
+        # 
+        # Create models, target is a copy of policy.
+        model_policy = self.model
+        graphdef, state = nnx.split(model_policy)
+        model_target = nnx.merge(graphdef, state)
         
         # Create optimizers.
         optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)

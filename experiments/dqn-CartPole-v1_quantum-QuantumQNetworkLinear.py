@@ -17,7 +17,7 @@ config = DQN(
         path=(FILEPATH.parent/"../metrics"/Path(f"{NAME}.json")).resolve(),
     ),
     env=EnvConfig(env_id="CartPole-v1"),
-    model_policy=Sequential(
+    model=Sequential(
         layers={
             'RescaleInput': RescaleInput(scale=[2.4, 2.5, 0.21, 2.5]),
             'QuantumQNetworkLinear': QuantumQNetworkLinear(
@@ -26,20 +26,6 @@ config = DQN(
                 num_wires=10,
                 num_layers=5,
                 rngs_kwargs=dict(default=42),
-                diff_method="backprop",
-                shots=None,
-            ),
-        },
-    ),
-    model_target=Sequential(
-        layers={
-            'RescaleInput': RescaleInput(scale=[2.4, 2.5, 0.21, 2.5]),
-            'QuantumQNetworkLinear': QuantumQNetworkLinear(
-                din=4,
-                num_actions=2,
-                num_wires=10,
-                num_layers=5,
-                rngs_kwargs=dict(default=43),
                 diff_method="backprop",
                 shots=None,
             ),

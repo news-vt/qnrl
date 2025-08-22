@@ -242,8 +242,9 @@ def train(
 @dataclass(kw_only=True)
 class DQN(Algorithm):
     """Configuration for `qnrl.algorithms.dqn.train`."""
-    model_policy: SerializableModule # Policy model configuration.
-    model_target: SerializableModule # Target model configuration.
+    # model_policy: SerializableModule # Policy model configuration.
+    # model_target: SerializableModule # Target model configuration.
+    model: SerializableModule # Target model configuration.
     optimizer: OptimizerTransform
     buffer_size: int = 10_000
     seed: int = 0
@@ -263,9 +264,14 @@ class DQN(Algorithm):
         # Create the environment.
         env = self.env.make()
         
-        # Create models.
-        model_policy = self.model_policy
-        model_target = self.model_target
+        # # Create models.
+        # model_policy = self.model_policy
+        # model_target = self.model_target
+        # 
+        # Create models, target is a copy of policy.
+        model_policy = self.model
+        graphdef, state = nnx.split(model_policy)
+        model_target = nnx.merge(graphdef, state)
         
         # Create optimizers.
         optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)
