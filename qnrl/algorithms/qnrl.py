@@ -218,7 +218,8 @@ def train(
     eps_end: float,
     eps_exploration: float,
     checkpoint_manager: ocp.CheckpointManager | None = None,
-    metric_manager: MetricManager | None = None
+    metric_manager: MetricManager | None = None,
+    return_buffer: bool = False,
     ):
     """Quantum-native reinforcement learning (QnRL).
     
@@ -378,7 +379,10 @@ def train(
     if checkpoint_manager is not None:
         checkpoint_manager.wait_until_finished()
 
-    return history
+    if return_buffer:
+        return history, buffer
+    else:
+        return history
 
 
 def eval(
@@ -454,7 +458,7 @@ class QnRL(Algorithm):
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
     
-    def train(self, **kwargs) -> list:
+    def train(self, **kwargs) -> list | tuple[list, PmfReplayBuffer]:
         
         # Create the environment.
         env = self.env.make()
@@ -507,9 +511,7 @@ class QnRL(Algorithm):
             checkpoint_manager=checkpoint_manager,
             metric_manager=self.metric_manager,
         )
-        history_list = train(**{**kwargs_default, **kwargs})
-
-        return history_list
+        return train(**{**kwargs_default, **kwargs})
     
     def eval(self, **kwargs) -> list:
         
