@@ -46,18 +46,17 @@ def epsilon_greedy_policy(
     key, subkey = jax.random.split(key)
     if jax.random.uniform(key=subkey) < eps: # Explore via random action selection.
         action = env.action_space.sample()
-        action_pmf = jnp.array([1./env.action_space.n] * env.action_space.n)
+        action_pmf = jnp.array([1./env.action_space.n] * env.action_space.n) # Uniform distribution.
     else:
         # pmfs = model_policy(observation) # (batch,n_actions,)
         # action = jnp.argmax(pmfs, axis=-1).item() # ()
         # 
-        # pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
-        # action = jnp.argmax(pmfs, axis=-1).item() # ()
+        # action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (batch,n_actions,)
+        # action = jnp.argmax(action_pmf, axis=-1).item() # ()
         # 
         key, subkey = jax.random.split(key)
         action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
         action = jax.random.choice(key=subkey, a=model_policy.n_actions, p=action_pmf).item()
-        # print(f"{action_pmfs = }, {action = }")
     return action, action_pmf
 
 
