@@ -5,6 +5,8 @@ import json
 import yaml
 import json
 import enum
+import os
+import time
 
 import tyro
 from mashumaro.mixins.dict import DataClassDictMixin
@@ -222,6 +224,7 @@ class Plot(DataClassDictMixin):
                     plt.plot(x_data, y_data)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
+                    plt.title(config.metric_manager.path.stem)
                     
                     plt.xlim(left=self.x_min, right=self.x_max)
                     plt.ylim(lower=self.y_min, upper=self.y_max)
@@ -234,11 +237,80 @@ class Plot(DataClassDictMixin):
                     plt.plot(x_data, y_data)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
+                    plt.title(config.metric_manager.path.stem)
                     
                     plt.xlim(left=self.x_min, right=self.x_max)
                     plt.ylim(bottom=self.y_min, top=self.y_max)
                     
                     plt.show()
+        else:
+            raise ValueError("no metric manager provided")
+
+
+@dataclass(kw_only=True)
+class PlotLive(DataClassDictMixin):
+    """Live plot metric data using X/Y data keys.
+    
+    If you are unsure of what keys exist, see `InfoMetrics`.
+    """
+    x: str # X-axis data key.
+    y: str # Y-axis data key.
+    sleep: float = 1.0 # Sleep interval in seconds.
+    x_min: float | None = None # X-axis range min.
+    x_max: float | None = None # X-axis range max.
+    y_min: float | None = None # Y-axis range min.
+    y_max: float | None = None # Y-axis range max.
+    
+    def main(self, config: algorithm.Algorithm):
+        if config.metric_manager is not None:
+            metric_manager = config.metric_manager
+            
+            import plotext as plt
+            
+            try:
+                while True:
+                    
+                    # Load new data.
+                    metric_manager.load()
+                    metrics = metric_manager.get_metrics()
+                    
+                    x_data = np.array(metrics[self.x])
+                    y_data = np.array(metrics[self.y])
+                    
+                    # Clip X-axis data.
+                    if self.x_min is not None:
+                        idx = x_data >= self.x_min
+                        x_data = x_data[idx]
+                        y_data = y_data[idx]
+                    if self.x_max is not None:
+                        idx = x_data <= self.x_max
+                        x_data = x_data[idx]
+                        y_data = y_data[idx]
+                    
+                    # Clip Y-axis data.
+                    if self.y_min is not None:
+                        idx = y_data >= self.y_min
+                        x_data = x_data[idx]
+                        y_data = y_data[idx]
+                    if self.y_max is not None:
+                        idx = y_data <= self.y_max
+                        x_data = x_data[idx]
+                        y_data = y_data[idx]
+                    
+                    plt.clt() # Clear terminal.
+                    plt.cld() # Clear data only.
+                    plt.plot(x_data, y_data)
+                    plt.xlabel(self.x)
+                    plt.ylabel(self.y)
+                    plt.title(config.metric_manager.path.stem)
+                    plt.show()
+                    
+                    # Blocking wait for next file change.
+                    if not tools.wait_for_file_change(config.metric_manager.path, interval=self.sleep):
+                        return
+                    
+            except KeyboardInterrupt:
+                return
         else:
             raise ValueError("no metric manager provided")
 
@@ -302,6 +374,7 @@ class Metrics(DataClassDictMixin):
         Annotated[DumpMetrics, tyro.conf.subcommand(name='dump')],
         Annotated[InfoMetrics, tyro.conf.subcommand(name='info')],
         Plot,
+        PlotLive,
     ]
     
     def main(self, config: algorithm.Algorithm):

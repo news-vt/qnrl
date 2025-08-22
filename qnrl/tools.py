@@ -5,6 +5,8 @@ import importlib.util
 import types
 from typing import Any, Callable, Literal
 import gzip
+import os
+import time
 
 from flax import nnx
 import jax
@@ -206,3 +208,15 @@ def inspect_flax_nnx_model(model: nnx.Module, include_raw_parameters: bool = Fal
     if include_raw_parameters:
         d['parameters']['param'] = nnx.to_pure_dict(params) # Model parameters in PyTree format.
     return d
+
+
+def wait_for_file_change(path: pathlib.Path, interval: float = 1.0) -> bool:
+    """Blocking wait for file change. Returns `True` on file change, and `False` on error."""
+    orig_mtime = os.path.getmtime(path)
+    try:
+        while True:
+            if os.path.getmtime(path) > orig_mtime:
+                return True
+            time.sleep(interval) # Wait for next check.
+    except:
+        return False
