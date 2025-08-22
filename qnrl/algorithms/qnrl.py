@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import partial
 import os
 from typing import Any, Literal
 import sys
@@ -139,7 +140,7 @@ def epsilon_phased_stochastic_greedy_policy(
 
 # TODO QnRL loss should compare the quantum states of the return-atom dist between the policy model and the target model w.r.t. the policy model's action distribution. Input the policy model's predicted action distribution, then prepare 2 return-atom circuits using the policy and target model's circuit_weights. Then run quantum wasserstein distance or quantum KL divergence to compare the quantum states of the two return-atom registers. 
 
-@nnx.jit
+@partial(nnx.jit, static_argnames=['target_type'])
 def update(
     optimizer: nnx.Optimizer,
     model_policy: QuantumNativeQNetworkSplit,
@@ -151,6 +152,7 @@ def update(
     rewards: jax.Array,
     dones: jax.Array,
     gamma: float,
+    target_type: Literal['greedy', 'stochastic'],
     ):
     
     atoms = model_policy.atoms
@@ -178,13 +180,17 @@ def update(
     # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
     # next_pmfs = model_target.call_gen_return_dist(next_observations) # (batch_size,n_atoms)
     #
-    next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
-    next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
-    next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
-    next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
-    #
-    # next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
-    # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    match target_type:
+        case 'greedy':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+            next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+        case 'stochastic':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+        case _:
+            raise ValueError(f"Unsupported target type {target_type}")
     ######
     
     # print(f"{atoms.shape = }")
@@ -297,6 +303,7 @@ def train(
     eps_end: float,
     eps_exploration: float,
     policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
+    target_type: Literal['greedy', 'stochastic'],
     checkpoint_manager: ocp.CheckpointManager | None = None,
     metric_manager: MetricManager | None = None,
     return_buffer: bool = False,
@@ -417,6 +424,7 @@ def train(
                         rewards=minibatch.rewards,
                         dones=minibatch.dones,
                         gamma=gamma,
+                        target_type=target_type,
                     )
                     
                     # update(
@@ -555,6 +563,7 @@ class QnRL(Algorithm):
     model: QuantumNativeQNetworkSplit
     optimizer: OptimizerTransform
     policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy']
+    target_type: Literal['greedy', 'stochastic']
     buffer_size: int = 10_000
     seed: int = 0
     batch_size: int = 128
@@ -621,6 +630,7 @@ class QnRL(Algorithm):
             policy_type=self.policy_type,
             checkpoint_manager=checkpoint_manager,
             metric_manager=self.metric_manager,
+            target_type=self.target_type,
         )
         return train(**{**kwargs_default, **kwargs})
     

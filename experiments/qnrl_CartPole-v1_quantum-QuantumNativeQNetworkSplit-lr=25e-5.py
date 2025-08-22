@@ -60,4 +60,5 @@ config = QnRL(
     ),
     optimizer=Adam(learning_rate=25e-5), # == 2.5e-4
     policy_type='stochastic',
+    target_type='greedy',
 )

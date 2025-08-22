@@ -72,4 +72,5 @@ config = QnRL(
         },
     ),
     policy_type='stochastic',
+    target_type='greedy',
 )
