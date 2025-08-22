@@ -288,7 +288,7 @@ class PlotLive(DataClassDictMixin):
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
     show_last_n: int | None = None # Show the last `N` data points.
-    theme: str | None = None # Plotext "theme"
+    theme: str | None = "pro" # Plotext "theme"
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
@@ -344,6 +344,8 @@ class PlotLive(DataClassDictMixin):
                     
                     plt.clt() # Clear terminal.
                     plt.cld() # Clear data only.
+                    w, h = plt.terminal_size()
+                    plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
                     plt.plot(x_data, y_data)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
