@@ -189,6 +189,7 @@ class Plot(DataClassDictMixin):
     x_max: float | None = None # X-axis range max.
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
+    show_last_n: int | None = None # Show the last `N` data points
     theme: str | None = None # Plotext "theme", or Matplotlib "style".
     
     def main(self, config: algorithm.Algorithm):
@@ -220,6 +221,11 @@ class Plot(DataClassDictMixin):
                 idx = y_data <= self.y_max
                 x_data = x_data[idx]
                 y_data = y_data[idx]
+            
+            # Select the last `N` data points.
+            if self.show_last_n is not None:
+                x_data = x_data[-self.show_last_n:]
+                y_data = y_data[-self.show_last_n:]
             
             match self.type:
                 case 'terminal':
@@ -262,8 +268,8 @@ class PlotLive(DataClassDictMixin):
     
     If you are unsure of what keys exist, see `InfoMetrics`.
     
-    Example live plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal with an update inveral of "1" seconds:
-    >>> cli --config <file> metrics plot-live --x loss_step --y loss --sleep 1 --theme clear
+    Example live plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal with an update inveral of "1" seconds and only show the last 200 data points:
+    >>> cli --config <file> metrics plot-live --x loss_step --y loss --show-last-n 200 --sleep 1 --theme clear
     """
     x: str # X-axis data key.
     y: str # Y-axis data key.
@@ -272,6 +278,7 @@ class PlotLive(DataClassDictMixin):
     x_max: float | None = None # X-axis range max.
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
+    show_last_n: int | None = None # Show the last `N` data points.
     theme: str | None = None # Plotext "theme"
     
     def main(self, config: algorithm.Algorithm):
@@ -313,6 +320,11 @@ class PlotLive(DataClassDictMixin):
                         idx = y_data <= self.y_max
                         x_data = x_data[idx]
                         y_data = y_data[idx]
+                    
+                    # Select the last `N` data points.
+                    if self.show_last_n is not None:
+                        x_data = x_data[-self.show_last_n:]
+                        y_data = y_data[-self.show_last_n:]
                     
                     plt.clt() # Clear terminal.
                     plt.cld() # Clear data only.
