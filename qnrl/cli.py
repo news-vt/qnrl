@@ -254,6 +254,9 @@ class InfoMetrics(DataClassDictMixin):
     
     Extract keys `{key, min, argmin}` from metrics:
     >>> cli --config <file> metrics info --format json | jq 'map({key, min, argmin})'
+    
+    Extract "loss" and "episode_reward" keys from metrics:
+    >>> cli --config <file> metrics info --format json | jq '.[] | select(.key=="loss" or .key=="episode_reward")'
     """
     format: DumpFormat = DumpFormat.PRETTY
 
