@@ -71,4 +71,5 @@ config = QnRL(
             },
         },
     ),
+    policy_type='stochastic',
 )

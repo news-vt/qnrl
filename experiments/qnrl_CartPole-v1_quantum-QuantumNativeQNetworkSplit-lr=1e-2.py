@@ -59,4 +59,5 @@ config = QnRL(
         rngs_kwargs=dict(default=0),
     ),
     optimizer=Adam(learning_rate=1.0e-2),
+    policy_type='stochastic',
 )
