@@ -42,13 +42,19 @@ def epsilon_greedy_policy(
     # Decay epsilon based on current time step.
     eps = epsilon_schedule_linear(eps_start=eps_start, eps_end=eps_end, duration=duration, t=t)
     # Action selection.
-    if jax.random.uniform(key=key) < eps: # Explore via random action selection.
+    key, subkey = jax.random.split(key)
+    if jax.random.uniform(key=subkey) < eps: # Explore via random action selection.
         action = env.action_space.sample()
     else:
         # pmfs = model_policy(observation) # (batch,n_actions,)
         # action = jnp.argmax(pmfs, axis=-1).item() # ()
-        pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
-        action = jnp.argmax(pmfs, axis=-1).item() # ()
+        # 
+        # pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
+        # action = jnp.argmax(pmfs, axis=-1).item() # ()
+        # 
+        key, subkey = jax.random.split(key)
+        action_pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
+        action = jax.random.choice(key=subkey, a=model_policy.n_actions, p=action_pmfs).item()
     return action
 
 
