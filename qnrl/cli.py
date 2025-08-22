@@ -7,6 +7,7 @@ import json
 import enum
 import os
 import time
+import sys
 
 import tyro
 from mashumaro.mixins.dict import DataClassDictMixin
@@ -200,6 +201,13 @@ class Plot(DataClassDictMixin):
             metric_manager.load()
             metrics = metric_manager.get_metrics()
             
+            if self.x not in metrics:
+                print(f"ERROR:X-axis key {self.x} not found in metrics file", file=sys.stderr)
+                return
+            if self.y not in metrics:
+                print(f"ERROR:Y-axis key {self.y} not found in metrics file", file=sys.stderr)
+                return
+            
             x_data = np.array(metrics[self.x])
             y_data = np.array(metrics[self.y])
             
@@ -298,6 +306,13 @@ class PlotLive(DataClassDictMixin):
                     # Load new data.
                     metric_manager.load()
                     metrics = metric_manager.get_metrics()
+                    
+                    if self.x not in metrics:
+                        print(f"ERROR:X-axis key {self.x} not found in metrics file", file=sys.stderr)
+                        return
+                    if self.y not in metrics:
+                        print(f"ERROR:Y-axis key {self.y} not found in metrics file", file=sys.stderr)
+                        return
                     
                     x_data = np.array(metrics[self.x])
                     y_data = np.array(metrics[self.y])
