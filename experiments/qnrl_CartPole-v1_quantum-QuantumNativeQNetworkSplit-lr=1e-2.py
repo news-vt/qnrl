@@ -45,7 +45,7 @@ config = QnRL(
         env=EnvConfig(env_id="CartPole-v1"),
         scale=[2.4, 2.5, 0.21, 2.5],
     ),
-    model_policy=QuantumNativeQNetworkSplit(
+    model=QuantumNativeQNetworkSplit(
         din=din,
         n_actions=n_actions,
         n_returns=n_returns,
@@ -57,19 +57,6 @@ config = QnRL(
         diff_method=diff_method,
         shots=shots,
         rngs_kwargs=dict(default=0),
-    ),
-    model_target=QuantumNativeQNetworkSplit(
-        din=din,
-        n_actions=n_actions,
-        n_returns=n_returns,
-        z_min=z_min,
-        z_max=z_max,
-        m_moment=m_moment,
-        n_reuploads=n_reuploads,
-        n_layers=n_layers,
-        diff_method=diff_method,
-        shots=shots,
-        rngs_kwargs=dict(default=42),
     ),
     optimizer=Adam(learning_rate=1.0e-2),
 )
