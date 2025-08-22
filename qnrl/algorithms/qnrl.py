@@ -54,7 +54,7 @@ def epsilon_greedy_policy(
         # 
         key, subkey = jax.random.split(key)
         action_pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
-        action = jax.random.choice(key=subkey, a=model_policy.n_actions, p=action_pmfs).item()
+        action = jax.random.choice(key=subkey, a=model_policy.n_actions, p=action_pmfs[0]).item()
     return action
 
 
