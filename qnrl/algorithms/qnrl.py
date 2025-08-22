@@ -534,6 +534,7 @@ class QnRL(Algorithm):
                 step_to_restore = checkpoint_manager.latest_step()
                 restored_state = checkpoint_manager.restore(step_to_restore, items=original_state)
                 nnx.update(model_policy, restored_state)
+                print(f"INFO:Restoring model from step {step_to_restore}", file=sys.stderr)
             # No checkpoint restore state could be found. Continue anyway.
             except FileNotFoundError:
                 print("WARNING:Could not find any checkpoint to restore, continuing using initial model parameters.", file=sys.stderr)
