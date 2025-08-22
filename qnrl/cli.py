@@ -186,6 +186,7 @@ class Plot(DataClassDictMixin):
     x_max: float | None = None # X-axis range max.
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
+    theme: str | None = None
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
@@ -221,6 +222,8 @@ class Plot(DataClassDictMixin):
                 case 'terminal':
                     import plotext as plt
                     
+                    plt.theme(theme=self.theme)
+                    
                     plt.plot(x_data, y_data)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
@@ -233,6 +236,9 @@ class Plot(DataClassDictMixin):
 
                 case 'matplotlib':
                     import matplotlib.pyplot as plt
+                    
+                    if self.theme is not None:
+                        plt.style.use(style=self.theme)
                     
                     plt.plot(x_data, y_data)
                     plt.xlabel(self.x)
@@ -260,12 +266,17 @@ class PlotLive(DataClassDictMixin):
     x_max: float | None = None # X-axis range max.
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
+    theme: str | None = None
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
             metric_manager = config.metric_manager
             
             import plotext as plt
+            
+            plt.themes
+            
+            plt.theme(theme=self.theme)
             
             try:
                 while True:
