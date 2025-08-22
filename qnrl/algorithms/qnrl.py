@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import os
 from typing import Any
+import sys
 
 from flax import nnx
 from flax.training import orbax_utils
@@ -97,6 +98,7 @@ def update(
     # # Generate return PMF for next observation, which is weighted based on expectation for each action.
     # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
     # next_pmfs = model_target.call_gen_return_dist(next_observations) # (batch_size,n_atoms)
+    #
     next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
     next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
     next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
@@ -365,10 +367,6 @@ def eval(
             'done': done,
         }
         history.append(meta)
-        pbar_postfix.update({
-            'reward': reward,
-        })
-        pbar.set_postfix(pbar_postfix)
         
         # Record episode statistics.
         if "episode" in info:
@@ -379,9 +377,7 @@ def eval(
                 episode_time=info['episode']['t'],
             )
             history.append(meta)
-            pbar_postfix.update({
-                'reward': reward,
-            })
+            pbar_postfix.update(meta)
             pbar.set_postfix(pbar_postfix)
         
         # Update current observation with next observation.
@@ -412,7 +408,7 @@ class QnRL(Algorithm):
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
     
-    def train(self) -> list:
+    def train(self, **kwargs) -> list:
         
         # Create the environment.
         env = self.env.make()
@@ -435,7 +431,7 @@ class QnRL(Algorithm):
             checkpoint_manager = None
         
         # Run the training algorithm.
-        history_list = train(
+        kwargs_default = dict(
             seed=self.seed,
             env=env,
             model_policy=model_policy,
@@ -455,10 +451,11 @@ class QnRL(Algorithm):
             checkpoint_manager=checkpoint_manager,
             metric_manager=self.metric_manager,
         )
+        history_list = train(**{**kwargs_default, **kwargs})
 
         return history_list
     
-    def eval(self) -> list:
+    def eval(self, **kwargs) -> list:
         
         # Create the environment.
         env = self.env.make()
@@ -475,18 +472,23 @@ class QnRL(Algorithm):
             )
             
             # Restore model state from checkpoint.
-            original_state = nnx.state(model_policy)
-            step_to_restore = checkpoint_manager.latest_step()
-            restored_state = checkpoint_manager.restore(step_to_restore, items=original_state)
-            nnx.update(model_policy, restored_state)
+            try:
+                original_state = nnx.state(model_policy)
+                step_to_restore = checkpoint_manager.latest_step()
+                restored_state = checkpoint_manager.restore(step_to_restore, items=original_state)
+                nnx.update(model_policy, restored_state)
+            # No checkpoint restore state could be found. Continue anyway.
+            except FileNotFoundError:
+                print("WARNING:Could not find any checkpoint to restore, continuing using initial model parameters.", file=sys.stderr)
         else:
             checkpoint_manager = None
         
-        history_list = eval(
+        kwargs_default = dict(
             seed=self.seed,
             env=env,
             model_policy=model_policy,
             total_timesteps=self.total_timesteps,
         )
+        history_list = eval(**{**kwargs_default, **kwargs})
         
         return history_list
