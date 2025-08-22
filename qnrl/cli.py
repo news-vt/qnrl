@@ -193,6 +193,7 @@ class Plot(DataClassDictMixin):
     y_max: float | None = None # Y-axis range max.
     show_last_n: int | None = None # Show the last `N` data points
     theme: str | None = None # Plotext "theme", or Matplotlib "style".
+    color: str | None = None # Plot line color.
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
@@ -242,7 +243,7 @@ class Plot(DataClassDictMixin):
                     
                     plt.theme(theme=self.theme)
                     
-                    plt.plot(x_data, y_data)
+                    plt.plot(x_data, y_data, color=self.color)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
                     plt.title(config.metric_manager.path.stem)
@@ -258,7 +259,7 @@ class Plot(DataClassDictMixin):
                     if self.theme is not None:
                         plt.style.use(style=self.theme)
                     
-                    plt.plot(x_data, y_data)
+                    plt.plot(x_data, y_data, color=self.color)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
                     plt.title(config.metric_manager.path.stem)
@@ -289,6 +290,7 @@ class PlotLive(DataClassDictMixin):
     y_max: float | None = None # Y-axis range max.
     show_last_n: int | None = None # Show the last `N` data points.
     theme: str | None = "pro" # Plotext "theme"
+    color: str | None = None # Plot line color.
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
@@ -346,7 +348,7 @@ class PlotLive(DataClassDictMixin):
                     plt.cld() # Clear data only.
                     w, h = plt.terminal_size()
                     plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
-                    plt.plot(x_data, y_data)
+                    plt.plot(x_data, y_data, color=self.color)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
                     plt.title(config.metric_manager.path.stem)
