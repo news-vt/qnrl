@@ -35,7 +35,7 @@ from ..metric import MetricManager
 def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
     """Linear epsilon decay schedule."""
     slope = (eps_end - eps_start) / duration
-    return jnp.max(jnp.array([slope * t, eps_end]))
+    return jnp.max(jnp.array([slope * t + eps_start, eps_end]))
 
 
 def epsilon_greedy_policy(
