@@ -155,9 +155,10 @@ class Train(DataClassDictMixin):
 class Eval(DataClassDictMixin):
     """Run evaluation algorithm using the given config."""
     format: DumpFormat = DumpFormat.PRETTY
+    kwargs: dict[str, bool | int | float | str] = field(default_factory=dict)
     
     def main(self, config: algorithm.Algorithm):
-        history_list = config.eval() # Run training algorithm.
+        history_list = config.eval(**self.kwargs) # Run training algorithm.
         # Convert to dictionary of lists.
         data = tools.listofdict_to_dictoflist(history_list)
         
