@@ -178,6 +178,9 @@ class Plot(DataClassDictMixin):
     """Plot metric data using X/Y data keys.
     
     If you are unsure of what keys exist, see `InfoMetrics`.
+    
+    Example plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal:
+    >>> cli --config <file> metrics plot --x loss_step --y loss --type terminal --theme clear
     """
     type: Literal['terminal', 'matplotlib'] = 'terminal'
     x: str # X-axis data key.
@@ -186,7 +189,7 @@ class Plot(DataClassDictMixin):
     x_max: float | None = None # X-axis range max.
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
-    theme: str | None = None
+    theme: str | None = None # Plotext "theme", or Matplotlib "style".
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
@@ -258,6 +261,9 @@ class PlotLive(DataClassDictMixin):
     """Live plot metric data using X/Y data keys.
     
     If you are unsure of what keys exist, see `InfoMetrics`.
+    
+    Example live plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal with an update inveral of "1" seconds:
+    >>> cli --config <file> metrics plot-live --x loss_step --y loss --sleep 1 --theme clear
     """
     x: str # X-axis data key.
     y: str # Y-axis data key.
@@ -266,7 +272,7 @@ class PlotLive(DataClassDictMixin):
     x_max: float | None = None # X-axis range max.
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
-    theme: str | None = None
+    theme: str | None = None # Plotext "theme"
     
     def main(self, config: algorithm.Algorithm):
         if config.metric_manager is not None:
