@@ -17,7 +17,7 @@ from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
 from ..modules import QuantumNativeQNetworkSplit, SerializableModule
 from ..optimizer import OptimizerTransform
-from ..buffers import ReplayBuffer
+from ..buffers import ReplayBuffer, PmfReplayBuffer
 from ..metric import MetricManager
 
 @nnx.jit
@@ -46,6 +46,7 @@ def epsilon_greedy_policy(
     key, subkey = jax.random.split(key)
     if jax.random.uniform(key=subkey) < eps: # Explore via random action selection.
         action = env.action_space.sample()
+        action_pmf = jnp.array([1./env.action_space.n] * env.action_space.n)
     else:
         # pmfs = model_policy(observation) # (batch,n_actions,)
         # action = jnp.argmax(pmfs, axis=-1).item() # ()
@@ -54,9 +55,10 @@ def epsilon_greedy_policy(
         # action = jnp.argmax(pmfs, axis=-1).item() # ()
         # 
         key, subkey = jax.random.split(key)
-        action_pmfs = model_policy.call_gen_action_dist(observation) # (batch,n_actions,)
-        action = jax.random.choice(key=subkey, a=model_policy.n_actions, p=action_pmfs[0]).item()
-    return action
+        action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
+        action = jax.random.choice(key=subkey, a=model_policy.n_actions, p=action_pmf).item()
+        # print(f"{action_pmfs = }, {action = }")
+    return action, action_pmf
 
 
 # TODO QnRL loss should compare the quantum states of the return-atom dist between the policy model and the target model w.r.t. the policy model's action distribution. Input the policy model's predicted action distribution, then prepare 2 return-atom circuits using the policy and target model's circuit_weights. Then run quantum wasserstein distance or quantum KL divergence to compare the quantum states of the two return-atom registers. 
@@ -68,6 +70,7 @@ def update(
     model_target: QuantumNativeQNetworkSplit,
     observations: jax.Array,
     actions: jax.Array,
+    action_pmfs: jax.Array,
     next_observations: jax.Array,
     rewards: jax.Array,
     dones: jax.Array,
@@ -104,6 +107,13 @@ def update(
     next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
     next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
     ######
+    
+    # print(f"{atoms.shape = }")
+    # print(f"{rewards.shape = }")
+    # print(f"{dones.shape = }")
+    # print(f"{next_action_pmfs.shape = }")
+    # print(f"{next_pmfs.shape = }")
+    
 
 
     # next_pmfs = next_pmfs[:, next_action] # (batch_size, n_atoms)
@@ -141,10 +151,16 @@ def update(
         loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
         return loss.mean()
     
-    # Get action PMF outside of gradient computation.
-    probs_actions = model_policy.call_gen_action_dist(observations)
+    # # Get action PMF outside of gradient computation.
+    # probs_actions = model_policy.call_gen_action_dist(observations)
     
-    loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, probs_actions=probs_actions, y=target_pmfs)
+    # jax.debug.print("actions: {}",actions)
+    # jax.debug.print("probs_actions: {}",probs_actions)
+    # jax.debug.print("next_action_pmfs: {}",next_action_pmfs)
+    # jax.debug.print("next_actions: {}",next_actions)
+    # jax.debug.print("next_pmfs: {}",next_pmfs)
+    
+    loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, probs_actions=action_pmfs, y=target_pmfs)
     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
     
     return loss
@@ -212,7 +228,15 @@ def train(
     history: list[dict[str, Any]] = []
     
     # Create a buffer for environment interactions.
-    buffer = ReplayBuffer(buffer_size=buffer_size, env=env)
+    # buffer = ReplayBuffer(buffer_size=buffer_size, env=env)
+    buffer = PmfReplayBuffer(buffer_size=buffer_size, env=env)
+    
+    # print(f"{buffer.actions.shape = }")
+    # print(f"{buffer.action_pmfs.shape = }")
+    # print(f"{buffer.observations.shape = }")
+    # print(f"{buffer.rewards.shape = }")
+    # print(f"{buffer.dones.shape = }")
+    # return
     
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
@@ -236,7 +260,7 @@ def train(
             
             # Action selection.
             key, subkey = jax.random.split(key)
-            action = epsilon_greedy_policy(
+            action, action_pmf = epsilon_greedy_policy(
                 env=env,
                 model_policy=model_policy,
                 observation=observation,
@@ -251,7 +275,14 @@ def train(
             next_observation, reward, done, truncation, info = env.step(action)
             
             # Push interaction onto buffer.
-            buffer.add(observation, next_observation, action, reward, done)
+            buffer.add(
+                observation=observation,
+                next_observation=next_observation,
+                action=action,
+                action_pmf=action_pmf,
+                reward=reward,
+                done=done,
+                )
             
             # Override current observation to be the next observation for subsequent loop iteration.
             observation = next_observation.copy()
@@ -289,11 +320,25 @@ def train(
                         model_target=model_target,
                         observations=minibatch.observations,
                         actions=minibatch.actions,
+                        action_pmfs=minibatch.action_pmfs,
                         next_observations=minibatch.next_observations,
                         rewards=minibatch.rewards,
                         dones=minibatch.dones,
                         gamma=gamma,
                     )
+                    
+                    # update(
+                    #     optimizer: nnx.Optimizer,
+                    #     model_policy: QuantumNativeQNetworkSplit,
+                    #     model_target: QuantumNativeQNetworkSplit,
+                    #     observations: jax.Array,
+                    #     actions: jax.Array,
+                    #     action_pmfs: jax.Array,
+                    #     next_observations: jax.Array,
+                    #     rewards: jax.Array,
+                    #     dones: jax.Array,
+                    #     gamma: float,
+                    #     ):
                     
                     # Update the history and progress bar.
                     meta = dict(
@@ -392,8 +437,9 @@ def eval(
 @dataclass(kw_only=True)
 class QnRL(Algorithm):
     """Configuration for `qnrl.algorithms.c51.train`."""
-    model_policy: QuantumNativeQNetworkSplit # Policy model configuration.
-    model_target: QuantumNativeQNetworkSplit # Target model configuration.
+    # model_policy: QuantumNativeQNetworkSplit # Policy model configuration.
+    # model_target: QuantumNativeQNetworkSplit # Target model configuration.
+    model: QuantumNativeQNetworkSplit
     optimizer: OptimizerTransform
     buffer_size: int = 10_000
     seed: int = 0
@@ -413,9 +459,19 @@ class QnRL(Algorithm):
         # Create the environment.
         env = self.env.make()
         
-        # Create models.
-        model_policy = self.model_policy
-        model_target = self.model_target
+        # # Create models.
+        # model_policy = self.model_policy
+        # model_target = self.model_target
+        # 
+        # Create models, target is a copy of policy.
+        model_policy = self.model
+        graphdef, state = nnx.split(model_policy)
+        model_target = nnx.merge(graphdef, state)
+        
+        # params_policy = nnx.state(model_policy, nnx.Param) # Get the learnable parameters of the policy model.
+        # params_target = nnx.state(model_target, nnx.Param) # Get the learnable parameters of the target model.
+        # params_update = optax.incremental_update(params_policy, params_target, self.tau) # Apply soft update rule for target network weights.
+        # nnx.update(model_target, params_update)
         
         # Create optimizers.
         optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)
@@ -461,7 +517,7 @@ class QnRL(Algorithm):
         env = self.env.make()
         
         # Create models.
-        model_policy = self.model_policy
+        model_policy = self.model
 
         # Create checkpoint manager and restore latest model state.
         if isinstance(self.checkpoint, CheckpointConfig):

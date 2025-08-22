@@ -25,6 +25,15 @@ def get_action_space_shape(action_space: gym.spaces.Space):
         raise NotImplementedError(f"{action_space} action space is not supported")
 
 
+def get_action_pmf_space_shape(action_space: gym.spaces.Space):
+    if isinstance(action_space, gym.spaces.Discrete):
+        return (1,action_space.n,)
+    elif isinstance(action_space, gym.spaces.MultiDiscrete):
+        return (int(len(action_space.nvec)),action_space.n,)
+    else:
+        raise NotImplementedError(f"{action_space} action space is not supported")
+
+
 @dataclass
 class ReplayBufferSlice:
     """Collection of elements from a replay buffer."""
@@ -107,7 +116,7 @@ class ReplayBuffer:
             self.is_full = True # Indicate that the buffer has reached capacity.
             self.idx = 0 # Reset index if buffer is full (circular buffer).
     
-    def sample(self, key: ArrayLike, batch_size: int):
+    def sample(self, key: ArrayLike, batch_size: int) -> ReplayBufferSlice:
         """Collect randomized samples from the buffer."""
         # Collect random batch indices.
         key, subkey = jax.random.split(key) # Generate a new random key, use `subkey` for calls to jax.random, preserve `self.key` for future splits.
@@ -123,13 +132,72 @@ class ReplayBuffer:
         # Return a sample of the batched elements.
         return self[idx_batch, idx_env]
     
-    def __getitem__(self, idx: int | list[int] | tuple[ArrayLike, ...] | ArrayLike):
+    def __getitem__(self, idx: int | list[int] | tuple[ArrayLike, ...] | ArrayLike) -> ReplayBufferSlice:
         """Access a sample of the buffer via index notation."""
-        data = (
-            self.observations[idx],
-            self.next_observations[idx],
-            self.actions[idx],
-            self.rewards[idx],
-            self.dones[idx],
+        data = dict(
+            observations=self.observations[idx],
+            next_observations=self.next_observations[idx],
+            actions=self.actions[idx],
+            rewards=self.rewards[idx],
+            dones=self.dones[idx],
         )
-        return ReplayBufferSlice(*data)
+        return ReplayBufferSlice(**data)
+
+
+@dataclass
+class PmfReplayBufferSlice(ReplayBufferSlice):
+    """Collection of elements from a replay buffer, which includes action probability mass function (PMF)."""
+    action_pmfs: jax.Array
+
+@dataclass # This allows the buffer to be displayed properly using `IPython.display`.
+class PmfReplayBuffer(ReplayBuffer):
+    """Variant of circular replay buffer with support for action probability mass functions (PMFs).
+    """
+    action_pmfs: jax.Array
+    
+    def __init__(self,
+        buffer_size: int,
+        env: gym.Env | gym.vector.VectorEnv,
+        ):
+        super().__init__(buffer_size=buffer_size, env=env)
+        self.action_pmf_shape = get_action_pmf_space_shape(self.action_space)
+        self.action_pmfs = jnp.zeros(shape=(self.buffer_size, *self.action_pmf_shape), dtype=jnp.float32)
+    
+    def reset(self):
+        """Reinitialize the buffer with all zeroes."""
+        super().reset()
+        
+        self.action_pmfs = jnp.zeros_like(self.action_pmfs)
+    
+    def add(self,
+        observation: jax.Array,
+        next_observation: jax.Array,
+        action: jax.Array,
+        action_pmf: jax.Array,
+        reward: jax.Array,
+        done: jax.Array,
+        ):
+        """Insert an environment interaction onto the buffer in circular fashion."""
+        
+        # Add elements onto buffer.
+        self.action_pmfs = self.action_pmfs.at[self.idx].set(jnp.asarray(action_pmf).reshape((*self.action_pmfs.shape[1:],)))
+        
+        super().add(
+            observation=observation,
+            next_observation=next_observation,
+            action=action,
+            reward=reward,
+            done=done,
+        )
+    
+    def __getitem__(self, idx: int | list[int] | tuple[ArrayLike, ...] | ArrayLike) -> PmfReplayBufferSlice:
+        """Access a sample of the buffer via index notation."""
+        data = dict(
+            observations=self.observations[idx],
+            next_observations=self.next_observations[idx],
+            actions=self.actions[idx],
+            action_pmfs=self.action_pmfs[idx],
+            rewards=self.rewards[idx],
+            dones=self.dones[idx],
+        )
+        return PmfReplayBufferSlice(**data)
