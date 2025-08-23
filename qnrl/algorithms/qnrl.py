@@ -457,7 +457,7 @@ def train(
                     if checkpoint_manager is not None:
                         state = nnx.state(model_policy) # Get the current model state.
                         save_args = orbax_utils.save_args_from_target(state)
-                        checkpoint_manager.save(t, state, save_kwargs={'save_args': save_args}) # Preserve state via checkpoint.
+                        checkpoint_manager.save(t, state, save_kwargs={'save_args': save_args}, metrics=dict(loss=loss)) # Preserve state via checkpoint.
                 
                 # Update the target model by replacing its parameters with those of the policy model.
                 if t % target_update_frequency == 0:
