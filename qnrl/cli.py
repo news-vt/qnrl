@@ -246,7 +246,7 @@ class Plot(DataClassDictMixin):
                     plt.plot(x_data, y_data, color=self.color)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
-                    plt.title(config.metric_manager.path.stem)
+                    plt.title(config.metric_manager.metric_dir.stem)
                     
                     plt.xlim(left=self.x_min, right=self.x_max)
                     plt.ylim(lower=self.y_min, upper=self.y_max)
@@ -262,7 +262,7 @@ class Plot(DataClassDictMixin):
                     plt.plot(x_data, y_data, color=self.color)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
-                    plt.title(config.metric_manager.path.stem)
+                    plt.title(config.metric_manager.metric_dir.stem)
                     
                     plt.xlim(left=self.x_min, right=self.x_max)
                     plt.ylim(bottom=self.y_min, top=self.y_max)
@@ -351,11 +351,11 @@ class PlotLive(DataClassDictMixin):
                     plt.plot(x_data, y_data, color=self.color)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
-                    plt.title(config.metric_manager.path.stem)
+                    plt.title(config.metric_manager.metric_dir.stem)
                     plt.show()
                     
                     # Blocking wait for next file change.
-                    if not tools.wait_for_file_change(config.metric_manager.path, interval=self.sleep):
+                    if not tools.wait_for_file_change(config.metric_manager.metric_dir, interval=self.sleep):
                         return
                     
             except KeyboardInterrupt:

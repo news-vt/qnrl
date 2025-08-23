@@ -16,3 +16,4 @@ sympy
 tqdm
 tyro
 plotext
+filelock
