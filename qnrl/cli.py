@@ -241,7 +241,7 @@ class Plot(DataClassDictMixin):
                 case 'terminal':
                     import plotext as plt
                     
-                    plt.theme(theme=self.theme)
+                    plt.theme(theme=self.theme or "pro")
                     
                     plt.plot(x_data, y_data, color=self.color)
                     plt.xlabel(self.x)
