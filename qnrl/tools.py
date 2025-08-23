@@ -70,7 +70,7 @@ def listofdict_to_dictoflist(listofdict: list[dict]) -> dict[str,list]:
 
 
 def save_train_results(filepath: str | pathlib.Path, obj: Any, **kwargs):
-    """Save training result dictionary to JSON file.
+    """Save training result dictionary to file.
     
     Supported file formats:
     - `'.json'`: JSON.
@@ -114,7 +114,7 @@ def save_train_results(filepath: str | pathlib.Path, obj: Any, **kwargs):
 
 
 def load_train_results(filepath: str | pathlib.Path) -> Any:
-    """Load training result dictionary from JSON file.
+    """Load training result dictionary from file.
     
     Supported file formats:
     - `'.json'`: JSON.
