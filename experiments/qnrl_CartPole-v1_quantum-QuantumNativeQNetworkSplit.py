@@ -29,9 +29,24 @@ shots=100
 
 # Experiment configuration.
 config = QnRL(
+    buffer_size=10_000,
+    seed=0,
+    batch_size=128,
+    total_timesteps=500_000,
+    learning_starts=10_000,
+    policy_update_frequency=10,
+    target_update_frequency=500,
+    gamma=0.99,
+    tau=1.0,
+    eps_start=1,
+    eps_end=5e-2,
+    eps_exploration=0.5,
+    #
     metric_manager=MetricManager(
-        path=(FILEPATH.parent/"../metrics"/Path(f"{NAME}.json")).resolve(),
-        save_frequency=100, # Every 100 steps.
+        metric_dir=(FILEPATH.parent/"../metrics"/Path(f"{NAME}")).resolve(),
+        metric_file_type="json",
+        save_interval_steps=100,
+        max_to_keep=2,
     ),
     checkpoint=CheckpointConfig(
         checkpoint_dir=(FILEPATH.parent/"../checkpoints"/Path(f"{NAME}")).resolve(),
