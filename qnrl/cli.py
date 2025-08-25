@@ -271,10 +271,10 @@ class Plot(DataClassDictMixin):
         
         # Synchronize X/Y axis data display to data available across all configs.
         if self.sync:
-            self.x_min = max(x_data for _, x_data in data_dict['x'].items())
-            self.x_max = min(x_data for _, x_data in data_dict['x'].items())
-            self.y_min = max(y_data for _, y_data in data_dict['y'].items())
-            self.y_max = min(y_data for _, y_data in data_dict['y'].items())
+            self.x_min = max(x_data.min() for _, x_data in data_dict['x'].items())
+            self.x_max = min(x_data.max() for _, x_data in data_dict['x'].items())
+            self.y_min = max(y_data.min() for _, y_data in data_dict['y'].items())
+            self.y_max = min(y_data.max() for _, y_data in data_dict['y'].items())
         
         # Plot.
         match self.type:
