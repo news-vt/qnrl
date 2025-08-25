@@ -273,8 +273,16 @@ class Plot(DataClassDictMixin):
         if self.sync:
             self.x_min = max(x_data.min() for _, x_data in data_dict['x'].items())
             self.x_max = min(x_data.max() for _, x_data in data_dict['x'].items())
-            self.y_min = max(y_data.min() for _, y_data in data_dict['y'].items())
-            self.y_max = min(y_data.max() for _, y_data in data_dict['y'].items())
+            # Clip X-axis data for all configs.
+            for key in configs.keys():
+                # Clip X min.
+                idx = data_dict['x'][key] >= self.x_min
+                data_dict['x'][key] = data_dict['x'][key][idx]
+                data_dict['y'][key] = data_dict['y'][key][idx]
+                # Clip X max.
+                idx = data_dict['x'][key] <= self.x_max
+                data_dict['x'][key] = data_dict['x'][key][idx]
+                data_dict['y'][key] = data_dict['y'][key][idx]
         
         # Plot.
         match self.type:
