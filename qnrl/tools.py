@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import json
 import pathlib
 import datetime
@@ -15,6 +16,7 @@ from flax.training import orbax_utils
 import jax.numpy as jnp
 import numpy as np
 import yaml
+from mashumaro import DataClassDictMixin
 
 class NumpyJSONEncoder(json.JSONEncoder):
     """Serializes numpy objects for JSON support."""
@@ -67,6 +69,45 @@ def listofdict_to_dictoflist(listofdict: list[dict]) -> dict[str,list]:
             res.setdefault(k, []).append(v)
     res = {k: jnp.array(v).tolist() for k,v in res.items()}
     return res
+
+@dataclass(kw_only=True)
+class MetricStatistics(DataClassDictMixin):
+    key: str # The unique identifier for the metric.
+    shape: list[int]
+    dtype: str
+    min: float
+    max: float
+    argmin: int
+    argmax: int
+    mean: float
+    std: float
+
+    @classmethod
+    def compute(cls, key: str, data: list):
+        return cls(
+            key=key,
+            shape=list(jnp.array(data).shape),
+            dtype=str(jnp.array(data).dtype),
+            min=jnp.array(data).min().item(),
+            max=jnp.array(data).max().item(),
+            argmin=jnp.array(data).argmin().item(),
+            argmax=jnp.array(data).argmax().item(),
+            mean=jnp.array(data).mean().item(),
+            std=jnp.array(data).std().item(),
+        )
+
+
+def compute_train_result_statistics(d: dict[str,list]) -> list[MetricStatistics]:
+    """Computes statistics for metrics specified as a keyed dictionary of lists.
+    
+    Example input:
+    >>> d = {'metric0': [1,2,3], 'metric1': [4,5,6,7]}
+    >>> compute_train_result_statistics(d)
+    """
+    return [
+        MetricStatistics.compute(key=metric_key, data=val)
+        for metric_key, val in d.items()
+    ]
 
 
 def save_train_results(filepath: str | pathlib.Path, obj: Any, **kwargs):

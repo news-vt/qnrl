@@ -488,17 +488,7 @@ class InfoMetrics(DataClassDictMixin):
             # Collect metric information.
             d = {
                 'key': cfg_key,
-                'metrics': [dict(
-                    key=metric_key,
-                    shape=list(jnp.array(val).shape),
-                    dtype=str(jnp.array(val).dtype),
-                    min=jnp.array(val).min().item(),
-                    max=jnp.array(val).max().item(),
-                    argmin=jnp.array(val).argmin().item(),
-                    argmax=jnp.array(val).argmax().item(),
-                    mean=jnp.array(val).mean().item(),
-                    std=jnp.array(val).std().item(),
-                ) for metric_key, val in metrics.items()],
+                'metrics': [m.to_dict() for m in tools.compute_train_result_statistics(metrics)], # Serialize.
             }
             data.append(d)
             
