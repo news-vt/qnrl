@@ -36,6 +36,11 @@ class MetricManager(DataClassDictMixin):
     
     def _populate_tracking(self):
         with self:
+            
+            # Ensure metric dir existence.
+            if not self.metric_dir.exists():
+                raise ValueError(f"metric directory does not exist: {self.metric_dir}")
+            
             self._existing_metric_dirs = [pathlib.Path(f.path) for f in os.scandir(self.metric_dir) if f.is_dir()]
             self._existing_metric_dirs = sorted(self._existing_metric_dirs, key=lambda p: int(p.stem)) # Ensure step sort order on start.
             self._latest_step_tracked = int(self._existing_metric_dirs[-1].stem)
@@ -139,15 +144,21 @@ class MetricManager(DataClassDictMixin):
     
     def all_steps(self) -> list[int]:
         """Return all steps tracked by the manager."""
-        self._populate_tracking() # Update the tracking information.
-        steps = [int(d.stem) for d in self._existing_metric_dirs]
-        steps = sorted(steps) # Ensure integer sort order.
-        return steps
+        try:
+            self._populate_tracking() # Update the tracking information.
+            steps = [int(d.stem) for d in self._existing_metric_dirs]
+            steps = sorted(steps) # Ensure integer sort order.
+            return steps
+        except:
+            return []
 
     def latest_step(self) -> int | None:
         """Returns the latest step saved."""
-        self._populate_tracking() # Update the tracking information.
-        return self._latest_step_tracked
+        try:
+            self._populate_tracking() # Update the tracking information.
+            return self._latest_step_tracked
+        except:
+            return None
     
     # TODO wait for async saves to finish.
     def wait_until_finished(self):
