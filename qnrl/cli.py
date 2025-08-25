@@ -385,6 +385,11 @@ class PlotLive(DataClassDictMixin):
         try:
             while True:
                 
+                plt.clt() # Clear terminal.
+                plt.cld() # Clear data only.
+                w, h = plt.terminal_size()
+                plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
+                
                 for _, cfg in configs.items():
                     # Load new data.
                     metric_manager = cfg.metric_manager
@@ -426,20 +431,21 @@ class PlotLive(DataClassDictMixin):
                         x_data = x_data[-self.show_last_n:]
                         y_data = y_data[-self.show_last_n:]
                     
-                    plt.clt() # Clear terminal.
-                    plt.cld() # Clear data only.
-                    w, h = plt.terminal_size()
-                    plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
-                    
+                    # Adjust label.
                     if self.stats:
                         label = f"{metric_manager.metric_dir.stem} (min {y_data.min():.4f}, max {y_data.max():.4f}, mean {y_data.mean():.4f})"
                     else:
                         label = metric_manager.metric_dir.stem
-                    
+
+                    # Plot the data.
                     plt.plot(x_data, y_data, color=self.color, label=label)
+                
+                # Set axis labels and title.
                 plt.xlabel(self.x)
                 plt.ylabel(self.y)
                 plt.title(f"Live plot: {datetime.datetime.now()}")
+                
+                # Show the plot.
                 plt.show()
                 
                 # Blocking wait for next file change.
