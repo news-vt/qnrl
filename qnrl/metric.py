@@ -58,10 +58,6 @@ class MetricManager(DataClassDictMixin):
         if self.metric_dir.exists():
             self._populate_tracking()
         
-        # Create parent directory tree if it does not already exist.
-        else:
-            self.metric_dir.mkdir(parents=True, exist_ok=True)
-        
         # Build file name from directory stem.
         self._metric_filename = self.metric_dir.stem + "." + self.metric_file_type
     
