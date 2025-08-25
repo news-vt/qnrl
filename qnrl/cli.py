@@ -447,6 +447,10 @@ if __name__ == "__main__":
     
     args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues, tyro.conf.OmitSubcommandPrefixes,))
     
+    # Verify config file exists.
+    if not args.config.exists():
+        raise ValueError(f"config file does not exist")
+    
     suffix = args.config.suffix
     match suffix:
         case ".yaml" | ".yml":
@@ -462,11 +466,11 @@ if __name__ == "__main__":
             config = algorithm.Algorithm.from_dict(data)
         # Load from Python.
         case ".py":
-            mod = tools.load_python_module_from_filepath(args.config)
             try:
+                mod = tools.load_python_module_from_filepath(args.config)
                 config = mod.config # The configuration must be saved in a variable called `config`.
-            except:
-                raise ValueError(f"could not load config from {args.config}")
+            except Exception as e:
+                raise ValueError(f"could not load config from {args.config}: {e}")
         case _:
             raise ValueError(f"{suffix} is an unsupported file extension")
     
