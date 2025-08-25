@@ -261,3 +261,16 @@ def wait_for_file_change(path: pathlib.Path, interval: float = 1.0) -> bool:
             time.sleep(interval) # Wait for next check.
     except:
         return False
+
+def wait_for_list_of_file_change(paths: list[pathlib.Path], interval: float = 1.0) -> bool:
+    """Blocking wait for multiple file changes. Returns `True` on any file change, and `False` on error."""
+    orig_mtimes = [os.path.getmtime(p) for p in paths]
+    try:
+        while True:
+            # Check all modified times.
+            for path, orig_mtime in zip(paths, orig_mtimes):
+                if os.path.getmtime(path) > orig_mtime:
+                    return True
+            time.sleep(interval) # Wait for next check.
+    except:
+        return False

@@ -349,7 +349,7 @@ class PlotLive(DataClassDictMixin):
     Example live plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal with an update inveral of "1" seconds and only show the last 200 data points:
     >>> cli plot-live --config <file> --x loss_step --y loss --show-last-n 200 --sleep 1 --theme clear
     """
-    config: pathlib.Path # Path of config file in format [yaml, json, python].
+    config: list[pathlib.Path] # Path of config file in format [yaml, json, python].
     x: str # X-axis data key.
     y: str # Y-axis data key.
     sleep: float = 1.0 # Sleep interval in seconds.
@@ -359,26 +359,35 @@ class PlotLive(DataClassDictMixin):
     y_max: float | None = None # Y-axis range max.
     show_last_n: int | None = None # Show the last `N` data points.
     theme: str | None = "pro" # Plotext "theme"
-    color: str | None = None # Plot line color.
+    color: list[str] | None = None # Plot line color.
     stats: bool = False # Report min/max/mean statistics in plot label.
     
     def main(self):
         # Load config.
-        config = load_algo_config(path=self.config)
+        configs = {cfg_path.stem: load_algo_config(path=cfg_path) for cfg_path in self.config}
+        colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
         
-        if config.metric_manager is not None:
-            metric_manager = config.metric_manager
-            
-            import plotext as plt
-            
-            plt.themes
-            
-            plt.theme(theme=self.theme)
-            
-            try:
-                while True:
-                    
+        # Ensure all configs have metrics.
+        if any(cfg.metric_manager is None for _,cfg in configs.items()):
+            raise ValueError("no metric manager provided for one of the metrics")
+        
+        # X/Y data.
+        data_dict = {
+            'x': {},
+            'y': {},
+        }
+        
+        import plotext as plt
+        plt.theme(theme=self.theme)
+        
+        metric_dirs = [cfg.metric_manager.metric_dir for key, cfg in configs.items()]
+        
+        try:
+            while True:
+                
+                for _, cfg in configs.items():
                     # Load new data.
+                    metric_manager = cfg.metric_manager
                     metric_manager.load()
                     metrics = metric_manager.get_metrics()
                     
@@ -423,24 +432,22 @@ class PlotLive(DataClassDictMixin):
                     plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
                     
                     if self.stats:
-                        label = f"{config.metric_manager.metric_dir.stem} (min {y_data.min():.4f}, max {y_data.max():.4f}, mean {y_data.mean():.4f})"
+                        label = f"{metric_manager.metric_dir.stem} (min {y_data.min():.4f}, max {y_data.max():.4f}, mean {y_data.mean():.4f})"
                     else:
-                        label = config.metric_manager.metric_dir.stem
+                        label = metric_manager.metric_dir.stem
                     
                     plt.plot(x_data, y_data, color=self.color, label=label)
-                    plt.xlabel(self.x)
-                    plt.ylabel(self.y)
-                    plt.title(f"Live plot: {datetime.datetime.now()}")
-                    plt.show()
-                    
-                    # Blocking wait for next file change.
-                    if not tools.wait_for_file_change(config.metric_manager.metric_dir, interval=self.sleep):
-                        return
-                    
-            except KeyboardInterrupt:
-                return
-        else:
-            raise ValueError("no metric manager provided")
+                plt.xlabel(self.x)
+                plt.ylabel(self.y)
+                plt.title(f"Live plot: {datetime.datetime.now()}")
+                plt.show()
+                
+                # Blocking wait for next file change.
+                if not tools.wait_for_list_of_file_change(metric_dirs, interval=self.sleep):
+                    return
+                
+        except KeyboardInterrupt:
+            return
 
 
 @dataclass(kw_only=True)
