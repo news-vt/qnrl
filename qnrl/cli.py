@@ -417,10 +417,14 @@ class DumpMetrics(DataClassDictMixin):
     Extract all metric keys:
     >>> cli --config <file> metrics dump --type dict --format json | jq 'keys'
     """
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat
     type: Literal['list', 'dict'] = 'dict' # Dump as either time-sorted history list, or metrics dictionary.
     
-    def main(self, config: algorithm.Algorithm):
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        
         if config.metric_manager is not None:
             # Load metrics.
             metric_manager = config.metric_manager
@@ -462,9 +466,13 @@ class InfoMetrics(DataClassDictMixin):
     Extract "loss" and "episode_reward" keys from metrics:
     >>> cli --config <file> metrics info --format json | jq '.[] | select(.key=="loss" or .key=="episode_reward")'
     """
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat = DumpFormat.PRETTY
 
-    def main(self, config: algorithm.Algorithm):
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        
         if config.metric_manager is not None:
             # Load metrics.
             metric_manager = config.metric_manager
@@ -502,17 +510,13 @@ class InfoMetrics(DataClassDictMixin):
 @dataclass(kw_only=True)
 class Metrics(DataClassDictMixin):
     """Interact with metrics file."""
-    config: pathlib.Path # Path of config file in format [yaml, json, python].
     mode: Union[
         Annotated[DumpMetrics, tyro.conf.subcommand(name='dump')],
         Annotated[InfoMetrics, tyro.conf.subcommand(name='info')],
     ]
     
     def main(self):
-        # Load config.
-        config = load_algo_config(path=self.config)
-        # Run main.
-        self.mode.main(config)
+        self.mode.main()
 
 
 @dataclass(kw_only=True)
