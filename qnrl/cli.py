@@ -388,7 +388,7 @@ class PlotLive(DataClassDictMixin):
                 
                 plt.clt() # Clear terminal.
                 plt.cld() # Clear data only.
-                plt.clf()
+                plt.clf() # Clear the figure.
                 w, h = plt.terminal_size()
                 plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
                 
@@ -439,16 +439,16 @@ class PlotLive(DataClassDictMixin):
                 
                 # Synchronize X/Y axis data display to data available across all configs.
                 if self.sync:
-                    self.x_min = max(x_data.min() for _, x_data in data_dict['x'].items())
-                    self.x_max = min(x_data.max() for _, x_data in data_dict['x'].items())
+                    x_min = max(x_data.min() for _, x_data in data_dict['x'].items())
+                    x_max = min(x_data.max() for _, x_data in data_dict['x'].items())
                     # Clip X-axis data for all configs.
                     for key in configs.keys():
                         # Clip X min.
-                        idx = data_dict['x'][key] >= self.x_min
+                        idx = data_dict['x'][key] >= x_min
                         data_dict['x'][key] = data_dict['x'][key][idx]
                         data_dict['y'][key] = data_dict['y'][key][idx]
                         # Clip X max.
-                        idx = data_dict['x'][key] <= self.x_max
+                        idx = data_dict['x'][key] <= x_max
                         data_dict['x'][key] = data_dict['x'][key][idx]
                         data_dict['y'][key] = data_dict['y'][key][idx]
                 
