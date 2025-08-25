@@ -83,7 +83,10 @@ class MetricManager(DataClassDictMixin):
         self._lock.release()
         # Remove the lock file.
         if os.path.exists(self._lock.lock_file):
-            os.remove(self._lock.lock_file)
+            try:
+                os.remove(self._lock.lock_file)
+            except:
+                pass
     
     def __enter__(self):
         """Acquire the lock."""
