@@ -207,6 +207,7 @@ class Plot(DataClassDictMixin):
     theme: str | None = None # Plotext "theme", or Matplotlib "style".
     color: list[str] | None = None # Plot line color.
     sync: bool = False # Synchronize X and Y axis data ranges to what is available across all configs.
+    stats: bool = False # Report min/max/mean statistics in plot label.
     
     def main(self):
         
@@ -293,7 +294,11 @@ class Plot(DataClassDictMixin):
                 
                 # Plot data in each file.
                 for key in configs.keys():
-                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=key)
+                    if self.stats:
+                        label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
+                    else:
+                        label = key
+                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
                 
                 # Set axis labels and title.
                 plt.xlabel(self.x)
@@ -315,7 +320,11 @@ class Plot(DataClassDictMixin):
                 
                 # Plot data in each file.
                 for key in configs.keys():
-                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=key)
+                    if self.stats:
+                        label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
+                    else:
+                        label = key
+                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
                 
                 # Set axis labels and title.
                 plt.xlabel(self.x)
