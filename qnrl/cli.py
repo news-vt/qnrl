@@ -478,7 +478,7 @@ class InfoMetrics(DataClassDictMixin):
             raise ValueError("no metric manager provided for one of the metrics")
         
         # Collect metrics for all given files.
-        data = {}
+        data = []
         for cfg_key, cfg in configs.items():
             # Load metrics.
             metric_manager = cfg.metric_manager
@@ -486,17 +486,21 @@ class InfoMetrics(DataClassDictMixin):
             metrics = metric_manager.get_metrics()
             
             # Collect metric information.
-            data[cfg_key] = [dict(
-                key=metric_key,
-                shape=list(jnp.array(val).shape),
-                dtype=str(jnp.array(val).dtype),
-                min=jnp.array(val).min().item(),
-                max=jnp.array(val).max().item(),
-                argmin=jnp.array(val).argmin().item(),
-                argmax=jnp.array(val).argmax().item(),
-                mean=jnp.array(val).mean().item(),
-                std=jnp.array(val).std().item(),
-            ) for metric_key, val in metrics.items()]
+            d = {
+                'key': cfg_key,
+                'metrics': [dict(
+                    key=metric_key,
+                    shape=list(jnp.array(val).shape),
+                    dtype=str(jnp.array(val).dtype),
+                    min=jnp.array(val).min().item(),
+                    max=jnp.array(val).max().item(),
+                    argmin=jnp.array(val).argmin().item(),
+                    argmax=jnp.array(val).argmax().item(),
+                    mean=jnp.array(val).mean().item(),
+                    std=jnp.array(val).std().item(),
+                ) for metric_key, val in metrics.items()],
+            }
+            data.append(d)
             
         # Dump.
         match self.format:
