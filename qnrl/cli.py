@@ -8,6 +8,7 @@ import enum
 import os
 import time
 import sys
+import datetime
 
 import tyro
 from mashumaro.mixins.dict import DataClassDictMixin
@@ -429,7 +430,7 @@ class PlotLive(DataClassDictMixin):
                     plt.plot(x_data, y_data, color=self.color, label=label)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
-                    plt.title(config.metric_manager.metric_dir.stem)
+                    plt.title(f"Live plot: {datetime.datetime.now()}")
                     plt.show()
                     
                     # Blocking wait for next file change.
