@@ -72,10 +72,10 @@ class InfoModel(DataClassDictMixin):
     """Dump the model parameter information specified in the given algorithm.
     
     Extract model names and total number of parameters:
-    >>> cli --config <file> info-model --format json | jq 'map({name: .name, total: .parameters.total})'
+    >>> cli info-model --config <file> --format json | jq 'map({name: .name, total: .parameters.total})'
     
     Extract model names and raw parameters in PyTree dictionary format:
-    >>> cli --config <file> info-model --include-raw-parameters --format json | jq 'map({name: .name, param: .parameters.param})'
+    >>> cli info-model --config <file> --include-raw-parameters --format json | jq 'map({name: .name, param: .parameters.param})'
     """
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat
@@ -114,16 +114,16 @@ class DumpAlgorithm(DataClassDictMixin):
     """Dump the given configuration to various supported formats.
     
     Pretty-print configuration:
-    >>> cli --config <file> dump --format pretty
+    >>> cli dump --config <file> --format pretty
     
     Dump configuration to JSON file:
-    >>> cli --config <file> dump --format json | <outfile>.json
+    >>> cli dump --config <file> --format json | <outfile>.json
     
     Dump configuration to YAML file:
-    >>> cli --config <file> dump --format yaml | <outfile>.yaml
+    >>> cli dump --config <file> --format yaml | <outfile>.yaml
     
     Extract metric file path:
-    >>> cli --config <file> dump --format json | jq '.metric_manager.path'
+    >>> cli dump --config <file> --format json | jq '.metric_manager.path'
     """
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat
@@ -193,7 +193,7 @@ class Plot(DataClassDictMixin):
     If you are unsure of what keys exist, see `InfoMetrics`.
     
     Example plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal:
-    >>> cli --config <file> metrics plot --x loss_step --y loss --type terminal --theme clear
+    >>> cli plot --config <file> --x loss_step --y loss --type terminal --theme clear
     """
     config: list[pathlib.Path] # Path of config file in format [yaml, json, python].
     type: Literal['terminal', 'matplotlib'] = 'terminal'
@@ -321,7 +321,7 @@ class PlotLive(DataClassDictMixin):
     If you are unsure of what keys exist, see `InfoMetrics`.
     
     Example live plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal with an update inveral of "1" seconds and only show the last 200 data points:
-    >>> cli --config <file> metrics plot-live --x loss_step --y loss --show-last-n 200 --sleep 1 --theme clear
+    >>> cli plot-live --config <file> --x loss_step --y loss --show-last-n 200 --sleep 1 --theme clear
     """
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     x: str # X-axis data key.
@@ -415,7 +415,7 @@ class DumpMetrics(DataClassDictMixin):
     """Dump the given configuration to various supported formats.
     
     Extract all metric keys:
-    >>> cli --config <file> metrics dump --type dict --format json | jq 'keys'
+    >>> cli metrics dump --config <file> --type dict --format json | jq 'keys'
     """
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat
@@ -458,13 +458,13 @@ class InfoMetrics(DataClassDictMixin):
     This is different than dumping the entire metrics file. See `DumpMetrics` for dumping entire metric file contents.
     
     Extract all metric keys:
-    >>> cli --config <file> metrics info --format json | jq '.[].key'
+    >>> cli metrics info --config <file>  --format json | jq '.[].key'
     
     Extract keys `{key, min, argmin}` from metrics:
-    >>> cli --config <file> metrics info --format json | jq 'map({key, min, argmin})'
+    >>> cli metrics info --config <file>  --format json | jq 'map({key, min, argmin})'
     
     Extract "loss" and "episode_reward" keys from metrics:
-    >>> cli --config <file> metrics info --format json | jq '.[] | select(.key=="loss" or .key=="episode_reward")'
+    >>> cli metrics info --config <file>  --format json | jq '.[] | select(.key=="loss" or .key=="episode_reward")'
     """
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat = DumpFormat.PRETTY
