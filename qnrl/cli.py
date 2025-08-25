@@ -458,30 +458,36 @@ class InfoMetrics(DataClassDictMixin):
     This is different than dumping the entire metrics file. See `DumpMetrics` for dumping entire metric file contents.
     
     Extract all metric keys:
-    >>> cli metrics info --config <file>  --format json | jq '.[].key'
+    >>> cli metrics info --config <file> --format json | jq '.[].key'
     
     Extract keys `{key, min, argmin}` from metrics:
-    >>> cli metrics info --config <file>  --format json | jq 'map({key, min, argmin})'
+    >>> cli metrics info --config <file> --format json | jq 'map({key, min, argmin})'
     
     Extract "loss" and "episode_reward" keys from metrics:
-    >>> cli metrics info --config <file>  --format json | jq '.[] | select(.key=="loss" or .key=="episode_reward")'
+    >>> cli metrics info --config <file> --format json | jq '.[] | select(.key=="loss" or .key=="episode_reward")'
     """
-    config: pathlib.Path # Path of config file in format [yaml, json, python].
+    config: list[pathlib.Path] # Path of config file in format [yaml, json, python].
     format: DumpFormat = DumpFormat.PRETTY
 
     def main(self):
         # Load config.
-        config = load_algo_config(path=self.config)
+        configs = {cfg_path.stem: load_algo_config(path=cfg_path) for cfg_path in self.config}
         
-        if config.metric_manager is not None:
+        # Ensure all configs have metrics.
+        if any(cfg.metric_manager is None for _,cfg in configs.items()):
+            raise ValueError("no metric manager provided for one of the metrics")
+        
+        # Collect metrics for all given files.
+        data = {}
+        for cfg_key, cfg in configs.items():
             # Load metrics.
-            metric_manager = config.metric_manager
+            metric_manager = cfg.metric_manager
             metric_manager.load()
             metrics = metric_manager.get_metrics()
             
             # Collect metric information.
-            data = [dict(
-                key=key,
+            data[cfg_key] = [dict(
+                key=metric_key,
                 shape=list(jnp.array(val).shape),
                 dtype=str(jnp.array(val).dtype),
                 min=jnp.array(val).min().item(),
@@ -490,21 +496,18 @@ class InfoMetrics(DataClassDictMixin):
                 argmax=jnp.array(val).argmax().item(),
                 mean=jnp.array(val).mean().item(),
                 std=jnp.array(val).std().item(),
-            ) for key, val in metrics.items()]
+            ) for metric_key, val in metrics.items()]
             
-            # Dump.
-            match self.format:
-                case DumpFormat.YAML:
-                    yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
-                    print(yaml_string)
-                case DumpFormat.JSON:
-                    json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
-                    rich.print_json(json_string)
-                case DumpFormat.PRETTY:
-                    rich.pretty.pprint(data, expand_all=True)
-            
-        else:
-            raise ValueError("no metric manager provided")
+        # Dump.
+        match self.format:
+            case DumpFormat.YAML:
+                yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                print(yaml_string)
+            case DumpFormat.JSON:
+                json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                rich.print_json(json_string)
+            case DumpFormat.PRETTY:
+                rich.pretty.pprint(data, expand_all=True)
 
 
 @dataclass(kw_only=True)
