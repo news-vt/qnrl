@@ -275,8 +275,8 @@ class Plot(DataClassDictMixin):
             self.x_min = max(x_data[0] for _, x_data in data_dict['x'].items())
             self.x_max = min(x_data[-1] for _, x_data in data_dict['x'].items())
         if self.y_sync:
-            self.y_min = max(y_data[0] for _, y_data in data_dict['y'].items())
-            self.y_max = min(y_data[-1] for _, y_data in data_dict['y'].items())
+            self.y_min = min(y_data[0] for _, y_data in data_dict['y'].items())
+            self.y_max = max(y_data[-1] for _, y_data in data_dict['y'].items())
         
         # Plot.
         match self.type:
