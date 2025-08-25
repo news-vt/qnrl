@@ -77,11 +77,15 @@ class InfoModel(DataClassDictMixin):
     Extract model names and raw parameters in PyTree dictionary format:
     >>> cli --config <file> info-model --include-raw-parameters --format json | jq 'map({name: .name, param: .parameters.param})'
     """
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat
     include_raw_parameters: tyro.conf.FlagCreatePairsOff[bool] = False
     """Output model parameters, but WARNING this can be very slow and verbose."""
     
-    def main(self, config: algorithm.Algorithm):
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        
         data = []
         for field in fields(config):
             if field.type is SerializableModule:
@@ -121,9 +125,13 @@ class DumpAlgorithm(DataClassDictMixin):
     Extract metric file path:
     >>> cli --config <file> dump --format json | jq '.metric_manager.path'
     """
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat
     
-    def main(self, config: algorithm.Algorithm):
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        
         match self.format:
             case DumpFormat.YAML:
                 data = config.to_dict()
@@ -139,57 +147,29 @@ class DumpAlgorithm(DataClassDictMixin):
 
 
 @dataclass(kw_only=True)
-class DumpMetrics(DataClassDictMixin):
-    """Dump the given configuration to various supported formats.
-    
-    Extract all metric keys:
-    >>> cli --config <file> metrics dump --type dict --format json | jq 'keys'
-    """
-    format: DumpFormat
-    type: Literal['list', 'dict'] = 'dict' # Dump as either time-sorted history list, or metrics dictionary.
-    
-    def main(self, config: algorithm.Algorithm):
-        if config.metric_manager is not None:
-            # Load metrics.
-            metric_manager = config.metric_manager
-            metric_manager.load()
-
-            match self.type:
-                case 'list':
-                    data = metric_manager.get_history()
-                case 'dict':
-                    data = metric_manager.get_metrics()
-                case _:
-                    raise ValueError(f"{self.type} is not a supported metric dump type")
-
-            match self.format:
-                case DumpFormat.YAML:
-                    yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
-                    print(yaml_string)
-                case DumpFormat.JSON:
-                    json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
-                    rich.print_json(json_string)
-                case DumpFormat.PRETTY:
-                    rich.pretty.pprint(data, expand_all=True)
-        else:
-            raise ValueError("no metric manager provided")
-
-
-@dataclass(kw_only=True)
 class Train(DataClassDictMixin):
     """Run training algorithm using the given config."""
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     
-    def main(self, config: algorithm.Algorithm):
-        config.train() # Run training algorithm.
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        
+        # Run training algorithm.
+        config.train()
 
 
 @dataclass(kw_only=True)
 class Eval(DataClassDictMixin):
     """Run evaluation algorithm using the given config."""
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat = DumpFormat.PRETTY
     kwargs: dict[str, bool | int | float | str] = field(default_factory=dict)
     
-    def main(self, config: algorithm.Algorithm):
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        
         history_list = config.eval(**self.kwargs) # Run training algorithm.
         # Convert to dictionary of lists.
         data = tools.listofdict_to_dictoflist(history_list)
@@ -215,6 +195,7 @@ class Plot(DataClassDictMixin):
     Example plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal:
     >>> cli --config <file> metrics plot --x loss_step --y loss --type terminal --theme clear
     """
+    config: list[pathlib.Path] # Path of config file in format [yaml, json, python].
     type: Literal['terminal', 'matplotlib'] = 'terminal'
     x: str # X-axis data key.
     y: str # Y-axis data key.
@@ -224,12 +205,27 @@ class Plot(DataClassDictMixin):
     y_max: float | None = None # Y-axis range max.
     show_last_n: int | None = None # Show the last `N` data points
     theme: str | None = None # Plotext "theme", or Matplotlib "style".
-    color: str | None = None # Plot line color.
+    color: list[str] | None = None # Plot line color.
     
-    def main(self, config: algorithm.Algorithm):
-        if config.metric_manager is not None:
+    def main(self):
+        
+        # Load config.
+        configs = {cfg_path.stem: load_algo_config(path=cfg_path) for cfg_path in self.config}
+        colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
+        
+        # Ensure all configs have metrics.
+        if any(cfg.metric_manager is None for _,cfg in configs.items()):
+            raise ValueError("no metric manager provided for one of the metrics")
+        
+        # X/Y data.
+        data_dict = {
+            'x': {},
+            'y': {},
+        }
+        
+        for key, cfg in configs.items():
             # Load metrics.
-            metric_manager = config.metric_manager
+            metric_manager = cfg.metric_manager
             metric_manager.load()
             metrics = metric_manager.get_metrics()
             
@@ -267,40 +263,55 @@ class Plot(DataClassDictMixin):
             if self.show_last_n is not None:
                 x_data = x_data[-self.show_last_n:]
                 y_data = y_data[-self.show_last_n:]
-            
-            match self.type:
-                case 'terminal':
-                    import plotext as plt
-                    
-                    plt.theme(theme=self.theme or "pro")
-                    
-                    plt.plot(x_data, y_data, color=self.color)
-                    plt.xlabel(self.x)
-                    plt.ylabel(self.y)
-                    plt.title(config.metric_manager.metric_dir.stem)
-                    
-                    plt.xlim(left=self.x_min, right=self.x_max)
-                    plt.ylim(lower=self.y_min, upper=self.y_max)
-                    
-                    plt.show()
+                
+            # Preserve data.
+            data_dict['x'][key] = x_data
+            data_dict['y'][key] = y_data
+        
+        # Plot.
+        match self.type:
+            case 'terminal':
+                import plotext as plt
+                
+                plt.theme(theme=self.theme or "pro")
+                
+                # Plot data in each file.
+                for key in configs.keys():
+                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=key)
+                
+                # Set axis labels and title.
+                plt.xlabel(self.x)
+                plt.ylabel(self.y)
+                plt.title(f"{self.y} vs. {self.x}")
+                
+                # Set axis limits.
+                plt.xlim(left=self.x_min, right=self.x_max)
+                plt.ylim(lower=self.y_min, upper=self.y_max)
+                
+                # Show the plot.
+                plt.show()
 
-                case 'matplotlib':
-                    import matplotlib.pyplot as plt
-                    
-                    if self.theme is not None:
-                        plt.style.use(style=self.theme)
-                    
-                    plt.plot(x_data, y_data, color=self.color)
-                    plt.xlabel(self.x)
-                    plt.ylabel(self.y)
-                    plt.title(config.metric_manager.metric_dir.stem)
-                    
-                    plt.xlim(left=self.x_min, right=self.x_max)
-                    plt.ylim(bottom=self.y_min, top=self.y_max)
-                    
-                    plt.show()
-        else:
-            raise ValueError("no metric manager provided")
+            case 'matplotlib':
+                import matplotlib.pyplot as plt
+                
+                if self.theme is not None:
+                    plt.style.use(style=self.theme)
+                
+                # Plot data in each file.
+                for key in configs.keys():
+                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=key)
+                
+                # Set axis labels and title.
+                plt.xlabel(self.x)
+                plt.ylabel(self.y)
+                plt.title(f"{self.y} vs. {self.x}")
+                
+                # Set axis limits.
+                plt.xlim(left=self.x_min, right=self.x_max)
+                plt.ylim(bottom=self.y_min, top=self.y_max)
+                
+                # Show the plot.
+                plt.show()
 
 
 @dataclass(kw_only=True)
@@ -312,6 +323,7 @@ class PlotLive(DataClassDictMixin):
     Example live plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal with an update inveral of "1" seconds and only show the last 200 data points:
     >>> cli --config <file> metrics plot-live --x loss_step --y loss --show-last-n 200 --sleep 1 --theme clear
     """
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     x: str # X-axis data key.
     y: str # Y-axis data key.
     sleep: float = 1.0 # Sleep interval in seconds.
@@ -323,7 +335,10 @@ class PlotLive(DataClassDictMixin):
     theme: str | None = "pro" # Plotext "theme"
     color: str | None = None # Plot line color.
     
-    def main(self, config: algorithm.Algorithm):
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        
         if config.metric_manager is not None:
             metric_manager = config.metric_manager
             
@@ -396,6 +411,43 @@ class PlotLive(DataClassDictMixin):
 
 
 @dataclass(kw_only=True)
+class DumpMetrics(DataClassDictMixin):
+    """Dump the given configuration to various supported formats.
+    
+    Extract all metric keys:
+    >>> cli --config <file> metrics dump --type dict --format json | jq 'keys'
+    """
+    format: DumpFormat
+    type: Literal['list', 'dict'] = 'dict' # Dump as either time-sorted history list, or metrics dictionary.
+    
+    def main(self, config: algorithm.Algorithm):
+        if config.metric_manager is not None:
+            # Load metrics.
+            metric_manager = config.metric_manager
+            metric_manager.load()
+
+            match self.type:
+                case 'list':
+                    data = metric_manager.get_history()
+                case 'dict':
+                    data = metric_manager.get_metrics()
+                case _:
+                    raise ValueError(f"{self.type} is not a supported metric dump type")
+
+            match self.format:
+                case DumpFormat.YAML:
+                    yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                    print(yaml_string)
+                case DumpFormat.JSON:
+                    json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                    rich.print_json(json_string)
+                case DumpFormat.PRETTY:
+                    rich.pretty.pprint(data, expand_all=True)
+        else:
+            raise ValueError("no metric manager provided")
+
+
+@dataclass(kw_only=True)
 class InfoMetrics(DataClassDictMixin):
     """Get metric information.
     
@@ -450,27 +502,31 @@ class InfoMetrics(DataClassDictMixin):
 @dataclass(kw_only=True)
 class Metrics(DataClassDictMixin):
     """Interact with metrics file."""
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
     mode: Union[
         Annotated[DumpMetrics, tyro.conf.subcommand(name='dump')],
         Annotated[InfoMetrics, tyro.conf.subcommand(name='info')],
-        Plot,
-        PlotLive,
     ]
     
-    def main(self, config: algorithm.Algorithm):
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        # Run main.
         self.mode.main(config)
 
 
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
     """Algorithm CLI."""
-    config: pathlib.Path # Path of config file in format [yaml, json, python].
+    # config: pathlib.Path # Path of config file in format [yaml, json, python].
     mode: Union[
         Annotated[DumpAlgorithm, tyro.conf.subcommand(name='dump')],
         Annotated[InfoModel, tyro.conf.subcommand(name='info-model')],
         Train,
         Eval,
         Metrics,
+        Plot,
+        PlotLive,
     ]
 
 
@@ -478,8 +534,5 @@ if __name__ == "__main__":
     
     args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues, tyro.conf.OmitSubcommandPrefixes,))
     
-    # Load config.
-    config = load_algo_config(path=args.config)
-    
     # Run program mode.
-    args.mode.main(config)
+    args.mode.main()
