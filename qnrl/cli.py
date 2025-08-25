@@ -28,6 +28,37 @@ import jax
 jax.config.update("jax_enable_x64", True) # Enable double-precision for quantum models (default is single-precision).
 
 
+def load_algo_config(path: pathlib.Path) -> algorithm.Algorithm:
+    """Loads algorithm config from path, or throws error."""
+    # Verify config file exists.
+    if not path.exists():
+        raise ValueError(f"config file does not exist")
+    
+    suffix = path.suffix
+    match suffix:
+        case ".yaml" | ".yml":
+            with open(path) as f:
+                data = yaml.safe_load(f) or {}
+            # Load the configuration object.
+            return algorithm.Algorithm.from_dict(data)
+        # Load from JSON.
+        case ".json":
+            with open(path) as f:
+                data = json.load(f) or {}
+            # Load the configuration object.
+            return algorithm.Algorithm.from_dict(data)
+        # Load from Python.
+        case ".py":
+            try:
+                mod = tools.load_python_module_from_filepath(path)
+                return mod.config # The configuration must be saved in a variable called `config`.
+            except Exception as e:
+                raise ValueError(f"could not load config from {path}: {e}")
+        case _:
+            raise ValueError(f"{suffix} is an unsupported file extension")
+
+
+
 # MARK: CLI
 
 class DumpFormat(enum.StrEnum):
@@ -447,32 +478,8 @@ if __name__ == "__main__":
     
     args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues, tyro.conf.OmitSubcommandPrefixes,))
     
-    # Verify config file exists.
-    if not args.config.exists():
-        raise ValueError(f"config file does not exist")
-    
-    suffix = args.config.suffix
-    match suffix:
-        case ".yaml" | ".yml":
-            with open(args.config) as f:
-                data = yaml.safe_load(f) or {}
-            # Load the configuration object.
-            config = algorithm.Algorithm.from_dict(data)
-        # Load from JSON.
-        case ".json":
-            with open(args.config) as f:
-                data = json.load(f) or {}
-            # Load the configuration object.
-            config = algorithm.Algorithm.from_dict(data)
-        # Load from Python.
-        case ".py":
-            try:
-                mod = tools.load_python_module_from_filepath(args.config)
-                config = mod.config # The configuration must be saved in a variable called `config`.
-            except Exception as e:
-                raise ValueError(f"could not load config from {args.config}: {e}")
-        case _:
-            raise ValueError(f"{suffix} is an unsupported file extension")
+    # Load config.
+    config = load_algo_config(path=args.config)
     
     # Run program mode.
     args.mode.main(config)
