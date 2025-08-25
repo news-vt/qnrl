@@ -206,8 +206,8 @@ class Plot(DataClassDictMixin):
     show_last_n: int | None = None # Show the last `N` data points
     theme: str | None = None # Plotext "theme", or Matplotlib "style".
     color: list[str] | None = None # Plot line color.
-    x_sync: bool = False
-    y_sync: bool = False
+    x_sync: bool = False # Synchronize X-axis data range to what is available across all configs.
+    y_sync: bool = False # Synchronize Y-axis data range to what is available across all configs.
     
     def main(self):
         
@@ -276,7 +276,7 @@ class Plot(DataClassDictMixin):
             self.x_max = min(x_data[-1] for _, x_data in data_dict['x'].items())
         if self.y_sync:
             self.y_min = max(y_data[0] for _, y_data in data_dict['y'].items())
-            self.y_may = min(y_data[-1] for _, y_data in data_dict['y'].items())
+            self.y_max = min(y_data[-1] for _, y_data in data_dict['y'].items())
         
         # Plot.
         match self.type:
