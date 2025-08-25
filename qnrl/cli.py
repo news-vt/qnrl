@@ -388,7 +388,6 @@ class PlotLive(DataClassDictMixin):
                 
                 plt.clt() # Clear terminal.
                 plt.cld() # Clear data only.
-                plt.clf() # Clear the figure.
                 w, h = plt.terminal_size()
                 plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
                 
