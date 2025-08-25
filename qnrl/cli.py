@@ -359,6 +359,7 @@ class PlotLive(DataClassDictMixin):
     show_last_n: int | None = None # Show the last `N` data points.
     theme: str | None = "pro" # Plotext "theme"
     color: str | None = None # Plot line color.
+    stats: bool = False # Report min/max/mean statistics in plot label.
     
     def main(self):
         # Load config.
@@ -419,7 +420,13 @@ class PlotLive(DataClassDictMixin):
                     plt.cld() # Clear data only.
                     w, h = plt.terminal_size()
                     plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
-                    plt.plot(x_data, y_data, color=self.color)
+                    
+                    if self.stats:
+                        label = f"{config.metric_manager.metric_dir.stem} (min {y_data.min():.4f}, max {y_data.max():.4f}, mean {y_data.mean():.4f})"
+                    else:
+                        label = config.metric_manager.metric_dir.stem
+                    
+                    plt.plot(x_data, y_data, color=self.color, label=label)
                     plt.xlabel(self.x)
                     plt.ylabel(self.y)
                     plt.title(config.metric_manager.metric_dir.stem)
