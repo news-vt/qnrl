@@ -360,6 +360,7 @@ class PlotLive(DataClassDictMixin):
     show_last_n: int | None = None # Show the last `N` data points.
     theme: str | None = "pro" # Plotext "theme"
     color: list[str] | None = None # Plot line color.
+    sync: bool = False # Synchronize X and Y axis data ranges to what is available across all configs.
     stats: bool = False # Report min/max/mean statistics in plot label.
     
     def main(self):
@@ -390,7 +391,7 @@ class PlotLive(DataClassDictMixin):
                 w, h = plt.terminal_size()
                 plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
                 
-                for _, cfg in configs.items():
+                for key, cfg in configs.items():
                     # Load new data.
                     metric_manager = cfg.metric_manager
                     metric_manager.load()
@@ -431,14 +432,32 @@ class PlotLive(DataClassDictMixin):
                         x_data = x_data[-self.show_last_n:]
                         y_data = y_data[-self.show_last_n:]
                     
-                    # Adjust label.
+                    # Preserve data.
+                    data_dict['x'][key] = x_data
+                    data_dict['y'][key] = y_data
+                
+                # Synchronize X/Y axis data display to data available across all configs.
+                if self.sync:
+                    self.x_min = max(x_data.min() for _, x_data in data_dict['x'].items())
+                    self.x_max = min(x_data.max() for _, x_data in data_dict['x'].items())
+                    # Clip X-axis data for all configs.
+                    for key in configs.keys():
+                        # Clip X min.
+                        idx = data_dict['x'][key] >= self.x_min
+                        data_dict['x'][key] = data_dict['x'][key][idx]
+                        data_dict['y'][key] = data_dict['y'][key][idx]
+                        # Clip X max.
+                        idx = data_dict['x'][key] <= self.x_max
+                        data_dict['x'][key] = data_dict['x'][key][idx]
+                        data_dict['y'][key] = data_dict['y'][key][idx]
+                
+                # Plot data in each file.
+                for key in configs.keys():
                     if self.stats:
-                        label = f"{metric_manager.metric_dir.stem} (min {y_data.min():.4f}, max {y_data.max():.4f}, mean {y_data.mean():.4f})"
+                        label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
                     else:
-                        label = metric_manager.metric_dir.stem
-
-                    # Plot the data.
-                    plt.plot(x_data, y_data, color=self.color, label=label)
+                        label = key
+                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
                 
                 # Set axis labels and title.
                 plt.xlabel(self.x)
