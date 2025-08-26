@@ -1,5 +1,6 @@
 # Custom files and folders to ignore.
 checkpoints/
+metrics/
 *.lock
 
 # Ignore macOS specific files.
