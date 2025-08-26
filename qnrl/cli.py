@@ -16,6 +16,8 @@ import rich
 import rich.pretty
 import numpy as np
 import jax.numpy as jnp
+from matplotlib.figure import Figure as MatplotlibFigure
+from plotext._figure import default_figure_class as PlotextFigure
 
 from . import tools
 from .optimizer import *
@@ -197,7 +199,7 @@ class Plot(DataClassDictMixin):
     >>> cli plot --config <file> --x loss_step --y loss --type terminal --theme clear
     """
     config: list[pathlib.Path] # Path of config file in format [yaml, json, python].
-    type: Literal['terminal', 'matplotlib'] = 'terminal'
+    # type: Literal['terminal', 'matplotlib'] = 'terminal'
     x: str # X-axis data key.
     y: str # Y-axis data key.
     x_min: float | None = None # X-axis range min.
@@ -205,19 +207,22 @@ class Plot(DataClassDictMixin):
     y_min: float | None = None # Y-axis range min.
     y_max: float | None = None # Y-axis range max.
     show_last_n: int | None = None # Show the last `N` data points
-    theme: str | None = None # Plotext "theme", or Matplotlib "style".
-    color: list[str] | None = None # Plot line color.
     sync: bool = False # Synchronize X and Y axis data ranges to what is available across all configs.
     stats: bool = False # Report min/max/mean statistics in plot label.
-    figure_kwargs: dict = field(default_factory=dict) # Figure keyword arguments for `type='matplotlib'`.
-    legend_kwargs: dict = field(default_factory=dict) # Legend keyword arguments for `type='matplotlib'`.
+    
+    def __call__(self):
+        return self.main()
     
     def main(self):
-        
+        """Used for CLI."""
+        pass
+    
+    def load_configs(self):
         # Load config.
         configs = {cfg_path.stem: load_algo_config(path=cfg_path) for cfg_path in self.config}
-        colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
-        
+        return configs
+    
+    def prepare_data(self, configs: dict[str, algorithm.Algorithm]):
         # Ensure all configs have metrics.
         if any(cfg.metric_manager is None for _,cfg in configs.items()):
             raise ValueError("no metric manager provided for one of the metrics")
@@ -235,11 +240,9 @@ class Plot(DataClassDictMixin):
             metrics = metric_manager.get_metrics()
             
             if self.x not in metrics:
-                print(f"ERROR:X-axis key {self.x} not found in metrics file", file=sys.stderr)
-                return
+                raise ValueError(f"ERROR:X-axis key {self.x} not found in metrics file")
             if self.y not in metrics:
-                print(f"ERROR:Y-axis key {self.y} not found in metrics file", file=sys.stderr)
-                return
+                raise ValueError(f"ERROR:Y-axis key {self.y} not found in metrics file")
             
             x_data = np.array(metrics[self.x])
             y_data = np.array(metrics[self.y])
@@ -287,63 +290,100 @@ class Plot(DataClassDictMixin):
                 idx = data_dict['x'][key] <= self.x_max
                 data_dict['x'][key] = data_dict['x'][key][idx]
                 data_dict['y'][key] = data_dict['y'][key][idx]
+
+        return data_dict
+
+@dataclass(kw_only=True)
+class PlotMatplotlib(Plot):
+    figure_kwargs: dict = field(default_factory=dict) # Figure keyword arguments for `type='matplotlib'`.
+    legend_kwargs: dict = field(default_factory=dict) # Legend keyword arguments for `type='matplotlib'`.
+    style: str | None = None # Matplotlib "style".
+    color: list[str] | None = None # Plot line color.
+    show: bool = True # Show the figure.
+    
+    def __call__(self):
+        return self.main()
+
+    def main(self) -> MatplotlibFigure:
+        
+        # Load config.
+        configs = self.load_configs()
+        
+        # Get data.
+        data_dict = self.prepare_data(configs=configs)
+        
+        colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
         
         # Plot.
-        match self.type:
-            case 'terminal':
-                import plotext as plt
-                
-                plt.theme(theme=self.theme or "pro")
-                
-                # Plot data in each file.
-                for key in configs.keys():
-                    if self.stats:
-                        label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
-                    else:
-                        label = key
-                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
-                
-                # Set axis labels and title.
-                plt.xlabel(self.x)
-                plt.ylabel(self.y)
-                plt.title(f"{self.y} vs. {self.x}")
-                
-                # Set axis limits.
-                plt.xlim(left=self.x_min, right=self.x_max)
-                plt.ylim(lower=self.y_min, upper=self.y_max)
-                
-                # Show the plot.
-                plt.show()
+        import matplotlib.pyplot as plt
+        
+        if self.style is not None:
+            plt.style.use(style=self.style)
+        
+        # Create figure.
+        fig = plt.figure(**self.figure_kwargs)
+        
+        # Plot data in each file.
+        for key in configs.keys():
+            if self.stats:
+                label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
+            else:
+                label = key
+            plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
+        
+        # Set axis labels and title.
+        plt.xlabel(self.x)
+        plt.ylabel(self.y)
+        plt.title(f"{self.y} vs. {self.x}")
+        plt.legend(**self.legend_kwargs)
+        
+        # Set axis limits.
+        plt.xlim(left=self.x_min, right=self.x_max)
+        plt.ylim(bottom=self.y_min, top=self.y_max)
+        
+        # Show the plot.
+        if self.show:
+            plt.show()
 
-            case 'matplotlib':
-                import matplotlib.pyplot as plt
-                
-                if self.theme is not None:
-                    plt.style.use(style=self.theme)
-                
-                # Create figure.
-                plt.figure(**self.figure_kwargs)
-                
-                # Plot data in each file.
-                for key in configs.keys():
-                    if self.stats:
-                        label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
-                    else:
-                        label = key
-                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
-                
-                # Set axis labels and title.
-                plt.xlabel(self.x)
-                plt.ylabel(self.y)
-                plt.title(f"{self.y} vs. {self.x}")
-                plt.legend(**self.legend_kwargs)
-                
-                # Set axis limits.
-                plt.xlim(left=self.x_min, right=self.x_max)
-                plt.ylim(bottom=self.y_min, top=self.y_max)
-                
-                # Show the plot.
-                plt.show()
+        return fig
+
+@dataclass(kw_only=True)
+class PlotPlotext(Plot):
+    theme: str | None = None # Plotext "theme".
+    color: list[str] | None = None # Plot line color.
+
+    def main(self):
+        # Load config.
+        configs = self.load_configs()
+        
+        # Get data.
+        data_dict = self.prepare_data(configs=configs)
+        
+        colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
+        
+        import plotext as plt
+
+        plt.theme(theme=self.theme or "pro")
+
+        # Plot data in each file.
+        for key in configs.keys():
+            if self.stats:
+                label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
+            else:
+                label = key
+            plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
+
+        # Set axis labels and title.
+        plt.xlabel(self.x)
+        plt.ylabel(self.y)
+        plt.title(f"{self.y} vs. {self.x}")
+
+        # Set axis limits.
+        plt.xlim(left=self.x_min, right=self.x_max)
+        plt.ylim(lower=self.y_min, upper=self.y_max)
+
+        # Show the plot.
+        plt.show()
 
 
 @dataclass(kw_only=True)
@@ -597,7 +637,8 @@ class Args(DataClassDictMixin):
         Train,
         Eval,
         Metrics,
-        Plot,
+        PlotMatplotlib,
+        PlotPlotext,
         PlotLive,
     ]
 
