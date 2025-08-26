@@ -492,26 +492,26 @@ class DumpMetrics(DataClassDictMixin):
         
         if config.metric_manager is not None:
             # Load metrics.
-            metric_manager = config.metric_manager
-            metric_manager.load()
+            with config.metric_manager as metric_manager:
+                metric_manager.load()
 
-            match self.type:
-                case 'list':
-                    data = metric_manager.get_history()
-                case 'dict':
-                    data = metric_manager.get_metrics()
-                case _:
-                    raise ValueError(f"{self.type} is not a supported metric dump type")
+                match self.type:
+                    case 'list':
+                        data = metric_manager.get_history()
+                    case 'dict':
+                        data = metric_manager.get_metrics()
+                    case _:
+                        raise ValueError(f"{self.type} is not a supported metric dump type")
 
-            match self.format:
-                case DumpFormat.YAML:
-                    yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
-                    print(yaml_string)
-                case DumpFormat.JSON:
-                    json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
-                    rich.print_json(json_string)
-                case DumpFormat.PRETTY:
-                    rich.pretty.pprint(data, expand_all=True)
+                match self.format:
+                    case DumpFormat.YAML:
+                        yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                        print(yaml_string)
+                    case DumpFormat.JSON:
+                        json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                        rich.print_json(json_string)
+                    case DumpFormat.PRETTY:
+                        rich.pretty.pprint(data, expand_all=True)
         else:
             raise ValueError("no metric manager provided")
 
@@ -545,17 +545,17 @@ class InfoMetrics(DataClassDictMixin):
         # Collect metrics for all given files.
         data = []
         for cfg_key, cfg in configs.items():
-            # Load metrics.
-            metric_manager = cfg.metric_manager
-            metric_manager.load()
-            metrics = metric_manager.get_metrics()
-            
-            # Collect metric information.
-            d = {
-                'key': cfg_key,
-                'metrics': [m.to_dict() for m in tools.compute_train_result_statistics(metrics)], # Serialize.
-            }
-            data.append(d)
+            # Load metrics into memory.
+            with cfg.metric_manager as metric_manager:
+                metric_manager.load()
+                metrics = metric_manager.get_metrics()
+                
+                # Collect metric information.
+                d = {
+                    'key': cfg_key,
+                    'metrics': [m.to_dict() for m in tools.compute_train_result_statistics(metrics)], # Serialize.
+                }
+                data.append(d)
             
         # Dump.
         match self.format:
