@@ -209,6 +209,7 @@ class Plot(DataClassDictMixin):
     color: list[str] | None = None # Plot line color.
     sync: bool = False # Synchronize X and Y axis data ranges to what is available across all configs.
     stats: bool = False # Report min/max/mean statistics in plot label.
+    figure_kwargs: dict = field(default_factory=dict) # Figure keyword arguments for `type='matplotlib'`.
     
     def main(self):
         
@@ -318,6 +319,9 @@ class Plot(DataClassDictMixin):
                 
                 if self.theme is not None:
                     plt.style.use(style=self.theme)
+                
+                # Create figure.
+                plt.figure(**self.figure_kwargs)
                 
                 # Plot data in each file.
                 for key in configs.keys():
