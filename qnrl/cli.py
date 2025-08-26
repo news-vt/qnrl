@@ -331,6 +331,7 @@ class Plot(DataClassDictMixin):
                 plt.xlabel(self.x)
                 plt.ylabel(self.y)
                 plt.title(f"{self.y} vs. {self.x}")
+                plt.legend(loc='upper left')
                 
                 # Set axis limits.
                 plt.xlim(left=self.x_min, right=self.x_max)
