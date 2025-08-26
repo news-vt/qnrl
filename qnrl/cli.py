@@ -295,8 +295,8 @@ class Plot(DataClassDictMixin):
 
 @dataclass(kw_only=True)
 class PlotMatplotlib(Plot):
-    figure_kwargs: dict = field(default_factory=dict) # Figure keyword arguments for `type='matplotlib'`.
-    legend_kwargs: dict = field(default_factory=dict) # Legend keyword arguments for `type='matplotlib'`.
+    figure_kwargs: dict[str, int | float | list[int] | list[float] | str | list[str]] = field(default_factory=dict) # Figure keyword arguments for `type='matplotlib'`.
+    legend_kwargs: dict[str, int | float | list[int] | list[float] | str | list[str]] = field(default_factory=dict) # Legend keyword arguments for `type='matplotlib'`.
     style: str | None = None # Matplotlib "style".
     color: list[str] | None = None # Plot line color.
     show: bool = True # Show the figure.
