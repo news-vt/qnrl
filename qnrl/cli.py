@@ -210,6 +210,7 @@ class Plot(DataClassDictMixin):
     sync: bool = False # Synchronize X and Y axis data ranges to what is available across all configs.
     stats: bool = False # Report min/max/mean statistics in plot label.
     figure_kwargs: dict = field(default_factory=dict) # Figure keyword arguments for `type='matplotlib'`.
+    legend_kwargs: dict = field(default_factory=dict) # Legend keyword arguments for `type='matplotlib'`.
     
     def main(self):
         
@@ -335,7 +336,7 @@ class Plot(DataClassDictMixin):
                 plt.xlabel(self.x)
                 plt.ylabel(self.y)
                 plt.title(f"{self.y} vs. {self.x}")
-                plt.legend(loc='upper left')
+                plt.legend(**self.legend_kwargs)
                 
                 # Set axis limits.
                 plt.xlim(left=self.x_min, right=self.x_max)
