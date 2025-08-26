@@ -300,6 +300,7 @@ class PlotMatplotlib(Plot):
     style: str | None = None # Matplotlib "style".
     color: list[str] | None = None # Plot line color.
     show: bool = True # Show the figure.
+    zorder: dict[str, int] | None = None # Plot line Z-axis ordering.
     
     def __call__(self):
         return self.main()
@@ -314,6 +315,11 @@ class PlotMatplotlib(Plot):
         
         colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
         
+        if self.zorder is None:
+            self.zorder = {key: i for i, key in enumerate(configs)}
+        if len(self.zorder) != len(configs):
+            raise ValueError(f"Length of zorder must match number of configurations.")
+        
         # Plot.
         import matplotlib.pyplot as plt
         
@@ -324,12 +330,12 @@ class PlotMatplotlib(Plot):
         fig = plt.figure(**self.figure_kwargs)
         
         # Plot data in each file.
-        for key in configs.keys():
+        for i, key in enumerate(configs.keys()):
             if self.stats:
                 label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
             else:
                 label = key
-            plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
+            plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label, zorder=self.zorder[key])
         
         # Set axis labels and title.
         plt.xlabel(self.x)
