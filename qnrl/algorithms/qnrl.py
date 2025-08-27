@@ -601,11 +601,7 @@ class QnRL(Algorithm):
         
         # Create checkpoint manager.
         if isinstance(self.checkpoint, CheckpointConfig):
-            checkpoint_manager = ocp.CheckpointManager(
-                directory=os.path.abspath(self.checkpoint.checkpoint_dir),
-                checkpointers=ocp.PyTreeCheckpointer(),
-                options=self.checkpoint.checkpoint_options.make(),
-            )
+            checkpoint_manager = self.checkpoint.make()
         else:
             checkpoint_manager = None
         
@@ -641,28 +637,13 @@ class QnRL(Algorithm):
         
         # Create models.
         model_policy = self.model
-
-        # Create checkpoint manager and restore latest model state.
-        if isinstance(self.checkpoint, CheckpointConfig):
-            checkpoint_manager = ocp.CheckpointManager(
-                directory=os.path.abspath(self.checkpoint.checkpoint_dir),
-                checkpointers=ocp.PyTreeCheckpointer(),
-                options=self.checkpoint.checkpoint_options.make(),
-            )
-            
-            # Restore model state from checkpoint.
-            try:
-                original_state = nnx.state(model_policy)
-                step_to_restore = checkpoint_manager.latest_step()
-                restored_state = checkpoint_manager.restore(step_to_restore, items=original_state)
-                nnx.update(model_policy, restored_state)
-                print(f"INFO:Restoring model from step {step_to_restore}", file=sys.stderr)
-            # No checkpoint restore state could be found. Continue anyway.
-            except FileNotFoundError:
-                print("WARNING:Could not find any checkpoint to restore, continuing using initial model parameters.", file=sys.stderr)
-        else:
-            checkpoint_manager = None
         
+        # Create checkpoint manager and restore latest model state (if one exists).
+        if self.checkpoint is not None:
+            checkpoint_manager = self.checkpoint.make()
+            model_policy = self.restore_model(model=model_policy, checkpoint_manager=checkpoint_manager)
+        
+        # Run evaluation.
         kwargs_default = dict(
             seed=self.seed,
             env=env,

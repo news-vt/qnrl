@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import pathlib
+import os
 
 import orbax.checkpoint as ocp
 from mashumaro.mixins.dict import DataClassDictMixin
@@ -14,6 +15,7 @@ class CheckpointOptions(DataClassDictMixin):
     enable_async_checkpointing: bool = True
     
     def make(self) -> ocp.CheckpointManagerOptions:
+        """Build an `orbax.checkpoint.CheckpointManagerOptions` instance."""
         return ocp.CheckpointManagerOptions(
             save_interval_steps=self.save_interval_steps,
             max_to_keep=self.max_to_keep,
@@ -25,6 +27,15 @@ class CheckpointConfig(DataClassDictMixin):
     """Checkpoint configuration."""
     checkpoint_dir: str | pathlib.Path
     checkpoint_options: CheckpointOptions
+    
+    def make(self) -> ocp.CheckpointManager:
+        """Build an `orbax.checkpoint.CheckpointManager` instance."""
+        checkpoint_manager = ocp.CheckpointManager(
+            directory=os.path.abspath(self.checkpoint_dir),
+            checkpointers=ocp.PyTreeCheckpointer(),
+            options=self.checkpoint_options.make(),
+        )
+        return checkpoint_manager
 
 
 @dataclass(kw_only=True)

@@ -331,11 +331,7 @@ class C51(Algorithm):
         
         # Create checkpoint manager.
         if isinstance(self.checkpoint, CheckpointConfig):
-            checkpoint_manager = ocp.CheckpointManager(
-                directory=os.path.abspath(self.checkpoint.checkpoint_dir),
-                checkpointers=ocp.PyTreeCheckpointer(),
-                options=self.checkpoint.checkpoint_options.make(),
-            )
+            checkpoint_manager = self.checkpoint.make()
         else:
             checkpoint_manager = None
         
