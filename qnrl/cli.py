@@ -300,6 +300,7 @@ class PlotMatplotlib(Plot):
     color: list[str] | None = None # Plot line color.
     show: bool = True # Show the figure.
     zorder: dict[str, int] | None = None # Plot line Z-axis ordering.
+    alpha: float | None = None # Plot line opacity (1 is solid, 0 is transparent).
     
     def __call__(self):
         return self.main()
@@ -334,7 +335,7 @@ class PlotMatplotlib(Plot):
                 label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
             else:
                 label = key
-            plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label, zorder=self.zorder[key])
+            plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label, zorder=self.zorder[key], alpha=self.alpha)
         
         # Set axis labels and title.
         plt.xlabel(self.x)
