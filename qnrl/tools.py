@@ -299,3 +299,7 @@ def density_matrix(state: jax.Array) -> jax.Array:
     """Construct a density matrix from a given state vector."""
     rho = jnp.outer(state, jnp.conj(state).T) # |psi><psi|
     return rho
+
+def is_unitary(m: jax.Array):
+    """Check if a given matrix is unitary."""
+    return jnp.allclose(jnp.eye(m.shape[0]), m * m.T.conj())
