@@ -294,3 +294,8 @@ def wait_for_list_of_file_change(paths: list[pathlib.Path], interval: float = 1.
             time.sleep(interval) # Wait for next check.
     except:
         return False
+
+def density_matrix(state: jax.Array) -> jax.Array:
+    """Construct a density matrix from a given state vector."""
+    rho = jnp.outer(state, jnp.conj(state).T) # |psi><psi|
+    return rho
