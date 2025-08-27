@@ -558,7 +558,7 @@ def eval(
 
 @dataclass(kw_only=True)
 class QnRL(Algorithm):
-    """Configuration for `qnrl.algorithms.c51.train`."""
+    """Configuration for `qnrl.algorithms.qnrl`."""
     # model_policy: QuantumNativeQNetworkSplit # Policy model configuration.
     # model_target: QuantumNativeQNetworkSplit # Target model configuration.
     model: QuantumNativeQNetworkSplit
