@@ -4,7 +4,7 @@ import pathlib
 import datetime
 import importlib.util
 import types
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, TypeVar
 import gzip
 import os
 import time
@@ -17,6 +17,9 @@ import jax.numpy as jnp
 import numpy as np
 import yaml
 from mashumaro import DataClassDictMixin
+
+# Generic type for Flax NNX module.
+M = TypeVar('M', bound=nnx.Module)
 
 class NumpyJSONEncoder(json.JSONEncoder):
     """Serializes numpy objects for JSON support."""
@@ -209,7 +212,7 @@ def save_model(path: str | pathlib.Path, model: nnx.Module):
     checkpointer.save(f"{path}/state", state, save_args=save_args)
 
 
-def restore_model_from_path(path: str | pathlib.Path, model: nnx.Module) -> nnx.Module:
+def restore_model_from_path(path: str | pathlib.Path, model: M) -> M:
     """Restore a given Flax NNX model to the state designed at the given checkpoint path."""
     state = nnx.state(model) # Get the state of the abstract model.
     # Load state from the saved model.
@@ -220,17 +223,17 @@ def restore_model_from_path(path: str | pathlib.Path, model: nnx.Module) -> nnx.
     return model
 
 
-def load_model_from_path(path: str | pathlib.Path, model_create_func: Callable[[], nnx.Module]) -> nnx.Module:
+def load_model_from_path(path: str | pathlib.Path, model_create_func: Callable[[], M]) -> M:
     """Load a Flax NNX model from a given checkpoint path."""
     model = nnx.eval_shape(model_create_func) # Create the model with abstract shapes.
     return restore_model_from_path(path, model) # Restore from checkpoint path state.
 
 
 def restore_model_from_checkpointmanager(
-    model: nnx.Module,
+    model: M,
     checkpoint_manager: ocp.CheckpointManager,
     step: int | None = None, # Step to restore (defaults to latest step).
-    ) -> nnx.Module:
+    ) -> M:
     """Restore model parameters from latest checkpoint (if one exists) from a given `orbax.checkpoint.CheckpointManager` instance."""
     # Restore model state from checkpoint.
     original_state = nnx.state(model)
