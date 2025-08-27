@@ -243,37 +243,9 @@ class Plot(DataClassDictMixin):
             if self.y not in metrics:
                 raise ValueError(f"ERROR:Y-axis key {self.y} not found in metrics file")
             
-            x_data = np.array(metrics[self.x])
-            y_data = np.array(metrics[self.y])
-            
-            # Clip X-axis data.
-            if self.x_min is not None:
-                idx = x_data >= self.x_min
-                x_data = x_data[idx]
-                y_data = y_data[idx]
-            if self.x_max is not None:
-                idx = x_data <= self.x_max
-                x_data = x_data[idx]
-                y_data = y_data[idx]
-            
-            # Clip Y-axis data.
-            if self.y_min is not None:
-                idx = y_data >= self.y_min
-                x_data = x_data[idx]
-                y_data = y_data[idx]
-            if self.y_max is not None:
-                idx = y_data <= self.y_max
-                x_data = x_data[idx]
-                y_data = y_data[idx]
-            
-            # Select the last `N` data points.
-            if self.show_last_n is not None:
-                x_data = x_data[-self.show_last_n:]
-                y_data = y_data[-self.show_last_n:]
-                
             # Preserve data.
-            data_dict['x'][key] = x_data
-            data_dict['y'][key] = y_data
+            data_dict['x'][key] = np.array(metrics[self.x])
+            data_dict['y'][key] = np.array(metrics[self.y])
         
         # Synchronize X/Y axis data display to data available across all configs.
         if self.sync:
@@ -289,6 +261,33 @@ class Plot(DataClassDictMixin):
                 idx = data_dict['x'][key] <= self.x_max
                 data_dict['x'][key] = data_dict['x'][key][idx]
                 data_dict['y'][key] = data_dict['y'][key][idx]
+        
+        # Apply any clipping on data after sync.
+        for key in configs.keys():
+            # Clip X-axis data.
+            if self.x_min is not None:
+                idx = data_dict['x'][key] >= self.x_min
+                data_dict['x'][key] = data_dict['x'][key][idx]
+                data_dict['y'][key] = data_dict['y'][key][idx]
+            if self.x_max is not None:
+                idx = data_dict['x'][key] <= self.x_max
+                data_dict['x'][key] = data_dict['x'][key][idx]
+                data_dict['y'][key] = data_dict['y'][key][idx]
+            
+            # Clip Y-axis data.
+            if self.y_min is not None:
+                idx = data_dict['y'][key] >= self.y_min
+                data_dict['x'][key] = data_dict['x'][key][idx]
+                data_dict['y'][key] = data_dict['y'][key][idx]
+            if self.y_max is not None:
+                idx = data_dict['y'][key] <= self.y_max
+                data_dict['x'][key] = data_dict['x'][key][idx]
+                data_dict['y'][key] = data_dict['y'][key][idx]
+            
+            # Select the last `N` data points.
+            if self.show_last_n is not None:
+                data_dict['x'][key] = data_dict['x'][key][-self.show_last_n:]
+                data_dict['y'][key] = data_dict['y'][key][-self.show_last_n:]
 
         return data_dict
 
