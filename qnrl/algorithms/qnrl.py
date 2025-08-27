@@ -20,6 +20,7 @@ from ..modules import QuantumNativeQNetworkSplit, SerializableModule
 from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer, PmfReplayBuffer
 from ..metric import MetricManager
+from ..tools import restore_model_from_checkpointmanager
 
 @nnx.jit
 def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
@@ -641,7 +642,7 @@ class QnRL(Algorithm):
         # Create checkpoint manager and restore latest model state (if one exists).
         if self.checkpoint is not None:
             checkpoint_manager = self.checkpoint.make()
-            model_policy = self.restore_model(model=model_policy, checkpoint_manager=checkpoint_manager)
+            model_policy = restore_model_from_checkpointmanager(model=model_policy, checkpoint_manager=checkpoint_manager)
         
         # Run evaluation.
         kwargs_default = dict(

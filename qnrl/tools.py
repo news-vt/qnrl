@@ -209,7 +209,7 @@ def save_model(path: str | pathlib.Path, model: nnx.Module):
     checkpointer.save(f"{path}/state", state, save_args=save_args)
 
 
-def restore_model(path: str | pathlib.Path, model: nnx.Module) -> nnx.Module:
+def restore_model_from_path(path: str | pathlib.Path, model: nnx.Module) -> nnx.Module:
     """Restore a given Flax NNX model to the state designed at the given checkpoint path."""
     state = nnx.state(model) # Get the state of the abstract model.
     # Load state from the saved model.
@@ -220,10 +220,27 @@ def restore_model(path: str | pathlib.Path, model: nnx.Module) -> nnx.Module:
     return model
 
 
-def load_model(path: str | pathlib.Path, model_create_func: Callable[[], nnx.Module]) -> nnx.Module:
+def load_model_from_path(path: str | pathlib.Path, model_create_func: Callable[[], nnx.Module]) -> nnx.Module:
     """Load a Flax NNX model from a given checkpoint path."""
     model = nnx.eval_shape(model_create_func) # Create the model with abstract shapes.
-    return restore_model(path, model) # Restore from checkpoint path state.
+    return restore_model_from_path(path, model) # Restore from checkpoint path state.
+
+
+def restore_model_from_checkpointmanager(
+    model: nnx.Module,
+    checkpoint_manager: ocp.CheckpointManager,
+    step: int | None = None, # Step to restore (defaults to latest step).
+    ) -> nnx.Module:
+    """Restore model parameters from latest checkpoint (if one exists) from a given `orbax.checkpoint.CheckpointManager` instance."""
+    # Restore model state from checkpoint.
+    original_state = nnx.state(model)
+    # Get latest step if none was provided.
+    if step is None:
+        step = checkpoint_manager.latest_step()
+    restored_state = checkpoint_manager.restore(step, items=original_state)
+    nnx.update(model, restored_state)
+    # Return the model object.
+    return model
 
 
 def load_python_module_from_filepath(path: pathlib.Path) -> types.ModuleType:
