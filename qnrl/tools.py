@@ -44,6 +44,15 @@ class JAXJSONEncoder(json.JSONEncoder):
             return int(obj)
         return super().default(obj)
 
+
+class DatetimeJSONEncoder(json.JSONEncoder):
+    """Serializes `datetime.datetime` objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
 def make_combined_json_encoder(*encoder_classes: type[json.JSONEncoder]):
     class _Combined(json.JSONEncoder):
         def default(self, obj):
