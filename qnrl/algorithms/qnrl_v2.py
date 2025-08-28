@@ -347,6 +347,11 @@ def update_complex_realign(
             next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
         case _:
             raise ValueError(f"Unsupported target type {target_type}")
+    #
+    #
+    # # Try a uniform action PMF over target model.
+    # uniform_action_pmfs = 1./action_pmfs.shape[-1] * jnp.ones_like(action_pmfs)
+    # next_rho = model_target.call_return_density_matrix(next_observations, uniform_action_pmfs)
 
     # Get diagonal elements.
     next_pmfs_diag = jax.vmap(jnp.diag)(next_rho)
@@ -394,10 +399,11 @@ def update_complex_realign(
         loss = (1. - hermitian_loss) ** 2.
         return loss.mean()
 
-    # loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, probs_actions=action_pmfs, y=target_pmfs)
     # 
-    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=action_pmfs, target_pmfs=target_pmfs)
     loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), rho=next_rho)
+    # 
+    # uniform_action_pmfs = 1./action_pmfs.shape[-1] * jnp.ones_like(action_pmfs)
+    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=uniform_action_pmfs, rho=next_rho)
     
     # jax.debug.print("grads = {}", grads)
 
