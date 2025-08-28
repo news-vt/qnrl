@@ -1424,7 +1424,6 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         # Generate weighted return distribuion via measurements across the return wires.
         return qml.probs(wires=wiredict['returns'])
 
-    @staticmethod
     @partial(nnx.jit, static_argnames=[
         # Device and QNode parameters.
         'device_name', 'shots', 'diff_method',
@@ -1437,6 +1436,7 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         'U_atoms',
     ])
     def run_circuit_action_dist(
+        self,
         # All device and QNode parameters.
         key: jax.Array,
         device_name: str,
@@ -1454,7 +1454,7 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         U_atoms: jax.Array,
         ):
         device = qml.device(name=device_name, shots=shots, seed=key)
-        qnode = qml.QNode(func=QuantumNativeQNetworkSplit.circuit_action_dist, device=device, interface="jax", diff_method=diff_method)
+        qnode = qml.QNode(func=self.circuit_action_dist, device=device, interface="jax", diff_method=diff_method)
         qnode_vmap = nnx.vmap(
             f=qnode,
             in_axes=(0, 0, *([None]*7)), # (inputs, probs_actions, weights, n_actions, d_actions, d_returns, m_moment, n_layers, U_atoms)
@@ -1472,7 +1472,6 @@ class QuantumNativeQNetworkSplit(SerializableModule):
             U_atoms=U_atoms,
         )
     
-    @staticmethod
     @partial(nnx.jit, static_argnames=[
         # Device and QNode parameters.
         'device_name', 'shots', 'diff_method',
@@ -1483,6 +1482,7 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         'n_layers',
     ])
     def run_circuit_return_dist(
+        self,
         # All device and QNode parameters.
         key: jax.Array,
         device_name: str,
@@ -1498,7 +1498,7 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         n_layers: int,
         ):
         device = qml.device(name=device_name, shots=shots, seed=key)
-        qnode = qml.QNode(func=QuantumNativeQNetworkSplit.circuit_return_dist, device=device, interface="jax", diff_method=diff_method)
+        qnode = qml.QNode(func=self.circuit_return_dist, device=device, interface="jax", diff_method=diff_method)
         qnode_vmap = nnx.vmap(
             f=qnode,
             in_axes=(0, 0, *([None]*5)), # (inputs, probs_actions, weights, n_actions, d_actions, d_returns, n_layers)
