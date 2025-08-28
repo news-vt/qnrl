@@ -576,7 +576,7 @@ def train(
                     episode_reward=info['episode']['r'],
                     episode_length=info['episode']['l'],
                     episode_time=info['episode']['t'],
-                    episode_isotime=datetime.datetime.now().isoformat(), # Preserve the episode finish time as string.
+                    episode_utcisotime=datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
                 )
                 history.append(meta)
                 pbar_postfix.update(**meta)
