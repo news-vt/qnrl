@@ -1238,8 +1238,8 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         return probs_returns
     
     
-    @staticmethod
-    def circuit_layer_var(phi: jax.Array, wires: list[int]):
+    @classmethod
+    def circuit_layer_var(cls, phi: jax.Array, wires: list[int]):
         """Variational layer.
 
         Args:
@@ -1251,8 +1251,8 @@ class QuantumNativeQNetworkSplit(SerializableModule):
             qml.RY(phi=phi[w,1], wires=w)
             qml.RZ(phi=phi[w,2], wires=w)
     
-    @staticmethod
-    def circuit_layer_circ(wires: list[int]):
+    @classmethod
+    def circuit_layer_circ(cls, wires: list[int]):
         """Circular entanglement layer using `CZ`.
 
         Args:
@@ -1263,8 +1263,8 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         if len(wires) != 2:
             qml.CZ(wires=[wires[0], wires[-1]])
     
-    @staticmethod
-    def circuit_layer_enc(phi: jax.Array, wires: list[int]):
+    @classmethod
+    def circuit_layer_enc(cls, phi: jax.Array, wires: list[int]):
         """Encoding layer using `RX`.
 
         Args:
@@ -1274,14 +1274,15 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         for w in wires:
             qml.RX(phi=phi[w,0], wires=w)
     
-    @staticmethod
-    def circuit_layer_reset(wires: list[int]):
+    @classmethod
+    def circuit_layer_reset(cls, wires: list[int]):
         """Measure the given qubits to collapse their state, then reset to zero."""
         for w in wires:
             qml.measure(wires=w, reset=True)
     
-    @staticmethod
+    @classmethod
     def get_ops_for_returns_distribution(
+        cls,
         inputs: jax.Array, # (d_returns,1,)
         weights: jax.Array, # (n_layers,d_returns,3,)
         n_layers: int,
@@ -1297,13 +1298,14 @@ class QuantumNativeQNetworkSplit(SerializableModule):
             - `n_layers` Input encoding layers
         """
         for l in range(n_layers):
-            QuantumNativeQNetworkSplit.circuit_layer_var(phi=weights[l], wires=wires)
-            QuantumNativeQNetworkSplit.circuit_layer_circ(wires=wires)
-            QuantumNativeQNetworkSplit.circuit_layer_enc(phi=inputs, wires=wires)
-        QuantumNativeQNetworkSplit.circuit_layer_var(phi=weights[-1], wires=wires) # Final variational layer at the end.
+            cls.circuit_layer_var(phi=weights[l], wires=wires)
+            cls.circuit_layer_circ(wires=wires)
+            cls.circuit_layer_enc(phi=inputs, wires=wires)
+        cls.circuit_layer_var(phi=weights[-1], wires=wires) # Final variational layer at the end.
     
-    @staticmethod
+    @classmethod
     def prepare_m_moment(
+        cls,
         m_moment: int,
         U_atoms: jax.Array,
         wires_returns: list[int],
@@ -1314,8 +1316,9 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         for _ in range(m_moment):
             qml.QubitUnitary(U_atoms, wires=wires_returns, unitary_check=False) # We know it's not unitary, so don't check.
     
-    @staticmethod
+    @classmethod
     def prepare_returns_probability_distribution(
+        cls,
         inputs: jax.Array, # (d_returns,1,)
         weights: jax.Array, # (n_actions,n_layers,d_returns,3,)
         n_actions: int,
@@ -1325,7 +1328,7 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         ):
         """Prepare return probability distribuion for every action."""
         ops = [
-            qml.prod(QuantumNativeQNetworkSplit.get_ops_for_returns_distribution)(
+            qml.prod(cls.get_ops_for_returns_distribution)(
                 inputs=inputs,
                 weights=weights[a],
                 n_layers=n_layers,
@@ -1335,8 +1338,9 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         ]
         qml.Select(ops, control=wires_actions)
     
-    @staticmethod
+    @classmethod
     def circuit_action_dist(
+        cls,
         inputs: jax.Array, # (d_returns,1,)
         probs_actions: jax.Array,
         weights: jax.Array, # (n_actions,n_layers,d_returns,3,)
@@ -1362,7 +1366,7 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         qml.StatePrep(probs_actions, wires=wiredict['actions'], normalize=True, pad_with=0)
         
         # Prepare returns probability distribution for every policy.
-        QuantumNativeQNetworkSplit.prepare_returns_probability_distribution(
+        cls.prepare_returns_probability_distribution(
             inputs=inputs,
             weights=weights,
             n_actions=n_actions,
@@ -1371,19 +1375,20 @@ class QuantumNativeQNetworkSplit(SerializableModule):
             wires_returns=wiredict['returns'],
         )
         # Prepare the m-th moment of the returns distribution.
-        QuantumNativeQNetworkSplit.prepare_m_moment(
+        cls.prepare_m_moment(
             m_moment=m_moment,
             U_atoms=U_atoms,
             wires_returns=wiredict['returns'],
         )
         # Measure the return-atom qubits to collapse their state, then reset to zero.
-        QuantumNativeQNetworkSplit.circuit_layer_reset(wires=wiredict['returns'])
+        cls.circuit_layer_reset(wires=wiredict['returns'])
         
         # Generate action distribuion via measurements across the action wires.
         return qml.probs(wires=wiredict['actions'])
     
-    @staticmethod
+    @classmethod
     def circuit_return_dist(
+        cls,
         inputs: jax.Array, # (d_returns,1,)
         probs_actions: jax.Array,
         weights: jax.Array, # (n_actions,n_layers,d_returns,3,)
@@ -1407,7 +1412,7 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         qml.StatePrep(probs_actions, wires=wiredict['actions'], normalize=True, pad_with=0)
         
         # Prepare returns probability distribution for every policy.
-        QuantumNativeQNetworkSplit.prepare_returns_probability_distribution(
+        cls.prepare_returns_probability_distribution(
             inputs=inputs,
             weights=weights,
             n_actions=n_actions,
