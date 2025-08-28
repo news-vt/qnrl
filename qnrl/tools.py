@@ -70,7 +70,7 @@ def listofdict_to_dictoflist(listofdict: list[dict]) -> dict[str,list]:
     for d in listofdict:
         for k,v in d.items():
             res.setdefault(k, []).append(v)
-    res = {k: jnp.array(v).tolist() for k,v in res.items()}
+    res = {k: np.array(v).tolist() for k,v in res.items()}
     return res
 
 @dataclass(kw_only=True)
