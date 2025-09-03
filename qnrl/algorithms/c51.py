@@ -88,21 +88,38 @@ def update(
     next_action = jnp.argmax(next_vals, axis=-1) # (batch_size,)
     # Get the return-atom distribution corresponding to the optimum action.
     next_pmfs = next_pmfs[batch_idx, next_action] # (batch_size, n_atoms)
-    # next_pmfs = next_pmfs[:, next_action] # (batch_size, n_atoms)
-    # Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
     tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
     tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
-    # Project the current atoms to the target atoms.
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
     dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scaler[0] = 0.69`, `dmu_scaler[0] = 0.31`.
     b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
     l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
     u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
     # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
-    dml = ((u + (l == u).astype(u.dtype)) - b) * next_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
-    dmu = (b - l) * next_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
+    dml_scaler = ((u + (l == u).astype(u.dtype)) - b)
+    dml = dml_scaler * next_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
+    dmu_scaler = (b - l)
+    dmu = dmu_scaler * next_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
     
     def project_to_bins(target_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
-        """Project an instance of return atoms. Apply to batches using `jax.vmap`."""
+        """Project an instance of return atoms.
+        
+        This function takes atom bin indices `l` (lower bins) and `u` (upper bins) and shift amounts for each bin `dml` (lower bin shift amount) and `dmu` (upper bin shift amount).
+        
+        Apply to batches using `jax.vmap`.
+        """
         target_pmfs = target_pmfs.at[l.astype(jnp.int32)].add(dml)
         target_pmfs = target_pmfs.at[u.astype(jnp.int32)].add(dmu)
         return target_pmfs
