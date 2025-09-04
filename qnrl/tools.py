@@ -316,3 +316,16 @@ def is_unitary(m: jax.Array):
 def is_hermitian(m: jax.Array):
     """Check if a given matrix is Hermitian."""
     return jnp.allclose(m, m.T.conj())
+
+def is_diagonal(m: jax.Array, tol: float = 1e-5):
+    """Check if a given matrix is diagonal (i.e., zero everywhere other than the diagonal elements).
+    
+    The input matrix is assumed to be square with shape `M x M`.
+    """
+    # Ensure matrix is square.
+    i, j = m.shape
+    assert i == j
+    # Remove diagonal elements.
+    diag_removed = m - jnp.diag(jnp.diag(m))
+    # Check if any elements are greater than tolerance (i.e., more than zero).
+    return ~jnp.any(diag_removed > tol)
