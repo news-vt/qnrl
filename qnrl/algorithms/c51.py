@@ -101,17 +101,17 @@ def update(
     dz = atoms[1] - atoms[0] # Delta z.
     # `b` represents how far `tz` has been shifted from the original atoms.
     # The value of `b` is a floating-point number that falls between two atoms.
-    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scaler[0] = 0.69`, `dmu_scaler[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scaler` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scaler` for the fraction assigned to the upper bin.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
     b = (tz - z_min) / dz
     # `l` are the indices of the atoms to the left of `b`.
     l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
     # `u` are the indices of the atoms to the right of `b`.
     u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
     # Here we split the original PMF `next_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
-    dml_scaler = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
-    dml = dml_scaler * next_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
-    dmu_scaler = (b - l)
-    dmu = dmu_scaler * next_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dml = dml_scalar * next_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
+    dmu_scalar = (b - l)
+    dmu = dmu_scalar * next_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
     
     def project_to_bins(target_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
         """Project an instance of return atoms.
