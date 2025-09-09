@@ -126,3 +126,8 @@ class ConfigStore(DataClassDictMixin):
     def __setitem__(self, cfg_hash: str, cfg_str: str):
         """Store configuration string associated with unique has string."""
         self.store_config_by_hash(cfg_hash=cfg_hash, cfg_str=cfg_str)
+    
+    def __contains__(self, cfg_hash: str) -> bool:
+        """Check if a configuration hash exists within the database."""
+        keys, _ = list(zip(*self.get_all()))
+        return cfg_hash in keys
