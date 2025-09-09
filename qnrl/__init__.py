@@ -7,3 +7,4 @@ from . import metric
 from . import checkpoint
 from . import gym
 from . import optimizer
+from . import store
