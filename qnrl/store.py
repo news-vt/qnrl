@@ -95,3 +95,15 @@ class ConfigStore(DataClassDictMixin):
                     return rows
                 except sqlite3.Error as e:
                     raise e
+    
+    def __iter__(self):
+        """Iterate over all items in database."""
+        yield from self.get_all()
+    
+    def __getitem__(self, cfg_hash: str) -> str:
+        """Retrieve configuration string from unique hash string like dictionary key."""
+        try:
+            _, cfg_str = self.get_config_from_hash(cfg_hash)
+            return cfg_str
+        except:
+            raise KeyError(cfg_hash)
