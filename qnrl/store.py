@@ -3,6 +3,7 @@
 import json
 import uuid
 import sqlite3
+from filelock import SoftFileLock
 
 from mashumaro import DataClassDictMixin
 
@@ -32,62 +33,66 @@ def compute_config_hash(cfg: DataClassDictMixin) -> tuple[str, str]:
 def db_store_config_by_hash(cfg_hash: str, cfg_str: str):
     """Store configuration JSON string via unique UUID hash in database."""
     # TODO add lock file.
-    with sqlite3.connect(CONFIG_DB) as conn:
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS configs (
-                    uuid TEXT PRIMARY KEY,
-                    json TEXT NOT NULL
-                )
-            """)
-            cursor.execute("""
-                INSERT OR IGNORE INTO configs (uuid, json) VALUES (?, ?)
-            """, (cfg_hash, cfg_str))
-            conn.commit()
-        except sqlite3.Error as e:
-            raise e
+    with SoftFileLock(CONFIG_DB + ".lock", thread_local=True) as lock:
+        with sqlite3.connect(CONFIG_DB) as conn:
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS configs (
+                        uuid TEXT PRIMARY KEY,
+                        json TEXT NOT NULL
+                    )
+                """)
+                cursor.execute("""
+                    INSERT OR IGNORE INTO configs (uuid, json) VALUES (?, ?)
+                """, (cfg_hash, cfg_str))
+                conn.commit()
+            except sqlite3.Error as e:
+                raise e
 
 
 def db_get_config_from_hash(cfg_hash: str) -> tuple[str, str]:
     """Retrieve configuration JSON string from unique UUID hash in database."""
     # TODO add lock file.
-    with sqlite3.connect(CONFIG_DB) as conn:
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS configs (
-                    uuid TEXT PRIMARY KEY,
-                    json TEXT NOT NULL
-                )
-            """)
-            cursor.execute("""
-                SELECT * FROM configs WHERE uuid = ?
-            """, (cfg_hash,))
-            row = cursor.fetchone()
-            return row
-        except sqlite3.Error as e:
-            raise e
+    with SoftFileLock(CONFIG_DB + ".lock", thread_local=True) as lock:
+        with sqlite3.connect(CONFIG_DB) as conn:
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS configs (
+                        uuid TEXT PRIMARY KEY,
+                        json TEXT NOT NULL
+                    )
+                """)
+                cursor.execute("""
+                    SELECT * FROM configs WHERE uuid = ?
+                """, (cfg_hash,))
+                row = cursor.fetchone()
+                return row
+            except sqlite3.Error as e:
+                raise e
+
 
 def db_getall() -> list[tuple[str, str]]:
     """Retrieve all configuration JSON strings and associated unique UUID hashes from database."""
     # TODO add lock file.
-    with sqlite3.connect(CONFIG_DB) as conn:
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS configs (
-                    uuid TEXT PRIMARY KEY,
-                    json TEXT NOT NULL
-                )
-            """)
-            cursor.execute("""
-                SELECT * FROM configs
-            """)
-            rows = cursor.fetchall()
-            return rows
-        except sqlite3.Error as e:
-            raise e
+    with SoftFileLock(CONFIG_DB + ".lock", thread_local=True) as lock:
+        with sqlite3.connect(CONFIG_DB) as conn:
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS configs (
+                        uuid TEXT PRIMARY KEY,
+                        json TEXT NOT NULL
+                    )
+                """)
+                cursor.execute("""
+                    SELECT * FROM configs
+                """)
+                rows = cursor.fetchall()
+                return rows
+            except sqlite3.Error as e:
+                raise e
