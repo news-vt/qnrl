@@ -128,6 +128,10 @@ class ConfigStore(DataClassDictMixin):
         self.store_config_by_hash(cfg_hash=cfg_hash, cfg_str=cfg_str)
     
     def __contains__(self, cfg_hash: str) -> bool:
-        """Check if a configuration hash exists within the database."""
+        """Check if a configuration hash exists within the store."""
         keys, _ = list(zip(*self.get_all()))
         return cfg_hash in keys
+    
+    def __len__(self) -> int:
+        """Get total number of elements in store."""
+        return len(self.get_all())
