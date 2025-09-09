@@ -26,9 +26,9 @@ class ConfigStore(DataClassDictMixin):
     def compute_config_hash(self, cfg: DataClassDictMixin) -> tuple[str, str]:
         """Generate a UUID hash for the given configuration object, and also return the string that was hashed.
         
-        Hashes are generated as follows:
+        Hashes are generated as follows: `Config -> dictionary -> JSON -> UUIDv5`
         
-        `Config -> dictionary -> JSON -> UUIDv5`
+        Returns `(cfg_hash, cfg_str)`.
         """
         cfg_str = self.serialize_config(cfg)
         cfg_hash = uuid.uuid5(namespace=uuid.NAMESPACE_OID, name=cfg_str)
@@ -59,6 +59,15 @@ class ConfigStore(DataClassDictMixin):
                     conn.commit()
                 except sqlite3.Error as e:
                     raise e
+
+    def store_config(self, cfg: DataClassDictMixin):
+        """Automatically generate unique hash for configuration and store it.
+        
+        Returns `(cfg_hash, cfg_str)`.
+        """
+        cfg_hash, cfg_str = self.compute_config_hash(cfg)
+        self.store_config_by_hash(cfg_hash=cfg_hash, cfg_str=cfg_str)
+        return cfg_hash, cfg_str
 
     def get_config_from_hash(self, cfg_hash: str) -> tuple[str, str]:
         """Retrieve configuration JSON string from unique UUID hash in database."""
