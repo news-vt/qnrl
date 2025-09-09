@@ -107,3 +107,7 @@ class ConfigStore(DataClassDictMixin):
             return cfg_str
         except:
             raise KeyError(cfg_hash)
+    
+    def __setitem__(self, cfg_hash: str, cfg_str: str):
+        """Store configuration string associated with unique has string."""
+        self.store_config_by_hash(cfg_hash=cfg_hash, cfg_str=cfg_str)
