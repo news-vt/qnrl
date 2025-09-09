@@ -9,6 +9,14 @@ from mashumaro import DataClassDictMixin
 # Path of SQLite3 database file to store configuration JSON.
 CONFIG_DB = 'config.db'
 
+
+def serialize_config(cfg: DataClassDictMixin) -> str:
+    """Serialize a configuration object to JSON string format."""
+    cfg_dict = cfg.to_dict()
+    cfg_str = json.dumps(cfg_dict)
+    return cfg_str
+
+
 def compute_config_hash(cfg: DataClassDictMixin) -> tuple[str, str]:
     """Generate a UUID hash for the given configuration object, and also return the string that was hashed.
     
@@ -16,8 +24,7 @@ def compute_config_hash(cfg: DataClassDictMixin) -> tuple[str, str]:
     
     `Config -> dictionary -> JSON -> UUIDv5`
     """
-    cfg_dict = cfg.to_dict()
-    cfg_str = json.dumps(cfg_dict)
+    cfg_str = serialize_config(cfg)
     cfg_hash = uuid.uuid5(namespace=uuid.NAMESPACE_OID, name=cfg_str)
     return str(cfg_hash), cfg_str
 
