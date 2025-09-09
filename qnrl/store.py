@@ -41,15 +41,21 @@ class ConfigStore(DataClassDictMixin):
                 cursor = conn.cursor()
                 
                 try:
+                    # Ensure table exists.
                     cursor.execute("""
                         CREATE TABLE IF NOT EXISTS configs (
                             uuid TEXT PRIMARY KEY,
                             json TEXT NOT NULL
                         )
                     """)
+                    # Insert record or ignore if it already exists.
                     cursor.execute("""
                         INSERT OR IGNORE INTO configs (uuid, json) VALUES (?, ?)
                     """, (cfg_hash, cfg_str))
+                    # Update the record contents to handle the case where it already existed. This allows records to be updated if they already exist.
+                    cursor.execute("""
+                        UPDATE configs SET json = ? WHERE uuid = ?
+                    """, (cfg_str, cfg_hash))
                     conn.commit()
                 except sqlite3.Error as e:
                     raise e
