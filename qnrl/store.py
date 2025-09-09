@@ -9,7 +9,7 @@ import pathlib
 from mashumaro import DataClassDictMixin
 
 # Path of SQLite3 database file to store configuration JSON.
-CONFIG_DB = 'config.db'
+CONFIG_DB = 'configs.db'
 
 
 @dataclass(kw_only=True)
