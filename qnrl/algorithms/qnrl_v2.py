@@ -14,6 +14,7 @@ import jax
 import jax.numpy as jnp
 from tqdm import tqdm
 import pennylane as qml
+import datetime
 
 from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
@@ -474,6 +475,121 @@ def update_complex_uniformaction(
     return loss
 
 
+@partial(nnx.jit, static_argnames=['target_type'])
+def update_complex_spread(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetworkSplit_v3,
+    model_target: QuantumNativeQNetworkSplit_v3,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    target_type: Literal['greedy', 'stochastic'],
+    ):
+    """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
+    
+    batch_size = actions.shape[0]
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    d_actions = model_policy.d_actions
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    match target_type:
+        case 'greedy':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+            next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+        case 'stochastic':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+            next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+        case _:
+            raise ValueError(f"Unsupported target type {target_type}")
+
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = rewards[:, jnp.newaxis] + gamma * atoms # TODO this line may cause bugs (if it does, replace it with the above.)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
+    dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
+    b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Here we split the original PMF `next_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dmu_scalar = (b - l)
+    
+    def project_to_bins(U: jax.Array, l: jax.Array, u: jax.Array, dml_scalar: jax.Array, dmu_scalar: jax.Array):
+        """Project an instance of return atoms using scalars. Apply to batches using `jax.vmap`."""
+        U = U.at[l.astype(jnp.int32), jnp.arange(l.shape[0], dtype=jnp.int32)].add(1j*jnp.sqrt(dml_scalar))
+        U = U.at[u.astype(jnp.int32), jnp.arange(u.shape[0], dtype=jnp.int32)].add(jnp.sqrt(dmu_scalar))
+        return U
+    
+    U = jax.vmap(project_to_bins)(jnp.zeros((batch_size,num_atoms,num_atoms), dtype='complex'), l, u, dml_scalar, dmu_scalar)
+    
+    # Target PMF is the shifted `tz` "spread" onto the support of the original atoms.
+    # Since rho spans both action + return qubits we need to apply Identity to the action qubits too. So, do a Kronecker product to create a combined operator.
+    I = jnp.identity(n=2**d_actions)
+    I_U = jnp.kron(I, U) # I ⊗ U
+    target_rho = jax.vmap(lambda M, rho: M @ rho @ M.conj().T)(M=I_U, rho=next_rho)
+    
+    # jax.debug.print("tz = {}", tz[0])
+    # jax.debug.print("b = {}", b[0])
+    # jax.debug.print("l = {}", l[0])
+    # jax.debug.print("u = {}", u[0])
+    # jax.debug.print("dml_scalar = {}", dml_scalar[0])
+    # jax.debug.print("dmu_scalar = {}", dmu_scalar[0])
+    # jax.debug.print("||U p U*||_2 = {}", jnp.linalg.norm(target_rho[0], ord=2))
+    # jax.debug.print("||U p U*||_2 == 1 ? {}", jnp.all(jnp.isclose(jax.vmap(lambda r: jnp.linalg.norm(r, ord=2))(r=target_rho), 1.)))
+    
+    def quantum_loss(model, observations, action_pmfs, rho):
+        # psi = jnp.sqrt(target_pmfs) # State amplitudes.
+        # rho = nnx.vmap(density_matrix)(psi) # Density matrix.
+        hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        # return hermitian_loss.mean()
+        # jax.debug.print("hermitian_loss = {}", hermitian_loss)
+        loss = (1. - hermitian_loss) ** 2.
+        return loss.mean()
+
+    # 
+    loss, grads = nnx.value_and_grad(quantum_loss)(
+        model=model_policy,
+        observations=observations,
+        # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
+        # action_pmfs=jnp.ones((actions.shape[0], 2)), # Uniform actions.
+        rho=target_rho,
+        )
+    # 
+    # uniform_action_pmfs = 1./action_pmfs.shape[-1] * jnp.ones_like(action_pmfs)
+    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=uniform_action_pmfs, rho=next_rho)
+    
+    # jax.debug.print("grads = {}", grads) 
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
 def train(
     seed: int,
     env: gym.Env,
@@ -595,8 +711,9 @@ def train(
                     minibatch = buffer.sample(key=subkey, batch_size=batch_size)
                     # loss = update(
                     # loss = update_complex( # This with `target_type='stochastic'` has the best performance.
+                    loss = update_complex_spread( # This with `target_type='stochastic'` has the best performance.
                     # loss = update_complex_uniformaction(
-                    loss = update_complex_realign(
+                    # loss = update_complex_realign(
                         # atoms,
                         # num_atoms,
                         # z_min,
