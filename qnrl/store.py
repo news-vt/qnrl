@@ -23,24 +23,28 @@ class HashStore(DataClassDictMixin):
         self.path = pathlib.Path(self.path)
         
         # Ensure file path is JSON.
-        assert self.path.suffix == '.json'
+        assert self.path.suffix == '.json', "store file path must have extension `.json`"
         
         # Create file if it does not exist.
         if not self.path.exists():
             with open(self.path, 'w+') as f:
                 json.dump({}, f)
     
-    def serialize(self, obj: DataClassDictMixin) -> str:
+    def serialize(self, obj: int | float | str | bool | list | tuple | dict | DataClassDictMixin) -> str:
         """Serialize a object object to JSON string format."""
+        # Standard types can be serialized ok.
+        if isinstance(obj, (bool, int, float, str, list, tuple, dict)):
+            obj_ser = obj
         # Ensure object can be serialized as a dictionary.
-        assert hasattr(obj, 'to_dict')
-        # Serialize object as dictionary.
-        obj_dict = obj.to_dict()
+        else:
+            assert hasattr(obj, 'to_dict'), "only standard Python types (bool, int, float, str, list, tuple, dict) or custom classes that implement a `to_dict()` method can be serialized."
+            # Serialize object as dictionary.
+            obj_ser = obj.to_dict()
         # Dump serialized object as JSON string.
-        obj_str = json.dumps(obj_dict)
+        obj_str = json.dumps(obj_ser)
         return obj_str
 
-    def compute_hash(self, obj: DataClassDictMixin) -> tuple[str, str]:
+    def compute_hash(self, obj: int | float | str | bool | list | tuple | dict | DataClassDictMixin) -> tuple[str, str]:
         """Generate a UUID hash for the given object, and also return the string that was hashed.
         
         Hashes are generated as follows: `Config -> dictionary -> JSON -> UUIDv5`
@@ -57,7 +61,7 @@ class HashStore(DataClassDictMixin):
         # Ensure path is a true `pathlib.Path` object.
         path = pathlib.Path(path)
         # Ensure file path is JSON.
-        assert path.suffix == '.json'
+        assert path.suffix == '.json', "store file path must have extension `.json`"
         # Lock file access.
         with SoftFileLock(str(path) + ".lock", thread_local=False) as lock:
             # Open the file for reading.
@@ -71,7 +75,7 @@ class HashStore(DataClassDictMixin):
         # Ensure path is a true `pathlib.Path` object.
         path = pathlib.Path(path)
         # Ensure file path is JSON.
-        assert path.suffix == '.json'
+        assert path.suffix == '.json', "store file path must have extension `.json`"
         # Lock file access.
         with SoftFileLock(str(path) + ".lock", thread_local=False) as lock:
             # Load existing file contents as JSON data.
