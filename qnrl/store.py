@@ -127,8 +127,12 @@ class ConfigStore(DataClassDictMixin):
         except:
             raise KeyError(cfg_hash)
     
-    def __setitem__(self, cfg_hash: str, cfg_str: str):
-        """Store configuration string associated with unique has string."""
+    def __setitem__(self, cfg_hash: str, cfg: str | DataClassDictMixin):
+        """Store configuration -- either as string or serializable object -- associated with unique hash string."""
+        if isinstance(cfg, DataClassDictMixin):
+            cfg_str = self.serialize_config(cfg)
+        else:
+            cfg_str = cfg
         self.store_config_by_hash(cfg_hash=cfg_hash, cfg_str=cfg_str)
     
     def __contains__(self, cfg_hash: str) -> bool:
