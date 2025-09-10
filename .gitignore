@@ -1,4 +1,5 @@
 # Custom files and folders to ignore.
+*.db
 checkpoints/
 metrics/
 *.lock
