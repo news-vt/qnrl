@@ -202,11 +202,37 @@ class DumpHash(DataClassDictMixin):
 
 
 @dataclass(kw_only=True)
+class ListHash(DataClassDictMixin):
+    """List all configurations stored in hash file."""
+    store: pathlib.Path # Path of JSON store file to use.
+    format: DumpFormat
+    
+    def main(self):
+        # Create hash store.
+        store = HashStore(path=self.store)
+        
+        # Create dictionary of hashes and config dictionary objects.
+        data = {cfg_hash: json.loads(cfg_serialized) for cfg_hash, cfg_serialized in store.items()}
+        
+        # Dump all the configs at once.
+        match self.format:
+            case DumpFormat.YAML:
+                yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                print(yaml_string)
+            case DumpFormat.JSON:
+                json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                rich.print_json(json_string)
+            case DumpFormat.PRETTY:
+                rich.pretty.pprint(data, expand_all=True)
+
+
+@dataclass(kw_only=True)
 class Hash(DataClassDictMixin):
     """Interact with hash storage."""
     mode: Union[
         Annotated[StoreHash, tyro.conf.subcommand(name='store')],
         Annotated[DumpHash, tyro.conf.subcommand(name='dump')],
+        Annotated[ListHash, tyro.conf.subcommand(name='list')],
     ]
     
     def main(self):
