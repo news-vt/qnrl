@@ -18,3 +18,4 @@ tyro
 plotext
 filelock
 deepdiff
+scikit-learn
