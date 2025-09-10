@@ -103,6 +103,13 @@ class ConfigStore(DataClassDictMixin):
                 rows = session.scalars(stmt).all()
                 return [(cfg.uuid, cfg.json) for cfg in rows]
     
+    def exists(self, cfg_hash: str) -> bool:
+        """Check if a config hash exists."""
+        with SoftFileLock(str(self.db) + ".lock", thread_local=True) as lock:
+            with sqlalchemy.orm.Session(self.engine) as session:
+                exists = session.query(Config).filter(Config.uuid == cfg_hash).first() is not None
+                return exists
+    
     def dumps(self) -> str:
         """Dump SQL database as JSON string."""
         objs = self.get_all()
@@ -134,8 +141,7 @@ class ConfigStore(DataClassDictMixin):
     
     def __contains__(self, cfg_hash: str) -> bool:
         """Check if a configuration hash exists within the store."""
-        keys, _ = list(zip(*self.get_all()))
-        return cfg_hash in keys
+        return self.exists(cfg_hash=cfg_hash)
     
     def __len__(self) -> int:
         """Get total number of elements in store."""
