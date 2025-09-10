@@ -141,6 +141,18 @@ class HashStore(DataClassDictMixin):
         except:
             return default
     
+    def items(self):
+        """Get hash store items as alias of `dict.items()`."""
+        return self.get_all().items()
+    
+    def values(self):
+        """Get hash store values as alias of `dict.values()`."""
+        return self.get_all().values()
+    
+    def keys(self):
+        """Get hash store keys as alias of `dict.keys()`."""
+        return self.get_all().keys()
+    
     def __iter__(self):
         """Iterate over all serialized objects and their hashes in database."""
         yield from self.get_all()
