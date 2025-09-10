@@ -63,7 +63,7 @@ class HashStore(DataClassDictMixin):
         # Ensure file path is JSON.
         assert path.suffix == '.json', "store file path must have extension `.json`"
         # Lock file access.
-        with SoftFileLock(str(path) + ".lock", thread_local=False) as lock:
+        with SoftFileLock(str(path) + ".lock", thread_local=True) as lock:
             # Open the file for reading.
             with open(path, 'r') as f:
                 # Decode file contents as JSON data.
@@ -77,7 +77,7 @@ class HashStore(DataClassDictMixin):
         # Ensure file path is JSON.
         assert path.suffix == '.json', "store file path must have extension `.json`"
         # Lock file access.
-        with SoftFileLock(str(path) + ".lock", thread_local=False) as lock:
+        with SoftFileLock(str(path) + ".lock", thread_local=True) as lock:
             # Load existing file contents as JSON data.
             with open(path, 'r') as f:
                 objs = json.load(f)
