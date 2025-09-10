@@ -1,147 +1,160 @@
-"""This module is in charge of managing configuration storage via an SQLite3 database."""
+"""This module is in charge of managing object storage via an SQLite3 database."""
 from dataclasses import dataclass, field
 import json
 import uuid
-import sqlite3
 from filelock import SoftFileLock
 import pathlib
 
-import sqlalchemy
-import sqlalchemy.orm
 from mashumaro import DataClassDictMixin
 
 
-class TableBase(sqlalchemy.orm.DeclarativeBase):
-    pass
-
-
-class Config(TableBase):
-    __tablename__ = "configs"
-    
-    uuid: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(primary_key=True)
-    json: sqlalchemy.orm.Mapped[str]
-    
-    def __repr__(self) -> str:
-        return f"Config(uuid={self.uuid!r}, json={self.json!r})"
-    
-    def to_dict(self) -> dict:
-        return dict(uuid=self.uuid, json=self.json)
-    
-    @classmethod
-    def from_dict(cls, **kwargs):
-        return cls(**kwargs)
-
-
 @dataclass(kw_only=True)
-class ConfigStore(DataClassDictMixin):
-    """Manage key-value storage of configurations within an under-the-hood SQLite3 database.
+class HashStore(DataClassDictMixin):
+    """Key-value storage of serializable objects (i.e., must implement `.to_dict()`).
     
-    This class is designed to be used like a traditional dictionary, without knowledge of the underlying database used for storage.
+    Data is stored in a JSON file under the hood.
+    
+    This class is designed to be used like a traditional dictionary, without knowledge of the underlying mechanism used for storage.
     """
-    db: pathlib.Path = field(default=pathlib.Path('configs.db')) # Path to SQLite3 database.
+    path: pathlib.Path | str = field(default=pathlib.Path('hashstore.json'))
     
     def __post_init__(self):
-        # Store reference to database engine.
-        self.engine = sqlalchemy.create_engine(f"sqlite:///{self.db}")
+        # Ensure path is a true `pathlib.Path` object.
+        self.path = pathlib.Path(self.path)
         
-        # Create tables if they do not exist.
-        TableBase.metadata.create_all(self.engine)
+        # Ensure file path is JSON.
+        assert self.path.suffix == '.json'
+        
+        # Create file if it does not exist.
+        if not self.path.exists():
+            with open(self.path, 'w+') as f:
+                json.dump({}, f)
     
-    def serialize_config(self, cfg: DataClassDictMixin) -> str:
-        """Serialize a configuration object to JSON string format."""
-        cfg_dict = cfg.to_dict()
-        cfg_str = json.dumps(cfg_dict)
-        return cfg_str
+    def serialize(self, obj: DataClassDictMixin) -> str:
+        """Serialize a object object to JSON string format."""
+        # Ensure object can be serialized as a dictionary.
+        assert hasattr(obj, 'to_dict')
+        # Serialize object as dictionary.
+        obj_dict = obj.to_dict()
+        # Dump serialized object as JSON string.
+        obj_str = json.dumps(obj_dict)
+        return obj_str
 
-    def compute_config_hash(self, cfg: DataClassDictMixin) -> tuple[str, str]:
-        """Generate a UUID hash for the given configuration object, and also return the string that was hashed.
+    def compute_hash(self, obj: DataClassDictMixin) -> tuple[str, str]:
+        """Generate a UUID hash for the given object, and also return the string that was hashed.
         
         Hashes are generated as follows: `Config -> dictionary -> JSON -> UUIDv5`
         
-        Returns `(cfg_hash, cfg_str)`.
+        Returns `(obj_hash, obj_str)`.
         """
-        cfg_str = self.serialize_config(cfg)
-        cfg_hash = uuid.uuid5(namespace=uuid.NAMESPACE_OID, name=cfg_str)
-        return str(cfg_hash), cfg_str
+        obj_str = self.serialize(obj)
+        obj_hash = uuid.uuid5(namespace=uuid.NAMESPACE_OID, name=obj_str)
+        return str(obj_hash), obj_str
 
-    def store_config_by_hash(self, cfg_hash: str, cfg_str: str):
-        """Store configuration JSON string via unique UUID hash in database."""
-        with SoftFileLock(str(self.db) + ".lock", thread_local=True) as lock:
-            with sqlalchemy.orm.Session(self.engine) as session:
-                cfg = Config(
-                    uuid=cfg_hash,
-                    json=cfg_str,
-                )
-                session.merge(cfg)
-                session.commit()
-
-    def store_config(self, cfg: DataClassDictMixin):
-        """Automatically generate unique hash for configuration and store it.
-        
-        Returns `(cfg_hash, cfg_str)`.
-        """
-        cfg_hash, cfg_str = self.compute_config_hash(cfg)
-        self.store_config_by_hash(cfg_hash=cfg_hash, cfg_str=cfg_str)
-        return cfg_hash, cfg_str
-
-    def get_config_from_hash(self, cfg_hash: str) -> tuple[str, str]:
-        """Retrieve configuration JSON string from unique UUID hash in database."""
-        with SoftFileLock(str(self.db) + ".lock", thread_local=True) as lock:
-            try:
-                with sqlalchemy.orm.Session(self.engine) as session:
-                    stmt = sqlalchemy.select(Config).where(Config.uuid == cfg_hash)
-                    cfg = session.scalar(stmt)
-                    return cfg.uuid, cfg.json
-            except:
-                raise ValueError(f"No entry found for hash {cfg_hash}")
-
-    def get_all(self) -> list[tuple[str, str]]:
-        """Retrieve all configuration JSON strings and associated unique UUID hashes from database."""
-        with SoftFileLock(str(self.db) + ".lock", thread_local=True) as lock:
-            with sqlalchemy.orm.Session(self.engine) as session:
-                stmt = sqlalchemy.select(Config)
-                rows = session.scalars(stmt).all()
-                return [(cfg.uuid, cfg.json) for cfg in rows]
+    @staticmethod
+    def load(path: pathlib.Path | str) -> dict[str, str]:
+        """Load contents of config storage file designated by JSON file path."""
+        # Ensure path is a true `pathlib.Path` object.
+        path = pathlib.Path(path)
+        # Ensure file path is JSON.
+        assert path.suffix == '.json'
+        # Lock file access.
+        with SoftFileLock(str(path) + ".lock", thread_local=False) as lock:
+            # Open the file for reading.
+            with open(path, 'r') as f:
+                # Decode file contents as JSON data.
+                return json.load(f)
     
-    def exists(self, cfg_hash: str) -> bool:
-        """Check if a config hash exists."""
-        with SoftFileLock(str(self.db) + ".lock", thread_local=True) as lock:
-            with sqlalchemy.orm.Session(self.engine) as session:
-                exists = session.query(Config).filter(Config.uuid == cfg_hash).first() is not None
-                return exists
+    @staticmethod
+    def store(path: pathlib.Path | str, obj_hash: str, obj_str: str) -> tuple[str, str]:
+        """Record serialized object JSON string via unique UUID hash in store designated by JSON file path."""
+        # Ensure path is a true `pathlib.Path` object.
+        path = pathlib.Path(path)
+        # Ensure file path is JSON.
+        assert path.suffix == '.json'
+        # Lock file access.
+        with SoftFileLock(str(path) + ".lock", thread_local=False) as lock:
+            # Load existing file contents as JSON data.
+            with open(path, 'r') as f:
+                objs = json.load(f)
+            # Add current entry.
+            objs[obj_hash] = obj_str
+            # Open the file for writing.
+            with open(path, 'w+') as f:
+                # Dump object to file as JSON data.
+                json.dump(objs, f)
+                # Return the hash and serialized string.
+                return obj_hash, obj_str
+
+    def store_obj_by_hash(self, obj_hash: str, obj_str: str) -> tuple[str, str]:
+        """Record serialized object JSON string via unique UUID hash in store."""
+        return self.store(path=self.path, obj_hash=obj_hash, obj_str=obj_str)
+
+    def store_obj(self, obj: DataClassDictMixin) -> tuple[str, str]:
+        """Automatically generate unique hash for object and store it.
+        
+        Returns `(obj_hash, obj_str)`.
+        """
+        obj_hash, obj_str = self.compute_hash(obj)
+        return self.store_obj_by_hash(obj_hash=obj_hash, obj_str=obj_str)
+
+    def get_config_from_hash(self, obj_hash: str) -> str:
+        """Retrieve object JSON string from unique UUID hash in store."""
+        objs = self.load(path=self.path)
+        return objs[obj_hash]
+
+    def get_all(self) -> dict[str, str]:
+        """Retrieve all object JSON strings and associated unique UUID hashes from store."""
+        return self.load(path=self.path)
+    
+    def exists(self, hash_or_obj: str | DataClassDictMixin) -> bool:
+        """Check if an object or hash exists in store.
+        
+        If `str` then assume it is a hash, if `DataClassDictMixin` treat it as a raw object, otherwise throw error.
+        """
+        if isinstance(hash_or_obj, DataClassDictMixin):
+            obj_hash, _ = self.compute_hash(hash_or_obj)
+        elif isinstance(hash_or_obj, str):
+            obj_hash = hash_or_obj
+        else:
+            raise ValueError(f"unsupported type for object {hash_or_obj}")
+        objs = self.load(path=self.path)
+        return obj_hash in objs
     
     def dumps(self) -> str:
-        """Dump SQL database as JSON string."""
-        objs = self.get_all()
+        """Dump store as JSON string."""
+        objs = self.load(path=self.path)
         return json.dumps(objs)
     
     def dump(self) -> list[tuple[str, str]]:
-        """Dump SQL database as JSON serializable object."""
+        """Dump store as JSON serializable object."""
         return json.loads(self.dumps())
     
     def __iter__(self):
-        """Iterate over all items in database."""
+        """Iterate over all serialized objects and their hashes in database."""
         yield from self.get_all()
     
-    def __getitem__(self, cfg_hash: str) -> str:
-        """Retrieve configuration string from unique hash string like dictionary key."""
+    def __getitem__(self, obj_hash: str) -> str:
+        """Retrieve serialized object string from unique hash string like dictionary key."""
         try:
-            _, cfg_str = self.get_config_from_hash(cfg_hash)
-            return cfg_str
+            return self.get_config_from_hash(obj_hash)
         except:
-            raise KeyError(cfg_hash)
+            raise KeyError(obj_hash)
     
-    def __setitem__(self, cfg_hash: str, cfg: str | DataClassDictMixin):
-        """Store configuration -- either as string or serializable object -- associated with unique hash string."""
-        if isinstance(cfg, DataClassDictMixin):
-            cfg_str = self.serialize_config(cfg)
+    def __setitem__(self, obj_hash: str, obj: str | DataClassDictMixin):
+        """Store object -- either as string or serializable object -- associated with unique hash string."""
+        if isinstance(obj, DataClassDictMixin):
+            obj_str = self.serialize(obj)
         else:
-            cfg_str = cfg
-        self.store_config_by_hash(cfg_hash=cfg_hash, cfg_str=cfg_str)
+            obj_str = obj
+        self.store_obj_by_hash(obj_hash=obj_hash, obj_str=obj_str)
     
-    def __contains__(self, cfg_hash: str) -> bool:
-        """Check if a configuration hash exists within the store."""
-        return self.exists(cfg_hash=cfg_hash)
+    def __contains__(self, hash_or_obj: str | DataClassDictMixin) -> bool:
+        """Check if an object or hash exists within the store.
+        
+        Alias of `exists()`.
+        """
+        return self.exists(hash_or_obj=hash_or_obj)
     
     def __len__(self) -> int:
         """Get total number of elements in store."""
