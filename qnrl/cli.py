@@ -19,6 +19,7 @@ from matplotlib.figure import Figure as MatplotlibFigure
 from plotext._figure import default_figure_class as PlotextFigure
 
 from . import tools
+from .store import HashStore
 from .optimizer import *
 from .gym import *
 from .checkpoint import *
@@ -146,6 +147,71 @@ class DumpAlgorithm(DataClassDictMixin):
             case DumpFormat.PRETTY:
                 data = config.to_dict()
                 rich.pretty.pprint(data, expand_all=True)
+
+
+@dataclass(kw_only=True)
+class StoreHash(DataClassDictMixin):
+    """Store a given configuration to hash file."""
+    store: pathlib.Path # Path of JSON store file to use.
+    config: pathlib.Path # Path of config file in format [yaml, json, python].
+    
+    def main(self):
+        # Load config.
+        config = load_algo_config(path=self.config)
+        
+        # Create hash store.
+        store = HashStore(path=self.store)
+        
+        # Generate hash for the current algorithm configuration and store it for later retrieval.
+        cfg_hash, _ = store.store_obj(config)
+        
+        # Display the hash string.
+        print(cfg_hash)
+
+
+@dataclass(kw_only=True)
+class DumpHash(DataClassDictMixin):
+    """Dump a given configuration based on UUID key from hash file."""
+    store: pathlib.Path # Path of JSON store file to use.
+    key: str # Path of config file in format [yaml, json, python].
+    format: DumpFormat
+    
+    def main(self):
+        # Create hash store.
+        store = HashStore(path=self.store)
+        
+        config_serialized = store.get(self.key)
+        if config_serialized is not None:
+            
+            # Load config.
+            config_dict = json.loads(config_serialized)
+            config = algorithm.Algorithm.from_dict(config_dict)
+            
+            match self.format:
+                case DumpFormat.YAML:
+                    data = config.to_dict()
+                    yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
+                    print(yaml_string)
+                case DumpFormat.JSON:
+                    data = config.to_dict()
+                    json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
+                    rich.print_json(json_string)
+                case DumpFormat.PRETTY:
+                    data = config.to_dict()
+                    rich.pretty.pprint(data, expand_all=True)
+
+
+@dataclass(kw_only=True)
+class Hash(DataClassDictMixin):
+    """Hash the given configuration and store in JSON hash store."""
+    mode: Union[
+        Annotated[StoreHash, tyro.conf.subcommand(name='store')],
+        Annotated[DumpHash, tyro.conf.subcommand(name='dump')],
+    ]
+    
+    def main(self):
+        self.mode.main()
+
 
 
 @dataclass(kw_only=True)
@@ -637,6 +703,7 @@ class Args(DataClassDictMixin):
     # config: pathlib.Path # Path of config file in format [yaml, json, python].
     mode: Union[
         Annotated[DumpAlgorithm, tyro.conf.subcommand(name='dump')],
+        Annotated[Hash, tyro.conf.subcommand(name='hash')],
         Annotated[InfoModel, tyro.conf.subcommand(name='info-model')],
         Train,
         Eval,
