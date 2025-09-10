@@ -203,7 +203,7 @@ class DumpHash(DataClassDictMixin):
 
 @dataclass(kw_only=True)
 class Hash(DataClassDictMixin):
-    """Hash the given configuration and store in JSON hash store."""
+    """Interact with hash storage."""
     mode: Union[
         Annotated[StoreHash, tyro.conf.subcommand(name='store')],
         Annotated[DumpHash, tyro.conf.subcommand(name='dump')],
