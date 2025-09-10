@@ -67,13 +67,12 @@ class ConfigStore(DataClassDictMixin):
     def store_config_by_hash(self, cfg_hash: str, cfg_str: str):
         """Store configuration JSON string via unique UUID hash in database."""
         with SoftFileLock(str(self.db) + ".lock", thread_local=True) as lock:
-            
             with sqlalchemy.orm.Session(self.engine) as session:
                 cfg = Config(
                     uuid=cfg_hash,
                     json=cfg_str,
                 )
-                session.add(cfg)
+                session.merge(cfg)
                 session.commit()
 
     def store_config(self, cfg: DataClassDictMixin):
@@ -88,7 +87,6 @@ class ConfigStore(DataClassDictMixin):
     def get_config_from_hash(self, cfg_hash: str) -> tuple[str, str]:
         """Retrieve configuration JSON string from unique UUID hash in database."""
         with SoftFileLock(str(self.db) + ".lock", thread_local=True) as lock:
-            
             try:
                 with sqlalchemy.orm.Session(self.engine) as session:
                     stmt = sqlalchemy.select(Config).where(Config.uuid == cfg_hash)
@@ -100,7 +98,6 @@ class ConfigStore(DataClassDictMixin):
     def get_all(self) -> list[tuple[str, str]]:
         """Retrieve all configuration JSON strings and associated unique UUID hashes from database."""
         with SoftFileLock(str(self.db) + ".lock", thread_local=True) as lock:
-            
             with sqlalchemy.orm.Session(self.engine) as session:
                 stmt = sqlalchemy.select(Config)
                 rows = session.scalars(stmt).all()
