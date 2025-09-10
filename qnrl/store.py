@@ -134,6 +134,13 @@ class HashStore(DataClassDictMixin):
         """Dump store as JSON serializable object."""
         return json.loads(self.dumps())
     
+    def get(self, obj_hash: str, default = None):
+        """Safe retrieval with default if no key is present."""
+        try:
+            return self.get_config_from_hash(obj_hash)
+        except:
+            return default
+    
     def __iter__(self):
         """Iterate over all serialized objects and their hashes in database."""
         yield from self.get_all()
