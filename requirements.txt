@@ -19,3 +19,4 @@ plotext
 filelock
 deepdiff
 scikit-learn
+sqlalchemy
