@@ -34,7 +34,10 @@ class Config(TableBase):
 
 @dataclass(kw_only=True)
 class ConfigStore(DataClassDictMixin):
-    """Manage key-value storage of configurations within an under-the-hood SQLite3 database."""
+    """Manage key-value storage of configurations within an under-the-hood SQLite3 database.
+    
+    This class is designed to be used like a traditional dictionary, without knowledge of the underlying database used for storage.
+    """
     db: pathlib.Path = field(default=pathlib.Path('configs.db')) # Path to SQLite3 database.
     
     def __post_init__(self):
