@@ -183,21 +183,18 @@ class DumpHash(DataClassDictMixin):
         config_serialized = store.get(self.key)
         if config_serialized is not None:
             
-            # Load config.
-            config_dict = json.loads(config_serialized)
-            config = algorithm.Algorithm.from_dict(config_dict)
+            # Load config as dictionary.
+            data = json.loads(config_serialized)
             
+            # Dump dictionary to desired format.
             match self.format:
                 case DumpFormat.YAML:
-                    data = config.to_dict()
                     yaml_string = yaml.dump(data, sort_keys=False, default_flow_style=False, indent=2)
                     print(yaml_string)
                 case DumpFormat.JSON:
-                    data = config.to_dict()
                     json_string = json.dumps(data, indent=2, cls=tools.make_combined_json_encoder(tools.NumpyJSONEncoder, tools.JAXJSONEncoder))
                     rich.print_json(json_string)
                 case DumpFormat.PRETTY:
-                    data = config.to_dict()
                     rich.pretty.pprint(data, expand_all=True)
 
 
