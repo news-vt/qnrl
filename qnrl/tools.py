@@ -315,7 +315,7 @@ def is_unitary(m: jax.Array):
 
 def is_hermitian(m: jax.Array):
     """Check if a given matrix is Hermitian."""
-    return jnp.allclose(m, m.T.conj())
+    return jnp.allclose(m, m.conj().T, **kwargs)
 
 def is_diagonal(m: jax.Array, tol: float = 1e-5):
     """Check if a given matrix is diagonal (i.e., zero everywhere other than the diagonal elements).
