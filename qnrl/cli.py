@@ -254,13 +254,13 @@ class Train(DataClassDictMixin):
         history_list = config.train()
         
         # Save train results based on hash.
-        metric_filepath = self.dir / f"{cfg_hash}{self.history_file_type}"
-        tools.save_train_results(metric_filepath, history_list)
+        history_filepath = self.dir / f"{cfg_hash}{self.history_file_type}"
+        tools.save_train_results(history_filepath, history_list)
         
         # Inform the user about the store, hash, and history file location.
         print(f"Store: {self.store.path}")
         print(f"Hash: {cfg_hash}")
-        print(f"History: {metric_filepath}")
+        print(f"History: {history_filepath}")
 
 
 @dataclass(kw_only=True)
