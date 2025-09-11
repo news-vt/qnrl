@@ -247,8 +247,8 @@ class Train(DataClassDictMixin):
         # Create output directory if it does not exist.
         self.dir.mkdir(parents=True)
         
-        # Generate a hash for the configuration.
-        cfg_hash = self.store.compute_hash(config)
+        # Store the configuration and get it's unique hash.
+        cfg_hash, _ = self.store.store_obj(config)
         
         # Run training algorithm.
         history_list = config.train()
@@ -257,9 +257,10 @@ class Train(DataClassDictMixin):
         metric_filepath = self.dir / f"{cfg_hash}{self.history_file_type}"
         tools.save_train_results(metric_filepath, history_list)
         
-        # Inform the user what just happened.
-        print(f"Config hash: {cfg_hash}")
-        print(f"Train history: {metric_filepath}")
+        # Inform the user about the store, hash, and history file location.
+        print(f"Store: {self.store.path}")
+        print(f"Hash: {cfg_hash}")
+        print(f"History: {metric_filepath}")
 
 
 @dataclass(kw_only=True)
