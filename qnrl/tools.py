@@ -329,3 +329,7 @@ def is_diagonal(m: jax.Array, tol: float = 1e-5):
     diag_removed = m - jnp.diag(jnp.diag(m))
     # Check if any elements are greater than tolerance (i.e., more than zero).
     return ~jnp.any(diag_removed > tol)
+
+def is_pure(m: jax.Array, **kwargs):
+    """Check if a density matrix is pure by $Tr(m^2) = Tr(m)$."""
+    return jnp.allclose(jnp.trace(m @ m.conj().T), jnp.trace(m), **kwargs)
