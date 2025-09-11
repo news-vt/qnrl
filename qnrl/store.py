@@ -8,6 +8,9 @@ import pathlib
 from mashumaro import DataClassDictMixin
 
 
+type SerialType = int | float | str | bool | list | tuple | dict | None
+
+
 @dataclass(kw_only=True)
 class HashStore(DataClassDictMixin):
     """Key-value storage of serializable objects (i.e., must implement `.to_dict()`).
@@ -30,28 +33,32 @@ class HashStore(DataClassDictMixin):
             with open(self.path, 'w+') as f:
                 json.dump({}, f)
     
-    def serialize(self, obj: int | float | str | bool | list | tuple | dict | DataClassDictMixin) -> str:
+    def encode(self, obj: SerialType | DataClassDictMixin, **kwargs) -> str:
         """Serialize a object object to JSON string format."""
         # Standard types can be serialized ok.
-        if isinstance(obj, (bool, int, float, str, list, tuple, dict)):
+        if isinstance(obj, (int | float | str | bool | list | tuple | dict | None)):
             obj_ser = obj
         # Ensure object can be serialized as a dictionary.
         else:
             assert hasattr(obj, 'to_dict'), "only standard Python types (bool, int, float, str, list, tuple, dict) or custom classes that implement a `to_dict()` method can be serialized."
             # Serialize object as dictionary.
             obj_ser = obj.to_dict()
-        # Dump serialized object as JSON string.
-        obj_str = json.dumps(obj_ser)
+        # Generate a serialized object from the input using JSON.
+        obj_str = json.dumps(obj_ser, **kwargs) # Dump serialized object as JSON string.
         return obj_str
+    
+    def decode(self, obj_str: str, **kwargs) -> SerialType:
+        """Deserialize an object from JSON string."""
+        return json.loads(obj_str, **kwargs)
 
-    def compute_hash(self, obj: int | float | str | bool | list | tuple | dict | DataClassDictMixin) -> tuple[str, str]:
+    def hash(self, obj: SerialType | DataClassDictMixin) -> tuple[str, str]:
         """Generate a UUID hash for the given object, and also return the string that was hashed.
         
         Hashes are generated as follows: `Config -> dictionary -> JSON -> UUIDv5`
         
         Returns `(obj_hash, obj_str)`.
         """
-        obj_str = self.serialize(obj)
+        obj_str = self.encode(obj)
         obj_hash = uuid.uuid5(namespace=uuid.NAMESPACE_OID, name=obj_str)
         return str(obj_hash), obj_str
 
@@ -93,7 +100,7 @@ class HashStore(DataClassDictMixin):
         
         Returns `(obj_hash, obj_str)`.
         """
-        obj_hash, obj_str = self.compute_hash(obj)
+        obj_hash, obj_str = self.hash(obj)
         return self.store(obj_hash=obj_hash, obj_str=obj_str)
     
     def remove(self, obj_hash: str, default = None) -> tuple[str, str]:
@@ -122,7 +129,7 @@ class HashStore(DataClassDictMixin):
         If `str` then assume it is a hash, if `DataClassDictMixin` treat it as a raw object, otherwise throw error.
         """
         if isinstance(hash_or_obj, DataClassDictMixin):
-            obj_hash, _ = self.compute_hash(hash_or_obj)
+            obj_hash, _ = self.hash(hash_or_obj)
         elif isinstance(hash_or_obj, str):
             obj_hash = hash_or_obj
         else:
@@ -186,7 +193,7 @@ class HashStore(DataClassDictMixin):
     def __setitem__(self, obj_hash: str, obj: str | DataClassDictMixin):
         """Store object -- either as string or serializable object -- associated with unique hash string."""
         if isinstance(obj, DataClassDictMixin):
-            obj_str = self.serialize(obj)
+            obj_str = self.encode(obj)
         else:
             obj_str = obj
         self.store(obj_hash=obj_hash, obj_str=obj_str)
