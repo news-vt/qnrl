@@ -309,11 +309,11 @@ def density_matrix(state: jax.Array) -> jax.Array:
     rho = jnp.outer(state, jnp.conj(state).T) # |psi><psi|
     return rho
 
-def is_unitary(m: jax.Array):
+def is_unitary(m: jax.Array, **kwargs):
     """Check if a given matrix is unitary."""
     return jnp.allclose(jnp.eye(m.shape[0], dtype=m.dtype), m @ m.conj().T, **kwargs)
 
-def is_hermitian(m: jax.Array):
+def is_hermitian(m: jax.Array, **kwargs):
     """Check if a given matrix is Hermitian."""
     return jnp.allclose(m, m.conj().T, **kwargs)
 
