@@ -245,7 +245,7 @@ class Train(DataClassDictMixin):
         config = load_algo_config(path=self.config)
         
         # Create output directory if it does not exist.
-        self.dir.mkdir(parents=True)
+        self.dir.mkdir(parents=True, exist_ok=True)
         
         # Store the configuration and get it's unique hash.
         cfg_hash, _ = self.store.store_obj(config)
