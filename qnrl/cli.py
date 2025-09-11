@@ -299,7 +299,8 @@ class Plot(DataClassDictMixin):
     Example plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal:
     >>> cli plot --config <file> --x loss_step --y loss --type terminal --theme clear
     """
-    config: list[pathlib.Path] # Path of config file in format [yaml, json, python].
+    config: list[pathlib.Path] | None = None # Path of config file in format [yaml, json, python].
+    history: list[pathlib.Path] | None = None # Direct path to history file of metrics to plot.
     # type: Literal['terminal', 'matplotlib'] = 'terminal'
     x: str # X-axis data key.
     y: str # Y-axis data key.
@@ -314,19 +315,32 @@ class Plot(DataClassDictMixin):
     def __call__(self):
         return self.main()
     
+    def __post_init__(self):
+        # Ensure that either config or history file list was given.
+        assert self.config or self.history, "must provide either list of configurations or direct list of history files"
+        
+        ### Create a map from unique keys to data source.
+        self.source_map: dict[str, pathlib.Path | algorithm.Algorithm] = {}
+        #
+        # Data source is a config object.
+        if self.config:
+            cfgs = {cfg_path.stem: load_algo_config(path=cfg_path) for cfg_path in self.config}
+            
+            # Ensure all configs have metrics.
+            if any(cfg.metric_manager is None for _,cfg in cfgs.items()):
+                raise ValueError("no metric manager provided for one of the metrics")
+            
+            self.source_map.update(cfgs)
+        # Data source is a direct history file.
+        if self.history:
+            self.source_map.update({path.stem: path for path in self.history})
+    
+    
     def main(self):
         """Used for CLI."""
         pass
     
-    def load_configs(self):
-        # Load config.
-        configs = {cfg_path.stem: load_algo_config(path=cfg_path) for cfg_path in self.config}
-        return configs
-    
-    def prepare_data(self, configs: dict[str, algorithm.Algorithm]):
-        # Ensure all configs have metrics.
-        if any(cfg.metric_manager is None for _,cfg in configs.items()):
-            raise ValueError("no metric manager provided for one of the metrics")
+    def prepare_data(self, source_map: dict[str, pathlib.Path | algorithm.Algorithm]):
         
         # X/Y data.
         data_dict = {
@@ -334,12 +348,18 @@ class Plot(DataClassDictMixin):
             'y': {},
         }
         
-        for key, cfg in configs.items():
-            # Load metrics.
-            metric_manager = cfg.metric_manager
-            metric_manager.load()
-            metrics = metric_manager.get_metrics()
+        for key, src in source_map.items():
+            # Load metrics from config object.
+            if isinstance(src, algorithm.Algorithm):
+                metric_manager = src.metric_manager # It cannot be None here because we check in main.
+                metric_manager.load()
+                metrics = metric_manager.get_metrics()
+            # Load metrics from history file.
+            elif isinstance(src, pathlib.Path):
+                history_list = tools.load_train_results(src)
+                metrics = tools.listofdict_to_dictoflist(history_list)
             
+            # Ensure desired keys are present.
             if self.x not in metrics:
                 raise ValueError(f"ERROR:X-axis key {self.x} not found in metrics file")
             if self.y not in metrics:
@@ -354,7 +374,7 @@ class Plot(DataClassDictMixin):
             self.x_min = max(x_data.min() for _, x_data in data_dict['x'].items())
             self.x_max = min(x_data.max() for _, x_data in data_dict['x'].items())
             # Clip X-axis data for all configs.
-            for key in configs.keys():
+            for key in source_map.keys():
                 # Clip X min.
                 idx = data_dict['x'][key] >= self.x_min
                 data_dict['x'][key] = data_dict['x'][key][idx]
@@ -365,7 +385,7 @@ class Plot(DataClassDictMixin):
                 data_dict['y'][key] = data_dict['y'][key][idx]
         
         # Apply any clipping on data after sync.
-        for key in configs.keys():
+        for key in source_map.keys():
             # Clip X-axis data.
             if self.x_min is not None:
                 idx = data_dict['x'][key] >= self.x_min
@@ -408,17 +428,14 @@ class PlotMatplotlib(Plot):
 
     def main(self) -> MatplotlibFigure:
         
-        # Load config.
-        configs = self.load_configs()
-        
         # Get data.
-        data_dict = self.prepare_data(configs=configs)
+        data_dict = self.prepare_data(source_map=self.source_map)
         
-        colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
+        colors = {key: color for color, key in zip(self.color or [None]*len(self.source_map), self.source_map.keys())}
         
         if self.zorder is None:
-            self.zorder = {key: i for i, key in enumerate(configs)}
-        if len(self.zorder) != len(configs):
+            self.zorder = {key: i for i, key in enumerate(self.source_map)}
+        if len(self.zorder) != len(self.source_map):
             raise ValueError(f"Length of zorder must match number of configurations.")
         
         # Plot.
@@ -431,7 +448,7 @@ class PlotMatplotlib(Plot):
         fig = plt.figure(**self.figure_kwargs)
         
         # Plot data in each file.
-        for i, key in enumerate(configs.keys()):
+        for i, key in enumerate(self.source_map.keys()):
             if self.stats:
                 label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
             else:
@@ -460,20 +477,18 @@ class PlotPlotext(Plot):
     color: list[str] | None = None # Plot line color.
 
     def main(self):
-        # Load config.
-        configs = self.load_configs()
         
         # Get data.
-        data_dict = self.prepare_data(configs=configs)
+        data_dict = self.prepare_data(source_map=self.source_map)
         
-        colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
+        colors = {key: color for color, key in zip(self.color or [None]*len(self.source_map), self.source_map.keys())}
         
         import plotext as plt
 
         plt.theme(theme=self.theme or "pro")
 
         # Plot data in each file.
-        for key in configs.keys():
+        for key in self.source_map.keys():
             if self.stats:
                 label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
             else:
@@ -502,7 +517,8 @@ class PlotLive(DataClassDictMixin):
     Example live plot X-axis "loss_step" and Y-axis "loss" metric keys using "clear" style in terminal with an update inveral of "1" seconds and only show the last 200 data points:
     >>> cli plot-live --config <file> --x loss_step --y loss --show-last-n 200 --sleep 1 --theme clear
     """
-    config: list[pathlib.Path] # Path of config file in format [yaml, json, python].
+    config: list[pathlib.Path] | None = None # Path of config file in format [yaml, json, python].
+    history: list[pathlib.Path] | None = None # Direct path to history file of metrics to plot.
     x: str # X-axis data key.
     y: str # Y-axis data key.
     sleep: float = 1.0 # Sleep interval in seconds.
@@ -516,14 +532,29 @@ class PlotLive(DataClassDictMixin):
     sync: bool = False # Synchronize X and Y axis data ranges to what is available across all configs.
     stats: bool = False # Report min/max/mean statistics in plot label.
     
-    def main(self):
-        # Load config.
-        configs = {cfg_path.stem: load_algo_config(path=cfg_path) for cfg_path in self.config}
-        colors = {key: color for color, key in zip(self.color or [None]*len(self.config), configs.keys())}
+    def __post_init__(self):
+        # Ensure that either config or history file list was given.
+        assert self.config or self.history, "must provide either list of configurations or direct list of history files"
         
-        # Ensure all configs have metrics.
-        if any(cfg.metric_manager is None for _,cfg in configs.items()):
-            raise ValueError("no metric manager provided for one of the metrics")
+        ### Create a map from unique keys to data source.
+        self.source_map: dict[str, pathlib.Path | algorithm.Algorithm] = {}
+        #
+        # Data source is a config object.
+        if self.config:
+            cfgs = {cfg_path.stem: load_algo_config(path=cfg_path) for cfg_path in self.config}
+            
+            # Ensure all configs have metrics.
+            if any(cfg.metric_manager is None for _,cfg in cfgs.items()):
+                raise ValueError("no metric manager provided for one of the metrics")
+            
+            self.source_map.update(cfgs)
+        # Data source is a direct history file.
+        if self.history:
+            self.source_map.update({path.stem: path for path in self.history})
+    
+    def main(self):
+        
+        colors = {key: color for color, key in zip(self.color or [None]*len(self.source_map), self.source_map.keys())}
         
         # X/Y data.
         data_dict = {
@@ -534,7 +565,7 @@ class PlotLive(DataClassDictMixin):
         import plotext as plt
         plt.theme(theme=self.theme)
         
-        metric_dirs = [cfg.metric_manager.metric_dir for key, cfg in configs.items()]
+        metric_sources = [src.metric_manager.metric_dir if isinstance(src, algorithm.Algorithm) else src for _, src in self.source_map.items()]
         
         try:
             while True:
@@ -544,11 +575,16 @@ class PlotLive(DataClassDictMixin):
                 w, h = plt.terminal_size()
                 plt.plot_size(w, h-1) # Automatically resize (use -1 to include space for title).
                 
-                for key, cfg in configs.items():
-                    # Load new data.
-                    metric_manager = cfg.metric_manager
-                    metric_manager.load()
-                    metrics = metric_manager.get_metrics()
+                for key, src in self.source_map.items():
+                    # Load metrics from config object.
+                    if isinstance(src, algorithm.Algorithm):
+                        metric_manager = src.metric_manager # It cannot be None here because we check in main.
+                        metric_manager.load()
+                        metrics = metric_manager.get_metrics()
+                    # Load metrics from history file.
+                    elif isinstance(src, pathlib.Path):
+                        history_list = tools.load_train_results(src)
+                        metrics = tools.listofdict_to_dictoflist(history_list)
                     
                     if self.x not in metrics:
                         print(f"ERROR:X-axis key {self.x} not found in metrics file", file=sys.stderr)
@@ -566,7 +602,7 @@ class PlotLive(DataClassDictMixin):
                     x_min = max(x_data.min() for _, x_data in data_dict['x'].items())
                     x_max = min(x_data.max() for _, x_data in data_dict['x'].items())
                     # Clip X-axis data for all configs.
-                    for key in configs.keys():
+                    for key in self.source_map.keys():
                         # Clip X min.
                         idx = data_dict['x'][key] >= x_min
                         data_dict['x'][key] = data_dict['x'][key][idx]
@@ -577,7 +613,7 @@ class PlotLive(DataClassDictMixin):
                         data_dict['y'][key] = data_dict['y'][key][idx]
 
                 # Apply any clipping on data after sync.
-                for key in configs.keys():
+                for key in self.source_map.keys():
                     # Clip X-axis data.
                     if self.x_min is not None:
                         idx = data_dict['x'][key] >= self.x_min
@@ -604,7 +640,7 @@ class PlotLive(DataClassDictMixin):
                         data_dict['y'][key] = data_dict['y'][key][-self.show_last_n:]
                 
                 # Plot data in each file.
-                for key in configs.keys():
+                for key in self.source_map.keys():
                     if self.stats:
                         label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
                     else:
@@ -620,7 +656,7 @@ class PlotLive(DataClassDictMixin):
                 plt.show()
                 
                 # Blocking wait for next file change.
-                if not tools.wait_for_list_of_file_change(metric_dirs, interval=self.sleep):
+                if not tools.wait_for_list_of_file_change(metric_sources, interval=self.sleep):
                     return
                 
         except KeyboardInterrupt:
