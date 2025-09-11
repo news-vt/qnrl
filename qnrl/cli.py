@@ -152,18 +152,15 @@ class DumpAlgorithm(DataClassDictMixin):
 @dataclass(kw_only=True)
 class StoreHash(DataClassDictMixin):
     """Store a given configuration to hash file."""
-    store: pathlib.Path # Path of JSON store file to use.
+    store: HashStore = field(default_factory=HashStore) # Path of JSON hash store file to use.
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     
     def main(self):
         # Load config.
         config = load_algo_config(path=self.config)
         
-        # Create hash store.
-        store = HashStore(path=self.store)
-        
         # Generate hash for the current algorithm configuration and store it for later retrieval.
-        cfg_hash, _ = store.store_obj(config)
+        cfg_hash, _ = self.store.store_obj(config)
         
         # Display the hash string.
         print(cfg_hash)
@@ -172,15 +169,13 @@ class StoreHash(DataClassDictMixin):
 @dataclass(kw_only=True)
 class DumpHash(DataClassDictMixin):
     """Dump a given configuration based on UUID key from hash file."""
-    store: pathlib.Path # Path of JSON store file to use.
+    store: HashStore = field(default_factory=HashStore) # Path of JSON hash store file to use.
     key: str # Path of config file in format [yaml, json, python].
     format: DumpFormat
     
     def main(self):
-        # Create hash store.
-        store = HashStore(path=self.store)
         
-        config_serialized = store.get(self.key)
+        config_serialized = self.store.get(self.key)
         if config_serialized is not None:
             
             # Load config as dictionary.
@@ -201,15 +196,13 @@ class DumpHash(DataClassDictMixin):
 @dataclass(kw_only=True)
 class ListHash(DataClassDictMixin):
     """List all configurations stored in hash file."""
-    store: pathlib.Path # Path of JSON store file to use.
+    store: HashStore = field(default_factory=HashStore) # Path of JSON hash store file to use.
     format: DumpFormat
     
     def main(self):
-        # Create hash store.
-        store = HashStore(path=self.store)
         
         # Create dictionary of hashes and config dictionary objects.
-        data = {cfg_hash: json.loads(cfg_serialized) for cfg_hash, cfg_serialized in store.items()}
+        data = {cfg_hash: json.loads(cfg_serialized) for cfg_hash, cfg_serialized in self.store.items()}
         
         # Dump all the configs at once.
         match self.format:
