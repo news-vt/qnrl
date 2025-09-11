@@ -241,13 +241,32 @@ class Hash(DataClassDictMixin):
 class Train(DataClassDictMixin):
     """Run training algorithm using the given config."""
     config: pathlib.Path # Path of config file in format [yaml, json, python].
+    store: HashStore = field(default_factory=HashStore) # Path of JSON hash store file to use.
+    dir: pathlib.Path = pathlib.Path("./") # Path to directory where to store training history, which will be named according to the hash of the training configuration. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
+    history_file_type: Literal['.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'] = '.json'
     
     def main(self):
+        assert self.history_file_type in ('.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'), "unsupported history file type"
+        
         # Load config.
         config = load_algo_config(path=self.config)
         
+        # Create output directory if it does not exist.
+        self.dir.mkdir(parents=True)
+        
+        # Generate a hash for the configuration.
+        cfg_hash = self.store.compute_hash(config)
+        
         # Run training algorithm.
-        config.train()
+        history_list = config.train()
+        
+        # Save train results based on hash.
+        metric_filepath = self.dir / f"{cfg_hash}{self.history_file_type}"
+        tools.save_train_results(metric_filepath, history_list)
+        
+        # Inform the user what just happened.
+        print(f"Config hash: {cfg_hash}")
+        print(f"Train history: {metric_filepath}")
 
 
 @dataclass(kw_only=True)
