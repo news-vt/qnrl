@@ -77,6 +77,8 @@ class HashStore(DataClassDictMixin):
     
     def store(self, obj_hash: str, obj_str: str) -> tuple[str, str]:
         """Record serialized object JSON string via unique UUID hash in store designated by JSON file path."""
+        # Ensure object to store is a string.
+        assert isinstance(obj_str, str), "only strings can be stored"
         # Ensure path is a true `pathlib.Path` object.
         path = pathlib.Path(self.path)
         # Ensure file path is JSON.
