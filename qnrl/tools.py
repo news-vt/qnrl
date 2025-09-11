@@ -311,7 +311,7 @@ def density_matrix(state: jax.Array) -> jax.Array:
 
 def is_unitary(m: jax.Array):
     """Check if a given matrix is unitary."""
-    return jnp.allclose(jnp.eye(m.shape[0]), m * m.T.conj())
+    return jnp.allclose(jnp.eye(m.shape[0], dtype=m.dtype), m @ m.conj().T, **kwargs)
 
 def is_hermitian(m: jax.Array):
     """Check if a given matrix is Hermitian."""
