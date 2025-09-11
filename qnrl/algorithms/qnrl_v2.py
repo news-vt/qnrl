@@ -478,8 +478,8 @@ def update_complex_uniformaction(
 @partial(nnx.jit, static_argnames=['target_type'])
 def update_complex_spread(
     optimizer: nnx.Optimizer,
-    model_policy: QuantumNativeQNetworkSplit_v3,
-    model_target: QuantumNativeQNetworkSplit_v3,
+    model_policy: 'QuantumNativeQNetworkSplit_v4',
+    model_target: 'QuantumNativeQNetworkSplit_v4',
     observations: jax.Array,
     actions: jax.Array,
     action_pmfs: jax.Array,
@@ -499,21 +499,23 @@ def update_complex_spread(
     z_min = model_policy.z_min
     z_max = model_policy.z_max
     
-    # Generate return PMF for next observation, which is weighted based on expectation for each action.
-    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
-    match target_type:
-        case 'greedy':
-            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
-            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
-            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
-            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
-            next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
-        case 'stochastic':
-            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
-            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
-            next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
-        case _:
-            raise ValueError(f"Unsupported target type {target_type}")
+    # #########################
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    # ##########################
 
     ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
     # 
@@ -546,11 +548,27 @@ def update_complex_spread(
     
     U = jax.vmap(project_to_bins)(jnp.zeros((batch_size,num_atoms,num_atoms), dtype='complex'), l, u, dml_scalar, dmu_scalar)
     
-    # Target PMF is the shifted `tz` "spread" onto the support of the original atoms.
-    # Since rho spans both action + return qubits we need to apply Identity to the action qubits too. So, do a Kronecker product to create a combined operator.
-    I = jnp.identity(n=2**d_actions)
-    I_U = jnp.kron(I, U) # I ⊗ U
-    target_rho = jax.vmap(lambda M, rho: M @ rho @ M.conj().T)(M=I_U, rho=next_rho)
+    # # Target PMF is the shifted `tz` "spread" onto the support of the original atoms.
+    # # Since rho spans both action + return qubits we need to apply Identity to the action qubits too. So, do a Kronecker product to create a combined operator.
+    # I = jnp.identity(n=2**d_actions)
+    # I_U = jnp.kron(I, U) # I ⊗ U
+    # target_rho = jax.vmap(lambda M, rho: M @ rho @ M.conj().T)(M=I_U, rho=next_rho)
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    match target_type:
+        case 'greedy':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_actions_onehot, U)
+        case 'stochastic':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+        case _:
+            raise ValueError(f"Unsupported target type {target_type}")
     
     # jax.debug.print("tz = {}", tz[0])
     # jax.debug.print("b = {}", b[0])
