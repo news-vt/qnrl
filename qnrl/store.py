@@ -55,11 +55,10 @@ class HashStore(DataClassDictMixin):
         obj_hash = uuid.uuid5(namespace=uuid.NAMESPACE_OID, name=obj_str)
         return str(obj_hash), obj_str
 
-    @staticmethod
-    def load(path: pathlib.Path | str) -> dict[str, str]:
-        """Load contents of config storage file designated by JSON file path."""
+    def load(self) -> dict[str, str]:
+        """Retrieve all object JSON strings and associated unique UUID hashes from store."""
         # Ensure path is a true `pathlib.Path` object.
-        path = pathlib.Path(path)
+        path = pathlib.Path(self.path)
         # Ensure file path is JSON.
         assert path.suffix == '.json', "store file path must have extension `.json`"
         # Lock file access.
@@ -69,11 +68,10 @@ class HashStore(DataClassDictMixin):
                 # Decode file contents as JSON data.
                 return json.load(f)
     
-    @staticmethod
-    def store(path: pathlib.Path | str, obj_hash: str, obj_str: str) -> tuple[str, str]:
+    def store(self, obj_hash: str, obj_str: str) -> tuple[str, str]:
         """Record serialized object JSON string via unique UUID hash in store designated by JSON file path."""
         # Ensure path is a true `pathlib.Path` object.
-        path = pathlib.Path(path)
+        path = pathlib.Path(self.path)
         # Ensure file path is JSON.
         assert path.suffix == '.json', "store file path must have extension `.json`"
         # Lock file access.
@@ -90,11 +88,18 @@ class HashStore(DataClassDictMixin):
                 # Return the hash and serialized string.
                 return obj_hash, obj_str
     
-    @staticmethod
-    def remove(path: pathlib.Path | str, obj_hash: str, default = None) -> tuple[str, str]:
+    def store_obj(self, obj: DataClassDictMixin) -> tuple[str, str]:
+        """Automatically generate unique hash for object and store it.
+        
+        Returns `(obj_hash, obj_str)`.
+        """
+        obj_hash, obj_str = self.compute_hash(obj)
+        return self.store(obj_hash=obj_hash, obj_str=obj_str)
+    
+    def remove(self, obj_hash: str, default = None) -> tuple[str, str]:
         """Remove a serialized object via unique UUID hash in store designated by JSON file path."""
         # Ensure path is a true `pathlib.Path` object.
-        path = pathlib.Path(path)
+        path = pathlib.Path(self.path)
         # Ensure file path is JSON.
         assert path.suffix == '.json', "store file path must have extension `.json`"
         # Lock file access.
@@ -110,27 +115,6 @@ class HashStore(DataClassDictMixin):
                 json.dump(objs, f)
                 # Return the hash and serialized string.
                 return obj_hash, obj_str
-
-    def store_obj_by_hash(self, obj_hash: str, obj_str: str) -> tuple[str, str]:
-        """Record serialized object JSON string via unique UUID hash in store."""
-        return self.store(path=self.path, obj_hash=obj_hash, obj_str=obj_str)
-
-    def store_obj(self, obj: DataClassDictMixin) -> tuple[str, str]:
-        """Automatically generate unique hash for object and store it.
-        
-        Returns `(obj_hash, obj_str)`.
-        """
-        obj_hash, obj_str = self.compute_hash(obj)
-        return self.store_obj_by_hash(obj_hash=obj_hash, obj_str=obj_str)
-
-    def get_config_from_hash(self, obj_hash: str) -> str:
-        """Retrieve object JSON string from unique UUID hash in store."""
-        objs = self.load(path=self.path)
-        return objs[obj_hash]
-
-    def get_all(self) -> dict[str, str]:
-        """Retrieve all object JSON strings and associated unique UUID hashes from store."""
-        return self.load(path=self.path)
     
     def exists(self, hash_or_obj: str | DataClassDictMixin) -> bool:
         """Check if an object or hash exists in store.
@@ -143,12 +127,12 @@ class HashStore(DataClassDictMixin):
             obj_hash = hash_or_obj
         else:
             raise ValueError(f"unsupported type for object {hash_or_obj}")
-        objs = self.load(path=self.path)
+        objs = self.load()
         return obj_hash in objs
     
     def dumps(self) -> str:
         """Dump store as JSON string."""
-        objs = self.load(path=self.path)
+        objs = self.load()
         return json.dumps(objs)
     
     def dump(self) -> list[tuple[str, str]]:
@@ -156,47 +140,48 @@ class HashStore(DataClassDictMixin):
         return json.loads(self.dumps())
     
     def get(self, obj_hash: str, default = None):
-        """Safe retrieval with default if no key is present."""
+        """Retrieve object JSON string from unique UUID hash in store, with default if not key is present."""
         try:
-            return self.get_config_from_hash(obj_hash)
+            objs = self.load()
+            return objs[obj_hash]
         except:
             return default
     
     def items(self):
         """Get hash store items as alias of `dict.items()`."""
-        return self.get_all().items()
+        return self.load().items()
     
     def values(self):
         """Get hash store values as alias of `dict.values()`."""
-        return self.get_all().values()
+        return self.load().values()
     
     def keys(self):
         """Get hash store keys as alias of `dict.keys()`."""
-        return self.get_all().keys()
+        return self.load().keys()
     
     def pop(self, obj_hash: str, default = None):
         """Remove object associated with unique hash string and return the object if it exists, or return the specified default otherwise."""
         try:
-            _, cfg_str = self.remove(path=self.path, obj_hash=obj_hash, default=default)
+            _, cfg_str = self.remove(obj_hash=obj_hash, default=default)
             return cfg_str
-        except Exception as e:
-            raise e
+        except:
             return default
     
     def __iter__(self):
         """Iterate over all serialized objects and their hashes in database."""
-        yield from self.get_all()
+        yield from self.load()
     
     def __getitem__(self, obj_hash: str) -> str:
         """Retrieve serialized object string from unique hash string like dictionary key."""
         try:
-            return self.get_config_from_hash(obj_hash)
+            objs = self.load()
+            return objs[obj_hash]
         except:
             raise KeyError(obj_hash)
     
     def __delitem__(self, obj_hash: str):
         """Remove object associated with unique hash string."""
-        self.remove(path=self.path, obj_hash=obj_hash)
+        self.remove(obj_hash=obj_hash)
     
     def __setitem__(self, obj_hash: str, obj: str | DataClassDictMixin):
         """Store object -- either as string or serializable object -- associated with unique hash string."""
@@ -204,7 +189,7 @@ class HashStore(DataClassDictMixin):
             obj_str = self.serialize(obj)
         else:
             obj_str = obj
-        self.store_obj_by_hash(obj_hash=obj_hash, obj_str=obj_str)
+        self.store(obj_hash=obj_hash, obj_str=obj_str)
     
     def __contains__(self, hash_or_obj: str | DataClassDictMixin) -> bool:
         """Check if an object or hash exists within the store.
@@ -215,4 +200,9 @@ class HashStore(DataClassDictMixin):
     
     def __len__(self) -> int:
         """Get total number of elements in store."""
-        return len(self.get_all())
+        return len(self.load())
+    
+    def __repr__(self) -> str:
+        """Represent the store as a dictionary string."""
+        objs = self.load()
+        return repr(objs)
