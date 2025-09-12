@@ -333,3 +333,10 @@ def is_diagonal(m: jax.Array, tol: float = 1e-5):
 def is_pure(m: jax.Array, **kwargs):
     """Check if a density matrix is pure by $Tr(m^2) = Tr(m)$."""
     return jnp.allclose(jnp.trace(m @ m.conj().T), jnp.trace(m), **kwargs)
+
+def purity(m: jax.Array):
+    """Compute the purity of a density matrix by $Tr(m^2) \in [0, 1]$.
+    
+    A density matrix is pure if $Tr(m^2) = 1$, and is mixed if $Tr(m^2) < 1$.
+    """
+    return jnp.trace(m @ m.conj().T)
