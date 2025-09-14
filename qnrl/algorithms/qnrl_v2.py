@@ -154,7 +154,7 @@ def update(
     rewards: jax.Array,
     dones: jax.Array,
     gamma: float,
-    target_type: Literal['greedy', 'stochastic'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
     ):
     """Update using quantum loss."""
     
@@ -236,7 +236,7 @@ def update_complex(
     rewards: jax.Array,
     dones: jax.Array,
     gamma: float,
-    target_type: Literal['greedy', 'stochastic'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
     ):
     """Update using complex density matrix from target."""
     
@@ -323,7 +323,7 @@ def update_complex_realign(
     rewards: jax.Array,
     dones: jax.Array,
     gamma: float,
-    target_type: Literal['greedy', 'stochastic'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
     ):
     """Update using complex density matrix from target."""
     
@@ -425,7 +425,7 @@ def update_complex_uniformaction(
     rewards: jax.Array,
     dones: jax.Array,
     gamma: float,
-    target_type: Literal['greedy', 'stochastic'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
     ):
     """Update using complex density matrix from target."""
     
@@ -487,7 +487,7 @@ def update_complex_spread(
     rewards: jax.Array,
     dones: jax.Array,
     gamma: float,
-    target_type: Literal['greedy', 'stochastic'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
     ):
     """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
     
@@ -567,6 +567,9 @@ def update_complex_spread(
             next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
             # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
             target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+        case 'uniform':
+            next_action_pmfs = jnp.ones((actions.shape[0], 2**d_actions)) # Uniform actions.
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
         case _:
             raise ValueError(f"Unsupported target type {target_type}")
     
@@ -593,8 +596,8 @@ def update_complex_spread(
         model=model_policy,
         observations=observations,
         # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
-        action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
-        # action_pmfs=jnp.ones((actions.shape[0], 2)), # Uniform actions.
+        # action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
+        action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
         rho=target_rho,
         )
     # 
@@ -628,7 +631,7 @@ def train(
     eps_end: float,
     eps_exploration: float,
     policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
-    target_type: Literal['greedy', 'stochastic'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
     checkpoint_manager: ocp.CheckpointManager | None = None,
     metric_manager: MetricManager | None = None,
     return_buffer: bool = False,
@@ -870,7 +873,7 @@ class QnRL_v2(Algorithm):
     model: QuantumNativeQNetworkSplit
     optimizer: OptimizerTransform
     policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy']
-    target_type: Literal['greedy', 'stochastic']
+    target_type: Literal['greedy', 'stochastic', 'uniform']
     buffer_size: int = 10_000
     seed: int = 0
     batch_size: int = 128
