@@ -595,9 +595,9 @@ def update_complex_spread(
     loss, grads = nnx.value_and_grad(quantum_loss)(
         model=model_policy,
         observations=observations,
-        # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
         # action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
-        action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
+        # action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
         rho=target_rho,
         )
     # 
