@@ -342,7 +342,7 @@ def purity(m: jax.Array):
     """
     return jnp.trace(m @ m.conj().T)
 
-def vn_entropy(rho: jax.Array, *, base: float | None = None):
+def vn_entropy(rho: jax.Array, *, base: float | None = None) -> jax.Array:
     r"""Compute the von Neumann entropy of a density matrix rho by: $S(\rho) = -Tr(\rho \log_{2}(\rho))$
     
     Uses the natural logarithm by default. Otherwise, uses the base of the logarithm specified (e.g., `base=2`).
@@ -356,11 +356,11 @@ def vn_entropy(rho: jax.Array, *, base: float | None = None):
     else:
         log_base = jnp.log(base)
     
-    def compute_eigenvalues(m: jax.Array):
+    def compute_eigenvalues(m: jax.Array) -> jax.Array:
         # Compute eigenvalues for matrix.
         eigenvalues = jnp.linalg.eigvalsh(rho)
         # Filter out zero eigenvalues (so that the logarithm is defined).
-        eigenvalues = jnp.where(eigenvalues > 0., eigenvalues, 1.)
+        eigenvalues: jax.Array = jnp.where(eigenvalues > 0., eigenvalues, 1.)
         return eigenvalues
 
     eigenvalues_rho = compute_eigenvalues(rho)
