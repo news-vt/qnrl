@@ -17,6 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 import yaml
 from mashumaro import DataClassDictMixin
+import scipy.linalg
 
 # Generic type for Flax NNX module.
 M = TypeVar('M', bound=nnx.Module)
@@ -335,8 +336,33 @@ def is_pure(m: jax.Array, **kwargs):
     return jnp.allclose(jnp.trace(m @ m.conj().T), jnp.trace(m), **kwargs)
 
 def purity(m: jax.Array):
-    """Compute the purity of a density matrix by $Tr(m^2) \in [0, 1]$.
+    r"""Compute the purity of a density matrix by $Tr(m^2) \in [0, 1]$.
     
     A density matrix is pure if $Tr(m^2) = 1$, and is mixed if $Tr(m^2) < 1$.
     """
     return jnp.trace(m @ m.conj().T)
+
+def vn_entropy(rho: jax.Array, *, base: float | None = None):
+    r"""Compute the von Neumann entropy of a density matrix rho by: $S(\rho) = -Tr(\rho \log_{2}(\rho))$
+    
+    Uses the natural logarithm by default. Otherwise, uses the base of the logarithm specified (e.g., `base=2`).
+    """
+    assert len(rho.shape) == 2 and rho.shape[0] == rho.shape[1], "density matrix must be square"
+    
+    # Natural log.
+    if base is None:
+        log_base = 1.
+    # All other logarithms.
+    else:
+        log_base = jnp.log(base)
+    
+    def compute_eigenvalues(m: jax.Array):
+        # Compute eigenvalues for matrix.
+        eigenvalues = jnp.linalg.eigvalsh(rho)
+        # Filter out zero eigenvalues (so that the logarithm is defined).
+        eigenvalues = jnp.where(eigenvalues > 0., eigenvalues, 1.)
+        return eigenvalues
+
+    eigenvalues_rho = compute_eigenvalues(rho)
+    entropy = -(eigenvalues_rho @ (jnp.log(eigenvalues_rho) / log_base))
+    return entropy
