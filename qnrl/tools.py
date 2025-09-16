@@ -256,6 +256,12 @@ def restore_model_from_checkpointmanager(
     return model
 
 
+def get_model_total_parameter_count(model: nnx.Module) -> int:
+    """Return the total number of parameters within a Flax NNX module."""
+    params = nnx.state(model, nnx.Param)
+    return sum(jnp.prod(jnp.array(x.shape, dtype=int)) for x in jax.tree.leaves(params)).item()
+
+
 def load_python_module_from_filepath(path: pathlib.Path) -> types.ModuleType:
     """Load a Python module from filepath."""
     mod_name = f"{path.stem}"
