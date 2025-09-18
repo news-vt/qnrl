@@ -2,7 +2,6 @@
 *.db
 checkpoints/
 metrics/
-*.lock
 
 # Ignore macOS specific files.
 .DS_Store
