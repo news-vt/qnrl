@@ -475,7 +475,7 @@ def update_complex_uniformaction(
     return loss
 
 
-@partial(nnx.jit, static_argnames=['target_type'])
+@partial(nnx.jit, static_argnames=['policy_type', 'target_type'])
 def update_complex_spread(
     optimizer: nnx.Optimizer,
     model_policy: 'QuantumNativeQNetworkSplit_v4',
@@ -487,6 +487,7 @@ def update_complex_spread(
     rewards: jax.Array,
     dones: jax.Array,
     gamma: float,
+    policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
     target_type: Literal['greedy', 'stochastic', 'uniform'],
     ):
     """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
@@ -573,14 +574,6 @@ def update_complex_spread(
         case _:
             raise ValueError(f"Unsupported target type {target_type}")
     
-    # jax.debug.print("tz = {}", tz[0])
-    # jax.debug.print("b = {}", b[0])
-    # jax.debug.print("l = {}", l[0])
-    # jax.debug.print("u = {}", u[0])
-    # jax.debug.print("dml_scalar = {}", dml_scalar[0])
-    # jax.debug.print("dmu_scalar = {}", dmu_scalar[0])
-    # jax.debug.print("||U p U*||_2 = {}", jnp.linalg.norm(target_rho[0], ord=2))
-    # jax.debug.print("||U p U*||_2 == 1 ? {}", jnp.all(jnp.isclose(jax.vmap(lambda r: jnp.linalg.norm(r, ord=2))(r=target_rho), 1.)))
     
     def quantum_loss(model, observations, action_pmfs, rho):
         # psi = jnp.sqrt(target_pmfs) # State amplitudes.
@@ -590,21 +583,40 @@ def update_complex_spread(
         # jax.debug.print("hermitian_loss = {}", hermitian_loss)
         loss = (1. - hermitian_loss) ** 2.
         return loss.mean()
-
-    # 
+    #
     loss, grads = nnx.value_and_grad(quantum_loss)(
         model=model_policy,
         observations=observations,
-        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions) if policy_type == 'greedy' else action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
         # action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
         # action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
         rho=target_rho,
         )
-    # 
-    # uniform_action_pmfs = 1./action_pmfs.shape[-1] * jnp.ones_like(action_pmfs)
-    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=uniform_action_pmfs, rho=next_rho)
     
-    # jax.debug.print("grads = {}", grads) 
+    ##########
+    
+    # # Categorical cross-entropy loss.
+    # def cross_entropy_loss(model, observations, action_pmfs, y):
+    #     # batch_idx = jnp.arange(x.shape[0])
+    #     # y_hat = model(x)
+    #     # # Get the return-atom distribution corresponding to the given actions.
+    #     # y_hat = y_hat[batch_idx, actions.squeeze()] # (batch_size, n_atoms)
+    #     # 
+    #     # y_hat = model.call_gen_return_dist(x) # (batch_size, n_atoms)
+    #     y_hat = model.call_gen_return_dist_NEW(observations, action_pmfs) # (batch_size, n_atoms)
+    #     # 
+    #     y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+    #     loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
+    #     return loss.mean()
+    # #
+    # loss, grads = nnx.value_and_grad(cross_entropy_loss)(
+    #     model=model_policy,
+    #     observations=observations,
+    #     action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+    #     y=target_pmfs,
+    #     )
+
 
     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
     
@@ -749,6 +761,7 @@ def train(
                         rewards=minibatch.rewards,
                         dones=minibatch.dones,
                         gamma=gamma,
+                        policy_type=policy_type,
                         target_type=target_type,
                     )
                     
