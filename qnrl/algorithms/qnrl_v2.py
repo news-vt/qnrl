@@ -577,8 +577,11 @@ def update_complex_spread_hermitian(
     
     def quantum_loss(model, observations, action_pmfs, rho):
         hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        # jax.debug.print("hermitian_loss = {}", hermitian_loss)
         # loss = (1. - hermitian_loss) ** 2.
-        loss = 1. - (hermitian_loss ** 2.)
+        #
+        # loss = 1. - (hermitian_loss ** 2.) # Best performance so far.
+        loss = (1. - jnp.abs(hermitian_loss)) ** 2. # Not as stable.
         return loss.mean()
     #
     loss, grads = nnx.value_and_grad(quantum_loss)(
