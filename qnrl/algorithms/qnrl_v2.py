@@ -580,8 +580,9 @@ def update_complex_spread_hermitian(
         # jax.debug.print("hermitian_loss = {}", hermitian_loss)
         # loss = (1. - hermitian_loss) ** 2.
         #
-        loss = 1. - (hermitian_loss ** 2.) # Best performance so far.
+        # loss = 1. - (hermitian_loss ** 2.) # Best performance so far, but sometimes the loss is negative.
         # loss = (1. - jnp.abs(hermitian_loss)) ** 2. # Not as stable.
+        loss = hermitian_loss ** 2. # Optimize towards Hermitian expectation of zero.
         return loss.mean()
     #
     loss, grads = nnx.value_and_grad(quantum_loss)(
