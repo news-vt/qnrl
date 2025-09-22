@@ -24,6 +24,7 @@ from ..modules import SerializableModule
 from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer
 from ..metric import MetricManager
+from ..tools import restore_model_from_checkpointmanager
 
 # https://docs.cleanrl.dev/rl-algorithms/c51/#implemented-variants
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/c51_jax.py
@@ -299,6 +300,67 @@ def train(
     return history
 
 
+def eval(
+    seed: int,
+    env: gym.Env,
+    model_policy: nnx.Module,
+    atoms: jax.Array,
+    total_timesteps: int, # Max number of training steps.
+    ) -> list:
+
+    # Apply several additional wrappers on the environment to ensure functionality.
+    env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
+    
+    # Seed random generators.
+    np.random.seed(seed)
+    env.action_space.seed(seed)
+    key = jax.random.PRNGKey(seed)
+    key, subkey = jax.random.split(key)
+    
+    history = []
+
+    observation, _ = env.reset() # Reset the environment.
+    
+    # Iteratively step through environment.
+    pbar = tqdm(range(total_timesteps), unit='step', leave=True)
+    pbar_postfix = dict() # Current progress bar postfix content.
+    for t in pbar:
+        pmfs = model_policy(observation)
+        q_vals = jnp.sum(pmfs * atoms, axis=-1)
+        action = jnp.argmax(q_vals, axis=-1).item()
+        # 
+        next_observation, reward, done, truncation, info = env.step(action)
+        
+        meta = {
+            'pmfs': pmfs,
+            'action': action,
+            'reward': reward,
+            'observation': observation,
+            'next_observation': next_observation,
+            'done': done,
+        }
+        history.append(meta)
+        
+        # Record episode statistics.
+        if "episode" in info:
+            meta = dict(
+                episode_step=t,
+                episode_reward=info['episode']['r'],
+                episode_length=info['episode']['l'],
+                episode_time=info['episode']['t'],
+            )
+            history.append(meta)
+            pbar_postfix.update(meta)
+            pbar.set_postfix(pbar_postfix)
+        
+        # Update current observation with next observation.
+        observation = next_observation.copy()
+        
+        if done:
+            break
+    
+    return history
+
 
 
 # MARK: C51
@@ -378,4 +440,32 @@ class C51(Algorithm):
             metric_manager=self.metric_manager,
         )
 
+        return history_list
+
+    def eval(self, **kwargs) -> list:
+        
+        # Create the environment.
+        env = self.env.make()
+        
+        # Create models.
+        model_policy = self.model
+        
+        # Create checkpoint manager and restore latest model state (if one exists).
+        if self.checkpoint is not None:
+            checkpoint_manager = self.checkpoint.make()
+            model_policy = restore_model_from_checkpointmanager(model=model_policy, checkpoint_manager=checkpoint_manager)
+        
+        # Create list of return atoms.
+        atoms = jnp.linspace(start=self.z_min, stop=self.z_max, num=self.num_atoms)
+        
+        # Run evaluation.
+        kwargs_default = dict(
+            seed=self.seed,
+            env=env,
+            model_policy=model_policy,
+            atoms=atoms,
+            total_timesteps=self.total_timesteps,
+        )
+        history_list = eval(**{**kwargs_default, **kwargs})
+        
         return history_list
