@@ -21,16 +21,20 @@ dependencies = [
     "orbax-checkpoint~=0.11.0",
     "pennylane~=0.42.0", # Freeze version for compatibility.
     "plotext>=5.3.2",
-    "qiskit>=2.1.2",
     "rich>=14.1.0",
     "scikit-learn>=1.7.2",
     "scipy>=1.16.2",
     "seaborn>=0.13.2",
     "sqlalchemy>=2.0.43",
-    "sympy>=1.14.0",
     "tqdm>=4.67.1",
     "tyro>=0.9.31",
 ]
 
 [tool.setuptools.packages]
 find = { exclude = ["metrics", "figures*", "scripts*", "experiments*", "experiment_output*"] }  # Scanning implicit namespaces is active by default
+
+[dependency-groups]
+dev = [
+    "pylatexenc>=2.10",
+    "qiskit>=2.2.0",
+]
