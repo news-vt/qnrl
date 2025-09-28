@@ -406,7 +406,8 @@ class C51(Algorithm):
         optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)
         
         # Create list of return atoms.
-        atoms = jnp.linspace(start=self.z_min, stop=self.z_max, num=self.num_atoms)
+        # atoms = jnp.linspace(start=self.z_min, stop=self.z_max, num=self.num_atoms)
+        atoms = jnp.asarray(np.linspace(start=self.z_min, stop=self.z_max, num=self.num_atoms))
         
         # Create checkpoint manager.
         if isinstance(self.checkpoint, CheckpointConfig):
