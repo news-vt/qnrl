@@ -71,6 +71,13 @@ class SGD(OptimizerTransform):
             accumulator_dtype=self.accumulator_dtype,
         )
 
+@dataclass(kw_only=True)
+class SetToZero(OptimizerTransform):
+    """Config for `optax.set_to_zero`."""
+    
+    def make(self, *args, **kwargs) -> optax.GradientTransformation:
+        return optax.set_to_zero()
+
 type NestedDictStr = dict[str | int, Union[str | int, NestedDictStr]]
 
 @dataclass(kw_only=True)
@@ -99,4 +106,4 @@ class Partition(OptimizerTransform):
             # param_labels=nnx.State.replace_by_pure_dict(params, self.pytree),
         )
 
-type SupportedOptimizerTransforms = Union[Adam, SGD, Partition]
+type SupportedOptimizerTransforms = Union[Adam, SGD, Partition, SetToZero]
