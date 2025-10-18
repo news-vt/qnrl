@@ -127,6 +127,21 @@ def update(
     
     target_pmfs = jax.vmap(project_to_bins)(jnp.zeros_like(next_pmfs), l, u, dml, dmu)
     
+    idxwhere = jnp.argwhere(tz[:,0] == 1., size=1)
+    # # jax.debug.print("jnp.argwhere(tz[:,0] == 1.): {}", jnp.argwhere(tz[:,0] == 1., size=1))
+    # jax.debug.print("idxwhere: {}", idxwhere)
+    # jax.debug.print("z_min: {}", z_min)
+    # jax.debug.print("z_max: {}", z_max)
+    # jax.debug.print("dz: {}", dz)
+    # jax.debug.print("tz[idxwhere]: {}", tz[idxwhere])
+    # jax.debug.print("b[idxwhere]: {}", b[idxwhere])
+    # jax.debug.print("l[idxwhere]: {}", l[idxwhere])
+    # jax.debug.print("u[idxwhere]: {}", u[idxwhere])
+    # jax.debug.print("dml[idxwhere]: {}", dml[idxwhere])
+    # jax.debug.print("dmu[idxwhere]: {}", dmu[idxwhere])
+    # # jax.debug.print("tz: {}", tz[idxwhere])
+    # jax.debug.print("target_pmfs[idxwhere]: {}", target_pmfs[idxwhere])
+    
     # Categorical cross-entropy loss.
     def cross_entropy_loss(model, x, actions, y):
         batch_idx = jnp.arange(x.shape[0])
@@ -139,6 +154,8 @@ def update(
     
     loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, actions=actions, y=target_pmfs)
     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    # jax.debug.print("grads = {}", grads)
     
     return loss
 
@@ -329,7 +346,7 @@ def eval(
         q_vals = jnp.sum(pmfs * atoms, axis=-1)
         action = jnp.argmax(q_vals, axis=-1).item()
         # 
-        next_observation, reward, done, truncation, info = env.step(action)
+        next_observation, reward, done, truncated, info = env.step(action)
         
         meta = {
             'pmfs': pmfs,
@@ -356,7 +373,7 @@ def eval(
         # Update current observation with next observation.
         observation = next_observation.copy()
         
-        if done:
+        if done or truncated:
             break
     
     return history
