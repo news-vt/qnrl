@@ -8,6 +8,7 @@ authors = [
 requires-python = ">=3.12, <3.13" # Fixing ==3.12 here.
 license = {text = "CC BY 4.0"}
 dependencies = [
+    "ale-py>=0.11.2",
     "deepdiff>=8.6.1",
     "filelock>=3.19.1",
     "flax>=0.11.2",
