@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+from typing import Any, Callable
 
 import jax.numpy as jnp
 import gymnasium as gym
 from mashumaro.mixins.dict import DataClassDictMixin
+import dill
 
 
 # MARK: Environments
@@ -42,7 +44,6 @@ class EnvWrapperConfig(DataClassDictMixin):
         env = self.env.make(**kwargs)
         return env
 
-
 @dataclass(kw_only=True)
 class ScaleObservation(EnvWrapperConfig):
     """Transforms observation via `obs/scale`."""
@@ -52,4 +53,15 @@ class ScaleObservation(EnvWrapperConfig):
         """Wrapper for `gymnasium.make` using config arguments."""
         env = super().make(**kwargs)
         env = gym.wrappers.TransformObservation(env, lambda obs: obs / jnp.array(self.scale), env.observation_space)
+        return env
+
+@dataclass(kw_only=True)
+class ObservationExpandDims(EnvWrapperConfig):
+    """Transforms observation by inserting extra dimension along the given axes using `jax.numpy.expand_dims`."""
+    axis: int | tuple[int,...]
+    
+    def make(self, **kwargs) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = super().make(**kwargs)
+        env = gym.wrappers.TransformObservation(env, lambda obs: jnp.expand_dims(jnp.array(obs), axis=self.axis), env.observation_space)
         return env
