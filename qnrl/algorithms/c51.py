@@ -15,7 +15,7 @@ from flax.training import orbax_utils
 from tqdm import tqdm
 import optax
 import numpy as np
-from typing import Any
+from typing import Any, Callable
 import orbax.checkpoint as ocp
 
 from .algorithm import Algorithm
@@ -323,10 +323,13 @@ def eval(
     model_policy: nnx.Module,
     atoms: jax.Array,
     total_timesteps: int, # Max number of training steps.
+    env_wrappers: list[Callable[[gym.Env], gym.Env]] = [],
     ) -> list:
 
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
+    for wrapper_func in env_wrappers:
+        env = wrapper_func(env)
     
     # Seed random generators.
     np.random.seed(seed)
@@ -375,6 +378,10 @@ def eval(
         
         if done or truncated:
             break
+    
+    # Close environment.
+    # This is necessary if there are wrappers that operate once the environment is clsoed.
+    env.close()
     
     return history
 
