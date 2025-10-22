@@ -23,6 +23,7 @@ class EnvConfig(DataClassDictMixin):
         kwargs = (self.extra_args if self.extra_args is not None else {})
         return gym.make(
             id=self.env_id,
+            render_mode=self.render_mode,
             max_episode_steps=self.max_episode_steps,
             **kwargs,
         )
