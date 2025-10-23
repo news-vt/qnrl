@@ -127,21 +127,6 @@ def update(
     
     target_pmfs = jax.vmap(project_to_bins)(jnp.zeros_like(next_pmfs), l, u, dml, dmu)
     
-    idxwhere = jnp.argwhere(tz[:,0] == 1., size=1)
-    # # jax.debug.print("jnp.argwhere(tz[:,0] == 1.): {}", jnp.argwhere(tz[:,0] == 1., size=1))
-    # jax.debug.print("idxwhere: {}", idxwhere)
-    # jax.debug.print("z_min: {}", z_min)
-    # jax.debug.print("z_max: {}", z_max)
-    # jax.debug.print("dz: {}", dz)
-    # jax.debug.print("tz[idxwhere]: {}", tz[idxwhere])
-    # jax.debug.print("b[idxwhere]: {}", b[idxwhere])
-    # jax.debug.print("l[idxwhere]: {}", l[idxwhere])
-    # jax.debug.print("u[idxwhere]: {}", u[idxwhere])
-    # jax.debug.print("dml[idxwhere]: {}", dml[idxwhere])
-    # jax.debug.print("dmu[idxwhere]: {}", dmu[idxwhere])
-    # # jax.debug.print("tz: {}", tz[idxwhere])
-    # jax.debug.print("target_pmfs[idxwhere]: {}", target_pmfs[idxwhere])
-    
     # Categorical cross-entropy loss.
     def cross_entropy_loss(model, x, actions, y):
         batch_idx = jnp.arange(x.shape[0])
@@ -154,8 +139,6 @@ def update(
     
     loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, actions=actions, y=target_pmfs)
     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
-    
-    # jax.debug.print("grads = {}", grads)
     
     return loss
 
@@ -174,8 +157,8 @@ def train(
     batch_size: int,
     total_timesteps: int, # Max number of training steps.
     learning_starts: int, # Training step index where model training commences.
-    policy_update_frequency: int, # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
-    target_update_frequency: int, # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    policy_update_frequency: int, # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>learning_starts`.
+    target_update_frequency: int, # Apply a target model update every `t % target_update_frequency == 0` steps after `t>learning_starts`.
     gamma: float,
     tau: float,
     eps_start: float,
@@ -380,7 +363,7 @@ def eval(
             break
     
     # Close environment.
-    # This is necessary if there are wrappers that operate once the environment is clsoed.
+    # This is necessary if there are wrappers that operate once the environment is closed.
     env.close()
     
     return history
@@ -392,8 +375,6 @@ def eval(
 @dataclass(kw_only=True)
 class C51(Algorithm):
     """Configuration for `qnrl.algorithms.c51.train`."""
-    # model_policy: SerializableModule # Policy model configuration.
-    # model_target: SerializableModule # Target model configuration.
     model: SerializableModule # Target model configuration.
     optimizer: OptimizerTransform
     num_atoms: int
@@ -404,8 +385,8 @@ class C51(Algorithm):
     batch_size: int = 128
     total_timesteps: int = 500_000
     learning_starts: int = 10_000
-    policy_update_frequency: int = 10 # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
-    target_update_frequency: int = 500 # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    policy_update_frequency: int = 10 # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>learning_starts`.
+    target_update_frequency: int = 500 # Apply a target model update every `t % target_update_frequency == 0` steps after `t>learning_starts`.
     gamma: float = 0.99
     tau: float = 1.0
     eps_start: int = 1
@@ -417,10 +398,6 @@ class C51(Algorithm):
         # Create the environment.
         env = self.env.make()
         
-        # # Create models.
-        # model_policy = self.model_policy
-        # model_target = self.model_target
-        # 
         # Create models, target is a copy of policy.
         model_policy = self.model
         graphdef, state = nnx.split(model_policy)
@@ -430,7 +407,6 @@ class C51(Algorithm):
         optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)
         
         # Create list of return atoms.
-        # atoms = jnp.linspace(start=self.z_min, stop=self.z_max, num=self.num_atoms)
         atoms = jnp.asarray(np.linspace(start=self.z_min, stop=self.z_max, num=self.num_atoms))
         
         # Create checkpoint manager.
