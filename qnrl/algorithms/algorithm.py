@@ -13,7 +13,7 @@ from ..gym import EnvConfig, EnvWrapperConfig
 
 def algorithm_tagger(cls):
     """Tag serializable algorithms by their class name."""
-    return cls.__name__.lower()
+    return cls.__name__
 
 
 @dataclass(kw_only=True)

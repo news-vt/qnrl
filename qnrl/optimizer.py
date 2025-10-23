@@ -9,7 +9,7 @@ from mashumaro.mixins.dict import DataClassDictMixin
 
 def optimizer_tagger(cls):
     """Tag serializable optimizers by their class name in lower-case format."""
-    return cls.__name__.lower()
+    return cls.__name__
 
 class OptimizerTransformIdentifier(enum.StrEnum):
     ADAM = enum.auto()
