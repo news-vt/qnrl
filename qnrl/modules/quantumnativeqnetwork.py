@@ -715,7 +715,7 @@ class QuantumNativeQNetwork(SerializableModule):
         return probs_actions
 
     @nnx.jit
-    def call_gen_return_dist_NEW(self, x, probs_actions): # (batch,din,)
+    def call_gen_return_dist(self, x, probs_actions): # (batch,din,)
         """Generate return distribuion from input observation."""
         
         # Track the batch size.

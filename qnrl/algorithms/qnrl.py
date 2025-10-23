@@ -88,11 +88,11 @@ def update(
     next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
     next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
     next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
-    next_return_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    next_return_pmfs = model_target.call_gen_return_dist(next_observations, next_actions_onehot) # (batch_size,n_atoms)
     #
     #### V2 -- use full action PMF for return distribution.
     # next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
-    # next_return_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    # next_return_pmfs = model_target.call_gen_return_dist(next_observations, next_action_pmfs) # (batch_size,n_atoms)
 
 
     ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
@@ -136,7 +136,7 @@ def update(
 
     # Categorical cross-entropy loss.
     def cross_entropy_loss(model, observations, action_pmfs, y):
-        y_hat = model.call_gen_return_dist_NEW(observations, action_pmfs) # (batch_size, n_atoms)
+        y_hat = model.call_gen_return_dist(observations, action_pmfs) # (batch_size, n_atoms)
         # 
         y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
         loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
