@@ -4,6 +4,7 @@ from itertools import combinations
 from typing import Literal
 
 import pennylane as qml
+import numpy as np
 import jax
 from jax import numpy as jnp # JAX version of NumPy.
 from flax import nnx # Neural networks in JAX.
