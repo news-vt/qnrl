@@ -1205,7 +1205,7 @@ def batched_run_circuit_return_density_matrix_shifted(
 
 
 @dataclass(kw_only=True)
-class QuantumNativeQNetworkSplit_v9(SerializableModule):
+class QuantumNativeQNetwork(SerializableModule):
     """Split variant of quantum-native (distributional) Q-value network.
     
     Includes the following splits:
