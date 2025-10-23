@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from functools import partial, reduce
+from itertools import combinations
 
 import pennylane as qml
 import numpy as np
@@ -13,6 +14,66 @@ def circuit_layer_reset(wires: list[int]):
     """Measure the given qubits to collapse their state, then reset to zero."""
     for w in wires:
         qml.measure(wires=w, reset=True)
+
+def circuit_layer_pauli_feature_map(phi: jax.Array, wires: list[int], pauli: str):
+    """Parameterized Pauli feature maps such as `Z`, `ZZ`, `YY`, etc.
+    
+    Loosely based on Qiskit's `PauliFeatureMap` (https://quantum.cloud.ibm.com/docs/en/api/qiskit/qiskit.circuit.library.PauliFeatureMap).
+    
+    The parameter `phi` should have shape `(len(pauli),)`.
+    """
+    
+    def basis_change(wire_tup: tuple[int, ...], pauli_tup: tuple[str, ...], inverse: bool = False):
+        assert len(wire_tup) == len(pauli_tup), "number of wires must match length of Pauli string"
+        ## Basis change.
+        # Iterate over every wire in the n-pair, and match it with associate Pauli.
+        for w, p in zip(wire_tup, pauli_tup):
+            match (p, inverse):
+                case ('x', _):
+                    qml.Hadamard(wires=w)
+                case ('y', False):
+                    qml.SX(wires=w)
+                case ('y', True):
+                    qml.adjoint(qml.SX(wires=w))
+
+    def cx_chain(wire_tup: tuple[int, ...], inverse: bool = False):
+        ## CNOT chain.
+        # Pair items in the tuple in groups of 2.
+        gen = range(len(wire_tup) - 1)
+        if inverse:
+            gen = reversed(gen)
+        for i in gen:
+            qml.CNOT(wires=[wire_tup[i], wire_tup[i+1]])
+    
+    # Apply Hadamard on every qubit.
+    for w in wires:
+        qml.Hadamard(wires=w)
+    
+    # Collect the individual Pauli operators of the current Pauli string chain.
+    # Reverse the order for correct qubit assignment (i.e., [p2,p1,p0][::-1] -> [q0,q1,q2]).
+    pauli_tup = tuple(pauli.lower()[::-1])
+    # Iterate over all n-pairs of wires.
+    wire_pairs = list(combinations(wires, len(pauli_tup)))
+    for wire_tup in wire_pairs:
+        ## Basis change.
+        basis_change(wire_tup=wire_tup, pauli_tup=pauli_tup, inverse=False)
+        ## CNOT chain.
+        cx_chain(wire_tup=wire_tup, inverse=False)
+        ## Phase gate at last qubit in the tuple chain.
+        # Rotation angle is only a single parameter.
+        if len(wire_tup) == 1:
+            angle = phi[wire_tup[-1]]
+        # Rotation angle is a difference of multiple parameters in the Pauli chain.
+        else:
+            angle = reduce(lambda a, b: a * b, jnp.pi - phi[jnp.array(wire_tup)])
+        # # Multiply angle by 2.
+        # angle = angle * 2.
+        # Apply phase shift using custom rotation angle.
+        qml.PhaseShift(phi=angle, wires=wire_tup[-1])
+        ## CNOT chain.
+        cx_chain(wire_tup=wire_tup, inverse=True)
+        ## Basis change.
+        basis_change(wire_tup=wire_tup, pauli_tup=pauli_tup, inverse=True)
 
 def circuit_layer_parameterized_ops(phi: jax.Array, wires: list[int], pauli: tuple[str,...]):
     """Parameterized operation layer.
@@ -40,7 +101,11 @@ def circuit_layer_parameterized_ops(phi: jax.Array, wires: list[int], pauli: tup
                 for w in wires:
                     qml.PhaseShift(phi=phi[w,f], wires=w)
             case _:
-                raise ValueError(f"Unsupported Pauli string: {pauli_string}")
+                # Create a Pauli feature map from only `x`, `y`, `z` contents.
+                if set(pauli_string.lower()).issubset(set('xyz')):
+                    circuit_layer_pauli_feature_map(phi=phi[:,f], wires=wires, pauli=pauli_string)
+                else:
+                    raise ValueError(f"Unsupported Pauli string: {pauli_string}")
 
 def get_ops_for_returns_distribution(
     inputs: jax.Array, # (n_layers, d_returns, 1,)
