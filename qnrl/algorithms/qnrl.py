@@ -1544,7 +1544,6 @@ def train(
             
             # Interaction within environment using selected actions.
             next_observation, reward, done, truncated, info = env.step(action)
-            # print(f"{action = }, {reward = }, {done = }, {truncated = }")
             
             # Push interaction onto buffer.
             buffer.add(
@@ -1584,19 +1583,7 @@ def train(
                 if t % policy_update_frequency == 0:
                     key, subkey = jax.random.split(key)
                     minibatch = buffer.sample(key=subkey, batch_size=batch_size)
-                    # loss = update(
-                    # loss = update_complex( # This with `target_type='stochastic'` has the best performance.
-                    # 
-                    # loss = update_complex_spread_hermitian( # This with `target_type='stochastic'` has the best performance.
-                    # loss = update_complex_spread_crossentropy(
                     loss = func_update(
-                    # 
-                    # loss = update_complex_uniformaction(
-                    # loss = update_complex_realign(
-                        # atoms,
-                        # num_atoms,
-                        # z_min,
-                        # z_max,
                         optimizer=optimizer,
                         model_policy=model_policy,
                         model_target=model_target,
@@ -1683,9 +1670,6 @@ def eval(
     pbar = tqdm(range(total_timesteps), unit='step', leave=True)
     pbar_postfix = dict() # Current progress bar postfix content.
     for t in pbar:
-        # action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
-        # action = jnp.argmax(action_pmf, axis=-1).item() # ()
-        # 
         action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
         match policy_type:
             case 'greedy':
@@ -1727,7 +1711,7 @@ def eval(
             break
     
     # Close environment.
-    # This is necessary if there are wrappers that operate once the environment is clsoed.
+    # This is necessary if there are wrappers that operate once the environment is closed.
     env.close()
     
     return history
