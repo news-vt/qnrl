@@ -1,5 +1,5 @@
 from .distqnetworklinear import DistQNetworkLinear
-from .qnetworklinear import QNetworkLinear
+from .linearcascade import LinearCascade
 from .rescaleinput import RescaleInput
 from .sequential import Sequential
 from .serializable import SerializableModule
