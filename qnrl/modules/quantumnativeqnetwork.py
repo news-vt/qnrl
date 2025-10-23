@@ -1509,8 +1509,8 @@ class QuantumNativeQNetwork(SerializableModule):
             # If desired number of actions is not a multiple of 2, then filter out the excess actions on the qubit register (i.e., more actions can be represented on the register and we don't care about them).
             probs_actions = probs_actions[:,jnp.array(self.active_action_idx, dtype=int)] # (batch,n_actions,)
             # Ensure probabilities are normalized after the filter.
-            # probs_actions = probs_actions / probs_actions.sum(axis=-1, keepdims=True)
-            probs_actions = nnx.softmax(probs_actions, axis=-1)
+            probs_actions = probs_actions / probs_actions.sum(axis=-1, keepdims=True)
+            # probs_actions = nnx.softmax(probs_actions, axis=-1)
             # jax.debug.print("probs_actions.shape: {}", probs_actions.shape)
             # jax.debug.print("nnx.softmax(probs_actions, axis=-1): {}", nnx.softmax(probs_actions, axis=-1))
             # jax.debug.print("nnx.softmax(probs_actions, axis=0): {}", nnx.softmax(probs_actions, axis=0))
@@ -1611,11 +1611,9 @@ class QuantumNativeQNetwork(SerializableModule):
         # Filter circuit output based on number of "active" returns.
         # If desired number of returns is not a multiple of 2, then filter out the excess returns on the qubit register (i.e., more returns can be represented on the register and we don't care about them).
         probs_returns = probs_returns[:,jnp.array(self.active_return_idx, dtype=int)] # (batch,n_returns,)
-        ######### DELETE THIS IF PERFORMANCE SUFFERS.
         # Ensure probabilities are normalized after the filter.
-        # probs_returns = probs_returns / probs_returns.sum(axis=-1, keepdims=True)
+        probs_returns = probs_returns / probs_returns.sum(axis=-1, keepdims=True)
         # probs_returns = nnx.softmax(probs_returns, axis=-1)
-        ########
         # jax.debug.print("probs_returns.sum(axis=-1): {}", probs_returns.sum(axis=-1))
         # jax.debug.print("NEW probs_returns[0].sum(): {}", probs_returns[0].sum())
         # jax.debug.print("probs_returns: {}", probs_returns)
