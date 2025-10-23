@@ -1121,8 +1121,10 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         # return probs_actions
     
     
-    @nnx.jit
-    def call_gen_action_dist(self, x): # (batch,din,)
+    # @nnx.jit
+    # def call_gen_action_dist(self, x): # (batch,din,)
+    @nnx.jit(static_argnames=['n_reuploads'])
+    def call_gen_action_dist(self, x, n_reuploads: int | None = None): # (batch,din,)
         """Generate action distribuion from input observation."""
         # Project input into shape that is compatible with the quantum circuit.
         x = self.layer_project_input(x)
@@ -1131,7 +1133,10 @@ class QuantumNativeQNetworkSplit(SerializableModule):
         # Prepare the n-th power of the m-th moment of the returns distribution.
         key = self.rngs.default() # Generate new random key for circuit measurement.
         probs_actions = jnp.ones(shape=(x.shape[0], self.n_actions,), dtype='float64')
-        for _ in range(self.n_reuploads):
+        if n_reuploads is None:
+            n_reuploads = self.n_reuploads
+        # for _ in range(self.n_reuploads):
+        for _ in range(n_reuploads):
             # jax.debug.print("[QuantumNativeQNetworkCascade] Upload {n}: start, {probs_actions}", n=n, probs_actions=probs_actions)
             # Run quantum circuit.
             key, subkey = jax.random.split(key=key)
@@ -1139,6 +1144,7 @@ class QuantumNativeQNetworkSplit(SerializableModule):
                 # All device and QNode parameters.
                 key=subkey,
                 device_name=self.device_name,
+                # device_name="default.mixed",
                 # shots=self.shots,
                 # diff_method=self.diff_method,
                 shots=100, diff_method=None, # Shots with no diffmethod ensures that memory doesn't explore with reset operations.
@@ -1667,7 +1673,8 @@ class QuantumNativeQNetworkSplit_v3(QuantumNativeQNetworkSplit):
         loss = self.run_circuit_hermitian_loss( # (batch,2**d_returns,)
             # All device and QNode parameters.
             key=subkey,
-            device_name=self.device_name,
+            # device_name=self.device_name,
+            device_name="default.mixed", # Use mixed state simulation for density matrix.
             # shots=self.shots, diff_method=self.diff_method,
             shots=None, diff_method='backprop',
             # Circuit arguments.
@@ -1699,7 +1706,8 @@ class QuantumNativeQNetworkSplit_v3(QuantumNativeQNetworkSplit):
         rho = self.run_circuit_return_density_matrix( # (batch,2**d_returns,2**d_returns)
             # All device and QNode parameters.
             key=subkey,
-            device_name=self.device_name,
+            # device_name=self.device_name,
+            device_name="default.mixed", # Use mixed state simulation for density matrix.
             # shots=self.shots, diff_method=self.diff_method,
             shots=None, diff_method='backprop',
             # Circuit arguments.
