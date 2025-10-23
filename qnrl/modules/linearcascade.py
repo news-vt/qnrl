@@ -20,6 +20,7 @@ class LinearCascade(SerializableModule):
         out_features (int): Number of discrete actions.
         rngs (nnx.Rngs): JAX RNG.
         douts (list[int], optional): Intermediate (middle) layer output dimensions. Defaults to [].
+        activation (str, optional): Name of activation function to use between layers. Defaults to "relu".
     """
     in_features: int
     out_features: int
