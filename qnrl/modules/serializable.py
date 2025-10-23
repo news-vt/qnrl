@@ -17,6 +17,35 @@ def module_tagger(cls):
     return cls.__name__
 
 
+activation_function_dispatcher: dict[str, Callable] = {
+    'celu': nnx.celu,
+    'elu': nnx.elu,
+    'gelu': nnx.gelu,
+    'glu': nnx.glu,
+    'hard_sigmoid': nnx.hard_sigmoid,
+    'hard_silu': nnx.hard_silu,
+    'hard_swish': nnx.hard_swish,
+    'hard_tanh': nnx.hard_tanh,
+    'leaky_relu': nnx.leaky_relu,
+    'log_sigmoid': nnx.log_sigmoid,
+    'log_softmax': nnx.log_softmax,
+    'logsumexp': nnx.logsumexp,
+    'one_hot': nnx.one_hot,
+    'relu': nnx.relu,
+    'selu': nnx.selu,
+    'sigmoid': nnx.sigmoid,
+    'identity': nnx.identity,
+    'silu': nnx.silu,
+    'soft_sign': nnx.soft_sign,
+    'softmax': nnx.softmax,
+    'softplus': nnx.softplus,
+    'standardize': nnx.standardize,
+    'swish': nnx.swish,
+    'tanh': nnx.tanh,
+}
+"""Dictionary mapping activation function name strings to their associated functions."""
+
+
 @dataclass(kw_only=True)
 class SerializableModule(nnx.Module, DataClassDictMixin):
     """Base class for Flax NNX modules that can be serialized to dictionaries.
