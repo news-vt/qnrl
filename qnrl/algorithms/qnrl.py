@@ -1734,8 +1734,14 @@ def eval(
 
 
 @dataclass(kw_only=True)
-class QnRL_sandbox_v9(Algorithm):
-    """Configuration for `qnrl.algorithms.qnrl_v2`."""
+class QnRL(Algorithm):
+    """Quantum-native reinforcement learning (QnRL).
+    
+    A quantum variant of classical distributional reinforcement learning (DRL), loosely based on the work of Bellemare et al. (2017), that learns Q-value return probability distributions directly on quantum Hilbert spaces. QnRL interprets qubit superpositions as probability distributions, which is possible because of the normalization condition of quantum systems. Using superimposed qubits in this manner allows for distributional models to be built naturally on quantum hardware -- hence quantum-native learning systems.
+    
+    Reference:
+        M. G. Bellemare, W. Dabney, and R. Munos, “A distributional perspective on reinforcement learning,” in Proceedings of the 34th international conference on machine learning, D. Precup and Y. W. Teh, Eds., in Proceedings of machine learning research, vol. 70. PMLR, Aug. 2017, pp. 449–458. doi: 10.48550/arXiv.1707.06887.
+    """
     model: QuantumNativeQNetwork
     optimizer: OptimizerTransform
     policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy']
