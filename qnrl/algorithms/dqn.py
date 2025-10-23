@@ -18,7 +18,9 @@ import orbax.checkpoint as ocp
 from tqdm import tqdm
 import optax
 import numpy as np
-from typing import Any
+from typing import Any, Callable
+
+from qnrl.tools import restore_model_from_checkpointmanager
 
 from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
@@ -97,8 +99,8 @@ def train(
     batch_size: int,
     total_timesteps: int, # Max number of training steps.
     learning_starts: int, # Training step index where model training commences.
-    policy_update_frequency: int, # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
-    target_update_frequency: int, # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    policy_update_frequency: int, # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>learning_starts`.
+    target_update_frequency: int, # Apply a target model update every `t % target_update_frequency == 0` steps after `t>learning_starts`.
     gamma: float,
     tau: float,
     eps_start: float,
@@ -169,7 +171,7 @@ def train(
                     episode_length=info['episode']['l'],
                     episode_time=info['episode']['t'],
                 )
-                # history.append(meta)
+                history.append(meta)
                 pbar_postfix.update(**meta)
                 pbar.set_postfix(pbar_postfix)
                 
@@ -201,7 +203,7 @@ def train(
                         loss_step=t,
                         loss=loss,
                     )
-                    # history.append(meta)
+                    history.append(meta)
                     pbar_postfix.update(**meta)
                     pbar.set_postfix(pbar_postfix)
                     
@@ -236,6 +238,71 @@ def train(
 
     return history
 
+def eval(
+    seed: int,
+    env: gym.Env,
+    model_policy: nnx.Module,
+    total_timesteps: int, # Max number of training steps.
+    env_wrappers: list[Callable[[gym.Env], gym.Env]] = [],
+    ) -> list:
+
+    # Apply several additional wrappers on the environment to ensure functionality.
+    env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
+    for wrapper_func in env_wrappers:
+        env = wrapper_func(env)
+    
+    # Seed random generators.
+    np.random.seed(seed)
+    env.action_space.seed(seed)
+    key = jax.random.PRNGKey(seed)
+    key, subkey = jax.random.split(key)
+    
+    history = []
+
+    observation, _ = env.reset() # Reset the environment.
+    
+    # Iteratively step through environment.
+    pbar = tqdm(range(total_timesteps), unit='step', leave=True)
+    pbar_postfix = dict() # Current progress bar postfix content.
+    for t in pbar:
+        q_values = model_policy(observation) # (num_actions,), environment axis is treated as batch index.
+        action = q_values.argmax(axis=-1).item()
+        # 
+        next_observation, reward, done, truncated, info = env.step(action)
+        
+        meta = {
+            'action': action,
+            'reward': reward,
+            'observation': observation,
+            'next_observation': next_observation,
+            'done': done,
+        }
+        history.append(meta)
+        
+        # Record episode statistics.
+        if "episode" in info:
+            meta = dict(
+                episode_step=t,
+                episode_reward=info['episode']['r'],
+                episode_length=info['episode']['l'],
+                episode_time=info['episode']['t'],
+            )
+            history.append(meta)
+            pbar_postfix.update(meta)
+            pbar.set_postfix(pbar_postfix)
+        
+        # Update current observation with next observation.
+        observation = next_observation.copy()
+        
+        if done or truncated:
+            break
+    
+    # Close environment.
+    # This is necessary if there are wrappers that operate once the environment is closed.
+    env.close()
+    
+    return history
+
 
 # MARK: DQN
 
@@ -251,8 +318,8 @@ class DQN(Algorithm):
     batch_size: int = 128
     total_timesteps: int = 500_000
     learning_starts: int = 10_000
-    policy_update_frequency: int = 10 # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
-    target_update_frequency: int = 500 # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    policy_update_frequency: int = 10 # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>learning_starts`.
+    target_update_frequency: int = 500 # Apply a target model update every `t % target_update_frequency == 0` steps after `t>learning_starts`.
     gamma: float = 0.99
     tau: float = 1.0
     eps_start: int = 1
@@ -264,10 +331,6 @@ class DQN(Algorithm):
         # Create the environment.
         env = self.env.make()
         
-        # # Create models.
-        # model_policy = self.model_policy
-        # model_target = self.model_target
-        # 
         # Create models, target is a copy of policy.
         model_policy = self.model
         graphdef, state = nnx.split(model_policy)
@@ -303,5 +366,29 @@ class DQN(Algorithm):
             checkpoint_manager=checkpoint_manager,
             metric_manager=self.metric_manager,
         )
+        
+        return history_list
+    
+    def eval(self, **kwargs) -> list:
+        
+        # Create the environment.
+        env = self.env.make()
+        
+        # Create models.
+        model_policy = self.model
+        
+        # Create checkpoint manager and restore latest model state (if one exists).
+        if self.checkpoint is not None:
+            checkpoint_manager = self.checkpoint.make()
+            model_policy = restore_model_from_checkpointmanager(model=model_policy, checkpoint_manager=checkpoint_manager)
+        
+        # Run evaluation.
+        kwargs_default = dict(
+            seed=self.seed,
+            env=env,
+            model_policy=model_policy,
+            total_timesteps=self.total_timesteps,
+        )
+        history_list = eval(**{**kwargs_default, **kwargs})
         
         return history_list
