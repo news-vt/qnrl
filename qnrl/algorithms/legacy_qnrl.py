@@ -1,7 +1,9 @@
+from pennylane.math import fidelity
+
 from dataclasses import dataclass
 from functools import partial
 import os
-from typing import Any, Literal
+from typing import Any, Literal, Callable
 import sys
 
 from flax import nnx
@@ -13,14 +15,19 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 from tqdm import tqdm
+import pennylane as qml
+import datetime
 
-from .algorithm import Algorithm
-from ..checkpoint import CheckpointConfig
-from ..modules import QuantumNativeQNetworkSplit, SerializableModule
-from ..optimizer import OptimizerTransform
-from ..buffers import ReplayBuffer, PmfReplayBuffer
-from ..metric import MetricManager
-from ..tools import restore_model_from_checkpointmanager
+
+from qnrl.algorithms.algorithm import Algorithm
+from qnrl.checkpoint import CheckpointConfig
+from qnrl.modules import *
+from qnrl.optimizer import OptimizerTransform
+from qnrl.buffers import PmfReplayBuffer
+from qnrl.metric import MetricManager
+from qnrl.tools import restore_model_from_checkpointmanager, density_matrix
+
+from qnrl.modules import QuantumNativeQNetwork
 
 @nnx.jit
 def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
@@ -31,7 +38,7 @@ def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: 
 
 def epsilon_greedy_policy(
     env: gym.Env,
-    model_policy: QuantumNativeQNetworkSplit,
+    model_policy: QuantumNativeQNetwork,
     observation: jax.Array,
     t: int, # Current time step.
     duration: int, # Total number of time steps for epsilon decay.
@@ -62,7 +69,7 @@ def epsilon_greedy_policy(
 
 def epsilon_stochastic_policy(
     env: gym.Env,
-    model_policy: QuantumNativeQNetworkSplit,
+    model_policy: QuantumNativeQNetwork,
     observation: jax.Array,
     t: int, # Current time step.
     duration: int, # Total number of time steps for epsilon decay.
@@ -94,7 +101,7 @@ def epsilon_stochastic_policy(
 
 def epsilon_phased_stochastic_greedy_policy(
     env: gym.Env,
-    model_policy: QuantumNativeQNetworkSplit,
+    model_policy: QuantumNativeQNetwork,
     observation: jax.Array,
     t: int, # Current time step.
     duration: int, # Total number of time steps for epsilon decay.
@@ -138,14 +145,13 @@ def epsilon_phased_stochastic_greedy_policy(
 
 
 
-
 # TODO QnRL loss should compare the quantum states of the return-atom dist between the policy model and the target model w.r.t. the policy model's action distribution. Input the policy model's predicted action distribution, then prepare 2 return-atom circuits using the policy and target model's circuit_weights. Then run quantum wasserstein distance or quantum KL divergence to compare the quantum states of the two return-atom registers. 
 
 @partial(nnx.jit, static_argnames=['target_type'])
 def update(
     optimizer: nnx.Optimizer,
-    model_policy: QuantumNativeQNetworkSplit,
-    model_target: QuantumNativeQNetworkSplit,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
     observations: jax.Array,
     actions: jax.Array,
     action_pmfs: jax.Array,
@@ -153,34 +159,18 @@ def update(
     rewards: jax.Array,
     dones: jax.Array,
     gamma: float,
-    target_type: Literal['greedy', 'stochastic'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
     ):
+    """Update using quantum loss."""
+    
     
     atoms = model_policy.atoms
     num_atoms = model_policy.n_returns
     z_min = model_policy.z_min
     z_max = model_policy.z_max
     
-    # batch_idx = jnp.arange(actions.shape[0])
-    
-    # Generate batch of return-atom distributions for every action.
-    # next_pmfs = model_target(next_observations) # (batch_size, num_actions, n_atoms)
-    
-    # # Compute estimated Q-value, which is the expected value of the return-atom distribution.
-    # next_vals = (next_pmfs * atoms).sum(axis=-1) # (batch_size, num_actions)
-    
-    # # Determine the optimum action according to max (greedy) Q-value estimate.
-    # next_action = jnp.argmax(next_vals, axis=-1) # (batch_size,)
-    
-    # # Get the return-atom distribution corresponding to the optimum action.
-    # next_pmfs = next_pmfs[batch_idx, next_action] # (batch_size, n_atoms)
-    
-    
-    ######
-    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
-    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
-    # next_pmfs = model_target.call_gen_return_dist(next_observations) # (batch_size,n_atoms)
-    #
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
     match target_type:
         case 'greedy':
             next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
@@ -192,17 +182,7 @@ def update(
             next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
         case _:
             raise ValueError(f"Unsupported target type {target_type}")
-    ######
-    
-    # print(f"{atoms.shape = }")
-    # print(f"{rewards.shape = }")
-    # print(f"{dones.shape = }")
-    # print(f"{next_action_pmfs.shape = }")
-    # print(f"{next_pmfs.shape = }")
-    
 
-
-    # next_pmfs = next_pmfs[:, next_action] # (batch_size, n_atoms)
     # Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
     tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
     tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
@@ -223,80 +203,1260 @@ def update(
     
     target_pmfs = jax.vmap(project_to_bins)(jnp.zeros_like(next_pmfs), l, u, dml, dmu)
     
+    # # Categorical cross-entropy loss.
+    # def cross_entropy_loss(model, x, probs_actions, y):
+    #     y_hat = model.call_gen_return_dist_NEW(x, probs_actions) # (batch_size, n_atoms)
+    #     # 
+    #     y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+    #     loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
+    #     return loss.mean()
+    
+    def quantum_loss(model, observations, action_pmfs, target_pmfs):
+        psi = jnp.sqrt(target_pmfs) # State amplitudes.
+        rho = nnx.vmap(density_matrix)(psi) # Density matrix.
+        hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        # return hermitian_loss.mean()
+        loss = (1. - hermitian_loss) ** 2.
+        return loss.mean()
+
+    # loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, probs_actions=action_pmfs, y=target_pmfs)
+    # 
+    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=action_pmfs, target_pmfs=target_pmfs)
+    loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), target_pmfs=target_pmfs)
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
+@partial(nnx.jit, static_argnames=['target_type'])
+def update_complex(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex density matrix from target."""
+    
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    match target_type:
+        case 'greedy':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+            next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+        case 'stochastic':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+            next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+        case _:
+            raise ValueError(f"Unsupported target type {target_type}")
+
+    # # Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    # tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    # # Project the current atoms to the target atoms.
+    # dz = atoms[1] - atoms[0] # Delta z.
+    # b = (tz - z_min) / dz
+    # l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    # dml = ((u + (l == u).astype(u.dtype)) - b) * next_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
+    # dmu = (b - l) * next_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
+    
+    # def project_to_bins(target_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
+    #     """Project an instance of return atoms. Apply to batches using `jax.vmap`."""
+    #     target_pmfs = target_pmfs.at[l.astype(jnp.int32)].add(dml)
+    #     target_pmfs = target_pmfs.at[u.astype(jnp.int32)].add(dmu)
+    #     return target_pmfs
+    
+    # target_pmfs = jax.vmap(project_to_bins)(jnp.zeros_like(next_pmfs), l, u, dml, dmu)
+    
+    # # Categorical cross-entropy loss.
+    # def cross_entropy_loss(model, x, probs_actions, y):
+    #     y_hat = model.call_gen_return_dist_NEW(x, probs_actions) # (batch_size, n_atoms)
+    #     # 
+    #     y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+    #     loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
+    #     return loss.mean()
+    
+    def quantum_loss(model, observations, action_pmfs, rho):
+        # psi = jnp.sqrt(target_pmfs) # State amplitudes.
+        # rho = nnx.vmap(density_matrix)(psi) # Density matrix.
+        hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        # return hermitian_loss.mean()
+        # jax.debug.print("hermitian_loss = {}", hermitian_loss)
+        loss = (1. - hermitian_loss) ** 2.
+        return loss.mean()
+
+    # loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, probs_actions=action_pmfs, y=target_pmfs)
+    # 
+    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=action_pmfs, target_pmfs=target_pmfs)
+    loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), rho=next_rho)
+    
+    # jax.debug.print("grads = {}", grads)
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
+@partial(nnx.jit, static_argnames=['target_type'])
+def update_complex_realign(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex density matrix from target."""
+    
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    match target_type:
+        case 'greedy':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+            next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+        case 'stochastic':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+            next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+        case _:
+            raise ValueError(f"Unsupported target type {target_type}")
+    #
+    #
+    # # Try a uniform action PMF over target model.
+    # uniform_action_pmfs = 1./action_pmfs.shape[-1] * jnp.ones_like(action_pmfs)
+    # next_rho = model_target.call_return_density_matrix(next_observations, uniform_action_pmfs)
+
+    # Get diagonal elements.
+    next_pmfs_diag = jax.vmap(jnp.diag)(next_rho)
+
+    # Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    # Project the current atoms to the target atoms.
+    dz = atoms[1] - atoms[0] # Delta z.
+    b = (tz - z_min) / dz
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dml = ((u + (l == u).astype(u.dtype)) - b) * next_pmfs_diag # (batch_size, num_atoms), Split the weight onto the lower bin.
+    dmu = (b - l) * next_pmfs_diag # (batch_size, num_atoms), Split the weight onto the upper bin.
+    
+    def project_to_bins(target_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
+        """Project an instance of return atoms. Apply to batches using `jax.vmap`."""
+        target_pmfs = target_pmfs.at[l.astype(jnp.int32)].add(dml)
+        target_pmfs = target_pmfs.at[u.astype(jnp.int32)].add(dmu)
+        return target_pmfs
+    
+    target_pmfs_diag = jax.vmap(project_to_bins)(jnp.zeros_like(next_pmfs_diag), l, u, dml, dmu)
+    
+    # Fill the diagonal using the realigned target PMFs.
+    next_rho = jax.vmap(lambda a, val: jnp.fill_diagonal(a, val, inplace=False), in_axes=(0,0))(next_rho, target_pmfs_diag)
+    # jax.debug.print("next_rho.shape = {}", next_rho.shape)
+    # jax.debug.print("jax.vmap(jnp.trace)(next_rho).shape = {}", jax.vmap(jnp.trace)(next_rho).shape)
+    # jax.debug.print("trace(next_rho) = {}", jax.vmap(jnp.trace)(next_rho))
+    
+    # # Categorical cross-entropy loss.
+    # def cross_entropy_loss(model, x, probs_actions, y):
+    #     y_hat = model.call_gen_return_dist_NEW(x, probs_actions) # (batch_size, n_atoms)
+    #     # 
+    #     y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+    #     loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
+    #     return loss.mean()
+    
+    def quantum_loss(model, observations, action_pmfs, rho):
+        # psi = jnp.sqrt(target_pmfs) # State amplitudes.
+        # rho = nnx.vmap(density_matrix)(psi) # Density matrix.
+        hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        # return hermitian_loss.mean()
+        # jax.debug.print("hermitian_loss = {}", hermitian_loss)
+        loss = (1. - hermitian_loss) ** 2.
+        return loss.mean()
+
+    # 
+    loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), rho=next_rho)
+    # 
+    # uniform_action_pmfs = 1./action_pmfs.shape[-1] * jnp.ones_like(action_pmfs)
+    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=uniform_action_pmfs, rho=next_rho)
+    
+    # jax.debug.print("grads = {}", grads)
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
+@partial(nnx.jit, static_argnames=['target_type'])
+def update_complex_uniformaction(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex density matrix from target."""
+    
+    
+    # atoms = model_policy.atoms
+    # num_atoms = model_policy.n_returns
+    # z_min = model_policy.z_min
+    # z_max = model_policy.z_max
+    
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    
+    # Generate target density matrix using uniform superposition of all actions.
+    uniform_action_pmfs = 1./action_pmfs.shape[-1] * jnp.ones_like(action_pmfs)
+    next_rho = model_target.call_return_density_matrix(next_observations, uniform_action_pmfs)
+    
+    def quantum_loss(model, observations, action_pmfs, rho):
+        hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        loss = (1. - hermitian_loss) ** 2.
+        return loss.mean()
+
+    # loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, probs_actions=action_pmfs, y=target_pmfs)
+    # 
+    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=action_pmfs, target_pmfs=target_pmfs)
+    # 
+    # loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), rho=next_rho)
+    # 
+    loss, grads = nnx.value_and_grad(quantum_loss)(model=model_policy, observations=observations, action_pmfs=uniform_action_pmfs, rho=next_rho)
+    
+    # jax.debug.print("grads = {}", grads)
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
+@partial(nnx.jit, static_argnames=['policy_type', 'target_type'])
+def update_complex_spread_hermitian(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
+    
+    batch_size = actions.shape[0]
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    d_actions = model_policy.d_actions
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # #########################
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    # ##########################
+
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = rewards[:, jnp.newaxis] + gamma * atoms # TODO this line may cause bugs (if it does, replace it with the above.)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
+    dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
+    b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Here we split the original PMF `next_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dmu_scalar = (b - l)
+    
+    def project_to_bins(U: jax.Array, l: jax.Array, u: jax.Array, dml_scalar: jax.Array, dmu_scalar: jax.Array):
+        """Project an instance of return atoms using scalars. Apply to batches using `jax.vmap`."""
+        U = U.at[l.astype(jnp.int32), jnp.arange(l.shape[0], dtype=jnp.int32)].add(1j*jnp.sqrt(dml_scalar))
+        U = U.at[u.astype(jnp.int32), jnp.arange(u.shape[0], dtype=jnp.int32)].add(jnp.sqrt(dmu_scalar))
+        return U
+    
+    U = jax.vmap(project_to_bins)(jnp.zeros((batch_size,num_atoms,num_atoms), dtype='complex'), l, u, dml_scalar, dmu_scalar)
+    
+    # # Target PMF is the shifted `tz` "spread" onto the support of the original atoms.
+    # # Since rho spans both action + return qubits we need to apply Identity to the action qubits too. So, do a Kronecker product to create a combined operator.
+    # I = jnp.identity(n=2**d_actions)
+    # I_U = jnp.kron(I, U) # I ⊗ U
+    # target_rho = jax.vmap(lambda M, rho: M @ rho @ M.conj().T)(M=I_U, rho=next_rho)
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    match target_type:
+        case 'greedy':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_actions_onehot, U)
+        case 'stochastic':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+        case 'uniform':
+            next_action_pmfs = jnp.ones((actions.shape[0], 2**d_actions)) # Uniform actions.
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+        case _:
+            raise ValueError(f"Unsupported target type {target_type}")
+    
+    
+    def quantum_loss(model, observations, action_pmfs, rho):
+        hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        # jax.debug.print("hermitian_loss = {}", hermitian_loss)
+        loss = (1. - hermitian_loss) ** 2.
+        #
+        # loss = 1. - (hermitian_loss ** 2.) # Best performance so far, but sometimes the loss is negative.
+        # loss = (1. - jnp.abs(hermitian_loss)) ** 2. # Not as stable.
+        # loss = hermitian_loss ** 2. # Optimize towards Hermitian expectation of zero.
+        return loss.mean()
+    #
+    loss, grads = nnx.value_and_grad(quantum_loss)(
+        model=model_policy,
+        observations=observations,
+        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions) if policy_type == 'greedy' else action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
+        # action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
+        rho=target_rho,
+        )
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
+@partial(nnx.jit, static_argnames=['policy_type', 'target_type'])
+def update_complex_spread_hermitian_mixed(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
+    
+    batch_size = actions.shape[0]
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    d_actions = model_policy.d_actions
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # #########################
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    # ##########################
+
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
+    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms # TODO this line may cause bugs (if it does, replace it with the above.)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
+    dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
+    b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Here we split the original PMF `next_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dmu_scalar = (b - l)
+    
+    def project_to_bins(U: jax.Array, l: jax.Array, u: jax.Array, dml_scalar: jax.Array, dmu_scalar: jax.Array):
+        """Project an instance of return atoms using scalars. Apply to batches using `jax.vmap`."""
+        U = U.at[l.astype(jnp.int32), jnp.arange(l.shape[0], dtype=jnp.int32)].add(1j*jnp.sqrt(dml_scalar))
+        U = U.at[u.astype(jnp.int32), jnp.arange(u.shape[0], dtype=jnp.int32)].add(jnp.sqrt(dmu_scalar))
+        return U
+    
+    U = jax.vmap(project_to_bins)(jnp.zeros((batch_size,num_atoms,num_atoms), dtype='complex'), l, u, dml_scalar, dmu_scalar)
+    
+    # # Target PMF is the shifted `tz` "spread" onto the support of the original atoms.
+    # # Since rho spans both action + return qubits we need to apply Identity to the action qubits too. So, do a Kronecker product to create a combined operator.
+    # I = jnp.identity(n=2**d_actions)
+    # I_U = jnp.kron(I, U) # I ⊗ U
+    # target_rho = jax.vmap(lambda M, rho: M @ rho @ M.conj().T)(M=I_U, rho=next_rho)
+    
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_actions_onehot, U)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+    #     case 'uniform':
+    #         next_action_pmfs = jnp.ones((actions.shape[0], 2**d_actions)) # Uniform actions.
+    #         target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    #
+    #
+    next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+    
+    
+    def quantum_loss(model, observations, action_pmfs, rho):
+        hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        # jax.debug.print("hermitian_loss = {}", hermitian_loss)
+        loss = (1. - hermitian_loss) ** 2.
+        #
+        # loss = 1. - (hermitian_loss ** 2.) # Best performance so far, but sometimes the loss is negative.
+        # loss = (1. - jnp.abs(hermitian_loss)) ** 2. # Not as stable.
+        # loss = hermitian_loss ** 2. # Optimize towards Hermitian expectation of zero.
+        return loss.mean()
+    #
+    loss, grads = nnx.value_and_grad(quantum_loss)(
+        model=model_policy,
+        observations=observations,
+        action_pmfs=action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
+        # action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
+        rho=target_rho,
+        )
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+@partial(nnx.jit, static_argnames=['policy_type', 'target_type'])
+def update_complex_spread_fidelity(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
+    
+    batch_size = actions.shape[0]
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    d_actions = model_policy.d_actions
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # #########################
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    # ##########################
+
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = rewards[:, jnp.newaxis] + gamma * atoms # TODO this line may cause bugs (if it does, replace it with the above.)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
+    dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
+    b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Here we split the original PMF `next_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dmu_scalar = (b - l)
+    
+    def project_to_bins(U: jax.Array, l: jax.Array, u: jax.Array, dml_scalar: jax.Array, dmu_scalar: jax.Array):
+        """Project an instance of return atoms using scalars. Apply to batches using `jax.vmap`."""
+        U = U.at[l.astype(jnp.int32), jnp.arange(l.shape[0], dtype=jnp.int32)].add(1j*jnp.sqrt(dml_scalar))
+        U = U.at[u.astype(jnp.int32), jnp.arange(u.shape[0], dtype=jnp.int32)].add(jnp.sqrt(dmu_scalar))
+        return U
+    
+    U = jax.vmap(project_to_bins)(jnp.zeros((batch_size,num_atoms,num_atoms), dtype='complex'), l, u, dml_scalar, dmu_scalar)
+    
+    # # Target PMF is the shifted `tz` "spread" onto the support of the original atoms.
+    # # Since rho spans both action + return qubits we need to apply Identity to the action qubits too. So, do a Kronecker product to create a combined operator.
+    # I = jnp.identity(n=2**d_actions)
+    # I_U = jnp.kron(I, U) # I ⊗ U
+    # target_rho = jax.vmap(lambda M, rho: M @ rho @ M.conj().T)(M=I_U, rho=next_rho)
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    match target_type:
+        case 'greedy':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_actions_onehot, U)
+        case 'stochastic':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+        case 'uniform':
+            next_action_pmfs = jnp.ones((actions.shape[0], 2**d_actions)) # Uniform actions.
+            target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+        case _:
+            raise ValueError(f"Unsupported target type {target_type}")
+    
+    
+    def quantum_fidelity_loss(model, observations, action_pmfs, rho):
+        
+        # Generate density matrix for policy model.
+        # We generate the density matrix here so that the parameters will be tracked for gradient update.
+        sigma = model.call_return_density_matrix(observations, action_pmfs)
+        
+        # Compute the fidelity between the policy model density matrix `sigma` and the target model density matrix `rho`.
+        F = fidelity(sigma, rho) # F in [0, 1]: F = 1 if sigma = rho, 0 <= F < 1 otherwise.
+        loss = (1. - F) ** 2. # Optimize towards F = 1.
+        return loss.mean()
+    #
+    loss, grads = nnx.value_and_grad(quantum_fidelity_loss)(
+        model=model_policy,
+        observations=observations,
+        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions) if policy_type == 'greedy' else action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
+        # action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
+        rho=target_rho,
+        )
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
+@partial(nnx.jit, static_argnames=['policy_type', 'target_type'])
+def update_complex_spread_fidelity_mixed(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
+    
+    batch_size = actions.shape[0]
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    d_actions = model_policy.d_actions
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # #########################
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    # ##########################
+
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = rewards[:, jnp.newaxis] + gamma * atoms # TODO this line may cause bugs (if it does, replace it with the above.)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
+    dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
+    b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Here we split the original PMF `next_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dmu_scalar = (b - l)
+    
+    def project_to_bins(U: jax.Array, l: jax.Array, u: jax.Array, dml_scalar: jax.Array, dmu_scalar: jax.Array):
+        """Project an instance of return atoms using scalars. Apply to batches using `jax.vmap`."""
+        U = U.at[l.astype(jnp.int32), jnp.arange(l.shape[0], dtype=jnp.int32)].add(1j*jnp.sqrt(dml_scalar))
+        U = U.at[u.astype(jnp.int32), jnp.arange(u.shape[0], dtype=jnp.int32)].add(jnp.sqrt(dmu_scalar))
+        return U
+    
+    U = jax.vmap(project_to_bins)(jnp.zeros((batch_size,num_atoms,num_atoms), dtype='complex'), l, u, dml_scalar, dmu_scalar)
+    
+    # # Target PMF is the shifted `tz` "spread" onto the support of the original atoms.
+    # # Since rho spans both action + return qubits we need to apply Identity to the action qubits too. So, do a Kronecker product to create a combined operator.
+    # I = jnp.identity(n=2**d_actions)
+    # I_U = jnp.kron(I, U) # I ⊗ U
+    # target_rho = jax.vmap(lambda M, rho: M @ rho @ M.conj().T)(M=I_U, rho=next_rho)
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+    
+    
+    def quantum_fidelity_loss(model, observations, action_pmfs, rho):
+        
+        # Generate density matrix for policy model.
+        # We generate the density matrix here so that the parameters will be tracked for gradient update.
+        sigma = model.call_return_density_matrix(observations, action_pmfs)
+        
+        # Compute the fidelity between the policy model density matrix `sigma` and the target model density matrix `rho`.
+        F = fidelity(sigma, rho) # F in [0, 1]: F = 1 if sigma = rho, 0 <= F < 1 otherwise.
+        loss = (1. - F) ** 2. # Optimize towards F = 1.
+        return loss.mean()
+    #
+    loss, grads = nnx.value_and_grad(quantum_fidelity_loss)(
+        model=model_policy,
+        observations=observations,
+        action_pmfs=action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
+        # action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
+        rho=target_rho,
+        )
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
+@partial(nnx.jit, static_argnames=['policy_type', 'target_type'])
+def update_complex_spread_crossentropy(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
+    
+    batch_size = actions.shape[0]
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    d_actions = model_policy.d_actions
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # #########################
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    # ##########################
+
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = rewards[:, jnp.newaxis] + gamma * atoms # TODO this line may cause bugs (if it does, replace it with the above.)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
+    dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
+    b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Here we split the original PMF `next_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dmu_scalar = (b - l)
+    
+    def project_to_bins(U: jax.Array, l: jax.Array, u: jax.Array, dml_scalar: jax.Array, dmu_scalar: jax.Array):
+        """Project an instance of return atoms using scalars. Apply to batches using `jax.vmap`."""
+        U = U.at[l.astype(jnp.int32), jnp.arange(l.shape[0], dtype=jnp.int32)].add(1j*jnp.sqrt(dml_scalar))
+        U = U.at[u.astype(jnp.int32), jnp.arange(u.shape[0], dtype=jnp.int32)].add(jnp.sqrt(dmu_scalar))
+        return U
+    
+    U = jax.vmap(project_to_bins)(jnp.zeros((batch_size,num_atoms,num_atoms), dtype='complex'), l, u, dml_scalar, dmu_scalar)
+    
+    # # Target PMF is the shifted `tz` "spread" onto the support of the original atoms.
+    # # Since rho spans both action + return qubits we need to apply Identity to the action qubits too. So, do a Kronecker product to create a combined operator.
+    # I = jnp.identity(n=2**d_actions)
+    # I_U = jnp.kron(I, U) # I ⊗ U
+    # target_rho = jax.vmap(lambda M, rho: M @ rho @ M.conj().T)(M=I_U, rho=next_rho)
+    
+    # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    match target_type:
+        case 'greedy':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+            next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+            # 
+            # target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_actions_onehot, U)
+            target_pmf = model_target.call_gen_return_dist_shifted(next_observations, next_actions_onehot, U)
+        case 'stochastic':
+            next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+            # 
+            # target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+            target_pmf = model_target.call_gen_return_dist_shifted(next_observations, next_action_pmfs, U)
+        case 'uniform':
+            next_action_pmfs = jnp.ones((actions.shape[0], 2**d_actions)) # Uniform actions.
+            # 
+            # target_rho = model_target.call_return_density_matrix_shifted(next_observations, next_action_pmfs, U)
+            target_pmf = model_target.call_gen_return_dist_shifted(next_observations, next_action_pmfs, U)
+        case _:
+            raise ValueError(f"Unsupported target type {target_type}")
+    
+    
+    # def quantum_loss(model, observations, action_pmfs, rho):
+    #     # psi = jnp.sqrt(target_pmfs) # State amplitudes.
+    #     # rho = nnx.vmap(density_matrix)(psi) # Density matrix.
+    #     hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+    #     # return hermitian_loss.mean()
+    #     # jax.debug.print("hermitian_loss = {}", hermitian_loss)
+    #     loss = (1. - hermitian_loss) ** 2.
+    #     return loss.mean()
+    # #
+    # loss, grads = nnx.value_and_grad(quantum_loss)(
+    #     model=model_policy,
+    #     observations=observations,
+    #     action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions) if policy_type == 'greedy' else action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+    #     # action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+    #     # action_pmfs=action_pmfs, # Compute loss w.r.t. the predicted action PMF.
+    #     # action_pmfs=jnp.ones((actions.shape[0], 2**d_actions)), # Uniform actions.
+    #     rho=target_rho,
+    #     )
+    
+    ##########
+    
     # Categorical cross-entropy loss.
-    def cross_entropy_loss(model, x, probs_actions, y):
+    def cross_entropy_loss(model, observations, action_pmfs, y):
         # batch_idx = jnp.arange(x.shape[0])
         # y_hat = model(x)
         # # Get the return-atom distribution corresponding to the given actions.
         # y_hat = y_hat[batch_idx, actions.squeeze()] # (batch_size, n_atoms)
         # 
         # y_hat = model.call_gen_return_dist(x) # (batch_size, n_atoms)
-        y_hat = model.call_gen_return_dist_NEW(x, probs_actions) # (batch_size, n_atoms)
+        y_hat = model.call_gen_return_dist_NEW(observations, action_pmfs) # (batch_size, n_atoms)
         # 
         y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        # jax.debug.print("y_hat[0] = {}", y_hat[0])
         loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
         return loss.mean()
+    #
+    loss, grads = nnx.value_and_grad(cross_entropy_loss)(
+        model=model_policy,
+        observations=observations,
+        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions) if policy_type == 'greedy' else action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        y=target_pmf,
+        )
     
-    # # Get action PMF outside of gradient computation.
-    # probs_actions = model_policy.call_gen_action_dist(observations)
-    
-    # jax.debug.print("actions: {}",actions)
-    # jax.debug.print("probs_actions: {}",probs_actions)
-    # jax.debug.print("next_action_pmfs: {}",next_action_pmfs)
-    # jax.debug.print("next_actions: {}",next_actions)
-    # jax.debug.print("next_pmfs: {}",next_pmfs)
-    
-    loss, grads = nnx.value_and_grad(cross_entropy_loss)(model=model_policy, x=observations, probs_actions=action_pmfs, y=target_pmfs)
+    # jax.debug.print("next_action_pmfs[0] = {}", next_action_pmfs[0])
+    # jax.debug.print("target_pmf[0] = {}", target_pmf[0])
+    # jax.debug.print("loss = {}", loss)
+    # jax.debug.print("grads = {}", grads)
+
+
     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
     
     return loss
 
-# @nnx.jit
-# def update(
-#     optimizer: nnx.Optimizer,
-#     model_policy: nnx.Module,
-#     model_target: nnx.Module,
-#     observations: jax.Array,
-#     # actions: jax.Array,
-#     next_observations: jax.Array,
-#     # rewards: jax.Array,
-#     # dones: jax.Array,
-#     # gamma: float,
-#     ) -> float:
-#     """Deep Q-learning policy model update."""
-#     def loss_fn(model, x, y):
-#         """KL-divergence loss."""
-#         # y_hat = model(x) # (batch, n_actions), Probability distribution over the actions.
-#         # y_hat = jnp.log(y_hat) # Convert to log-prob.
-#         # loss = optax.kl_divergence(log_predictions=y_hat, targets=y) # (batch,)
-#         # return loss.mean()
-#         ####
-#         y_hat = model(x) # (batch, n_actions), Probability distribution over the actions.
-#         y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
-#         loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
-#         return loss.mean()
+
+@partial(nnx.jit, static_argnames=['policy_type', 'target_type'])
+def update_complex_spread_crossentropy_hybrid(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
     
-#     target_next_pmfs = model_target(next_observations) # (batch_size, n_actions)
+    batch_size = actions.shape[0]
     
-#     loss, grads = nnx.value_and_grad(loss_fn)(model=model_policy, x=observations, y=target_next_pmfs)
-#     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    d_actions = model_policy.d_actions
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
     
-#     return loss
+    # #########################
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    # ##########################
+    
+    #### V1 -- use argmax action for return distribution.
+    next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    next_return_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #
+    #### V2 -- use full action PMF for return distribution.
+    # next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    # next_return_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+
+
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
+    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms # TODO this line may cause bugs (if it does, replace it with the above.)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    
+    
+    # jax.debug.print("tz = {}", tz[0])
+    # jax.debug.print("atoms = {}", atoms)
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
+    dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
+    b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Here we split the original PMF `next_return_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dmu_scalar = (b - l)
+    dml = dml_scalar * next_return_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
+    dmu = dmu_scalar * next_return_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
+    
+    target_return_pmfs = jnp.zeros_like(next_return_pmfs)
+    
+    def project_to_bins(target_return_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
+        """Project an instance of return atoms.
+        
+        This function takes atom bin indices `l` (lower bins) and `u` (upper bins) and shift amounts for each bin `dml` (lower bin shift amount) and `dmu` (upper bin shift amount).
+        
+        Apply to batches using `jax.vmap`.
+        """
+        target_return_pmfs = target_return_pmfs.at[l.astype(jnp.int32)].add(dml)
+        target_return_pmfs = target_return_pmfs.at[u.astype(jnp.int32)].add(dmu)
+        return target_return_pmfs
+    
+    target_return_pmfs = jax.vmap(project_to_bins)(target_return_pmfs, l, u, dml, dmu)
+    
+    # idxwhere = jnp.argwhere(tz[:,0] == 1., size=1)
+    # # jax.debug.print("jnp.argwhere(tz[:,0] == 1.): {}", jnp.argwhere(tz[:,0] == 1., size=1))
+    # jax.debug.print("idxwhere: {}", idxwhere)
+    # jax.debug.print("tz: {}", tz[idxwhere])
+    # jax.debug.print("z_min: {}", z_min)
+    # jax.debug.print("z_max: {}", z_max)
+    # jax.debug.print("dz: {}", dz)
+    # jax.debug.print("tz[idxwhere]: {}", tz[idxwhere])
+    # jax.debug.print("b[idxwhere]: {}", b[idxwhere])
+    # jax.debug.print("l[idxwhere]: {}", l[idxwhere])
+    # jax.debug.print("u[idxwhere]: {}", u[idxwhere])
+    # jax.debug.print("dml[idxwhere]: {}", dml[idxwhere])
+    # jax.debug.print("dmu[idxwhere]: {}", dmu[idxwhere])
+    # jax.debug.print("target_return_pmfs[idxwhere]: {}", target_return_pmfs[idxwhere])
+    
+    # Categorical cross-entropy loss.
+    def cross_entropy_loss(model, observations, action_pmfs, y):
+        # batch_idx = jnp.arange(x.shape[0])
+        # y_hat = model(x)
+        # # Get the return-atom distribution corresponding to the given actions.
+        # y_hat = y_hat[batch_idx, actions.squeeze()] # (batch_size, n_atoms)
+        # 
+        # y_hat = model.call_gen_return_dist(x) # (batch_size, n_atoms)
+        y_hat = model.call_gen_return_dist_NEW(observations, action_pmfs) # (batch_size, n_atoms)
+        # 
+        y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
+        # jax.debug.print("y_hat.shape = {}", y_hat.shape)
+        # jax.debug.print("y.shape = {}", y.shape)
+        # jax.debug.print("y_hat[idxwhere] = {}", y_hat[idxwhere])
+        # jax.debug.print("y[idxwhere] = {}", y[idxwhere])
+        # jax.debug.print("loss[idxwhere] = {}", loss[idxwhere])
+        return loss.mean()
+    #
+    loss, grads = nnx.value_and_grad(cross_entropy_loss)(
+        model=model_policy,
+        observations=observations,
+        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions) if policy_type == 'greedy' else action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        # action_pmfs=action_pmfs,
+        y=target_return_pmfs,
+        )
+    
+    # jax.debug.print("next_action_pmfs[0] = {}", next_action_pmfs[0])
+    # jax.debug.print("target_pmf[0] = {}", target_pmf[0])
+    # jax.debug.print("loss = {}", loss)
+    # jax.debug.print("grads = {}", grads)
+
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
+
+
+@partial(nnx.jit, static_argnames=['policy_type', 'target_type'])
+def update_complex_spread_hermitian_hybrid(
+    optimizer: nnx.Optimizer,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
+    observations: jax.Array,
+    actions: jax.Array,
+    action_pmfs: jax.Array,
+    next_observations: jax.Array,
+    rewards: jax.Array,
+    dones: jax.Array,
+    gamma: float,
+    policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    ):
+    """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
+    
+    batch_size = actions.shape[0]
+    
+    atoms = model_policy.atoms
+    num_atoms = model_policy.n_returns
+    d_actions = model_policy.d_actions
+    z_min = model_policy.z_min
+    z_max = model_policy.z_max
+    
+    # #########################
+    # # Generate return PMF for next observation, which is weighted based on expectation for each action.
+    # # i.e., the `next_pmfs` is a weighted sum across all the individual action return-atom PMFs.
+    # match target_type:
+    #     case 'greedy':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    #         next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_actions_onehot)
+    #     case 'stochastic':
+    #         next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    #         # next_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+    #         next_rho = model_target.call_return_density_matrix(next_observations, next_action_pmfs)
+    #     case _:
+    #         raise ValueError(f"Unsupported target type {target_type}")
+    # ##########################
+    
+    ##### V1 -- use argmax action for return distribution.
+    next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    next_actions = jnp.argmax(next_action_pmfs, axis=-1) # (batch,)
+    next_actions_onehot = nnx.one_hot(next_actions, num_classes=model_policy.n_actions)
+    next_return_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_actions_onehot) # (batch_size,n_atoms)
+    #
+    ##### V2 -- use full action PMF for return distribution.
+    # next_action_pmfs = model_target.call_gen_action_dist(next_observations) # (batch,n_actions,)
+    # next_return_pmfs = model_target.call_gen_return_dist_NEW(next_observations, next_action_pmfs) # (batch_size,n_atoms)
+
+
+    ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
+    # 
+    # `tz` are the atoms shifted by the discounted reward.
+    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    # tz = rewards[:, jnp.newaxis] + gamma * atoms # TODO this line may cause bugs (if it does, replace it with the above.)
+    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    
+    ## Project the current atoms to the target atoms.
+    #
+    # `dz` is the width between atoms (assumed to be constant across all atoms).
+    dz = atoms[1] - atoms[0] # Delta z.
+    # `b` represents how far `tz` has been shifted from the original atoms.
+    # The value of `b` is a floating-point number that falls between two atoms.
+    # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
+    b = (tz - z_min) / dz
+    # `l` are the indices of the atoms to the left of `b`.
+    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    # `u` are the indices of the atoms to the right of `b`.
+    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    # Here we split the original PMF `next_return_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
+    dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
+    dmu_scalar = (b - l)
+    dml = dml_scalar * next_return_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
+    dmu = dmu_scalar * next_return_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
+    
+    target_return_pmfs = jnp.zeros_like(next_return_pmfs)
+    
+    def project_to_bins(target_return_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
+        """Project an instance of return atoms.
+        
+        This function takes atom bin indices `l` (lower bins) and `u` (upper bins) and shift amounts for each bin `dml` (lower bin shift amount) and `dmu` (upper bin shift amount).
+        
+        Apply to batches using `jax.vmap`.
+        """
+        target_return_pmfs = target_return_pmfs.at[l.astype(jnp.int32)].add(dml)
+        target_return_pmfs = target_return_pmfs.at[u.astype(jnp.int32)].add(dmu)
+        return target_return_pmfs
+    
+    target_return_pmfs = jax.vmap(project_to_bins)(target_return_pmfs, l, u, dml, dmu)
+    
+    # Convert target return PMFs into a pure density matrix.
+    # target_rho = jnp.einsum("bi,bj->bij", jnp.sqrt(target_return_pmfs), jnp.sqrt(target_return_pmfs)) # Outer product respecting the batch dimension.
+    # target_rho = jax.vmap(jnp.diag)(jnp.sqrt(target_return_pmfs)) # Pure density matrix as diagonal.
+    target_rho = jax.vmap(jnp.diag)(target_return_pmfs) # Pure density matrix as diagonal.
+    # jax.debug.print("target_rho.shape: {}", target_rho.shape)
+    # jax.debug.print("qnrl.tools.purity(target_rho[0]): {}", qnrl.tools.purity(target_rho[0]))
+    # jax.debug.print("target_rho[0]: {}", target_rho[0])
+    
+    # idxwhere = jnp.argwhere(tz[:,0] == 1., size=1)
+    # # jax.debug.print("jnp.argwhere(tz[:,0] == 1.): {}", jnp.argwhere(tz[:,0] == 1., size=1))
+    # jax.debug.print("idxwhere: {}", idxwhere)
+    # jax.debug.print("tz: {}", tz[idxwhere])
+    # jax.debug.print("z_min: {}", z_min)
+    # jax.debug.print("z_max: {}", z_max)
+    # jax.debug.print("dz: {}", dz)
+    # jax.debug.print("tz[idxwhere]: {}", tz[idxwhere])
+    # jax.debug.print("b[idxwhere]: {}", b[idxwhere])
+    # jax.debug.print("l[idxwhere]: {}", l[idxwhere])
+    # jax.debug.print("u[idxwhere]: {}", u[idxwhere])
+    # jax.debug.print("dml[idxwhere]: {}", dml[idxwhere])
+    # jax.debug.print("dmu[idxwhere]: {}", dmu[idxwhere])
+    # jax.debug.print("target_return_pmfs[idxwhere]: {}", target_return_pmfs[idxwhere])
+    
+    # # Categorical cross-entropy loss.
+    # def cross_entropy_loss(model, observations, action_pmfs, y):
+    #     # batch_idx = jnp.arange(x.shape[0])
+    #     # y_hat = model(x)
+    #     # # Get the return-atom distribution corresponding to the given actions.
+    #     # y_hat = y_hat[batch_idx, actions.squeeze()] # (batch_size, n_atoms)
+    #     # 
+    #     # y_hat = model.call_gen_return_dist(x) # (batch_size, n_atoms)
+    #     y_hat = model.call_gen_return_dist_NEW(observations, action_pmfs) # (batch_size, n_atoms)
+    #     # 
+    #     y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+    #     loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
+    #     # jax.debug.print("y_hat.shape = {}", y_hat.shape)
+    #     # jax.debug.print("y.shape = {}", y.shape)
+    #     # jax.debug.print("y_hat[idxwhere] = {}", y_hat[idxwhere])
+    #     # jax.debug.print("y[idxwhere] = {}", y[idxwhere])
+    #     # jax.debug.print("loss[idxwhere] = {}", loss[idxwhere])
+    #     return loss.mean()
+    
+    def quantum_loss(model, observations, action_pmfs, rho):
+        hermitian_loss = model.call_hermitian_loss(observations, action_pmfs, rho)
+        # jax.debug.print("hermitian_loss = {}", hermitian_loss)
+        loss = (1. - hermitian_loss) ** 2.
+        #
+        # loss = 1. - (hermitian_loss ** 2.) # Best performance so far, but sometimes the loss is negative.
+        # loss = (1. - jnp.abs(hermitian_loss)) ** 2. # Not as stable.
+        # loss = hermitian_loss ** 2. # Optimize towards Hermitian expectation of zero.
+        return loss.mean()
+    #
+    loss, grads = nnx.value_and_grad(quantum_loss)(
+        model=model_policy,
+        observations=observations,
+        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions) if policy_type == 'greedy' else action_pmfs, # Compute loss w.r.t. the chosen action (could be greedy or stochastic, we don't know here).
+        rho=target_rho,
+        )
+    
+    # jax.debug.print("next_action_pmfs[0] = {}", next_action_pmfs[0])
+    # jax.debug.print("target_pmf[0] = {}", target_pmf[0])
+    # jax.debug.print("loss = {}", loss)
+    # jax.debug.print("grads = {}", grads)
+
+
+    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    
+    return loss
 
 
 def train(
     seed: int,
     env: gym.Env,
-    model_policy: QuantumNativeQNetworkSplit,
-    model_target: QuantumNativeQNetworkSplit,
+    model_policy: QuantumNativeQNetwork,
+    model_target: QuantumNativeQNetwork,
     optimizer: nnx.Optimizer,
     # 
     buffer_size: int,
     batch_size: int,
     total_timesteps: int, # Max number of training steps.
     learning_starts: int, # Training step index where model training commences.
-    policy_update_frequency: int, # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>total_timesteps`.
-    target_update_frequency: int, # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
+    policy_update_frequency: int, # Apply a policy model update every `t % policy_update_frequency == 0` steps after `t>learning_starts`.
+    target_update_frequency: int, # Apply a target model update every `t % target_update_frequency == 0` steps after `t>learning_starts`.
     gamma: float,
     tau: float,
     # 
@@ -304,7 +1464,8 @@ def train(
     eps_end: float,
     eps_exploration: float,
     policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'],
-    target_type: Literal['greedy', 'stochastic'],
+    target_type: Literal['greedy', 'stochastic', 'uniform'],
+    update_type: Literal['update_complex_spread_crossentropy', 'update_complex_spread_hermitian', 'update_complex_spread_hermitian_mixed', 'update_complex_spread_hermitian_hybrid', 'update_complex_spread_fidelity', 'update_complex_spread_fidelity_mixed', 'update_complex_spread_crossentropy_hybrid'],
     checkpoint_manager: ocp.CheckpointManager | None = None,
     metric_manager: MetricManager | None = None,
     return_buffer: bool = False,
@@ -317,15 +1478,7 @@ def train(
     history: list[dict[str, Any]] = []
     
     # Create a buffer for environment interactions.
-    # buffer = ReplayBuffer(buffer_size=buffer_size, env=env)
     buffer = PmfReplayBuffer(buffer_size=buffer_size, env=env)
-    
-    # print(f"{buffer.actions.shape = }")
-    # print(f"{buffer.action_pmfs.shape = }")
-    # print(f"{buffer.observations.shape = }")
-    # print(f"{buffer.rewards.shape = }")
-    # print(f"{buffer.dones.shape = }")
-    # return
     
     # Construct policy function via desired epsilon strategy.
     match policy_type:
@@ -337,6 +1490,24 @@ def train(
             func_policy = epsilon_phased_stochastic_greedy_policy
         case _:
             raise ValueError(f"unsupported policy type {policy_type}")
+    
+    match update_type:
+        case 'update_complex_spread_crossentropy':
+            func_update = update_complex_spread_crossentropy
+        case 'update_complex_spread_hermitian':
+            func_update = update_complex_spread_hermitian
+        case 'update_complex_spread_hermitian_mixed':
+            func_update = update_complex_spread_hermitian_mixed
+        case 'update_complex_spread_hermitian_hybrid':
+            func_update = update_complex_spread_hermitian_hybrid
+        case 'update_complex_spread_fidelity':
+            func_update = update_complex_spread_fidelity
+        case 'update_complex_spread_fidelity_mixed':
+            func_update = update_complex_spread_fidelity_mixed
+        case 'update_complex_spread_crossentropy_hybrid':
+            func_update = update_complex_spread_crossentropy_hybrid
+        case _:
+            raise ValueError(f"unsupported update function type {update_type}")
     
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
@@ -372,7 +1543,7 @@ def train(
                 )
             
             # Interaction within environment using selected actions.
-            next_observation, reward, done, truncation, info = env.step(action)
+            next_observation, reward, done, truncated, info = env.step(action)
             
             # Push interaction onto buffer.
             buffer.add(
@@ -382,6 +1553,7 @@ def train(
                 action_pmf=action_pmf,
                 reward=reward,
                 done=done,
+                # done=done or truncated,
                 )
             
             # Override current observation to be the next observation for subsequent loop iteration.
@@ -394,6 +1566,7 @@ def train(
                     episode_reward=info['episode']['r'],
                     episode_length=info['episode']['l'],
                     episode_time=info['episode']['t'],
+                    episode_utcisotime=datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
                 )
                 history.append(meta)
                 pbar_postfix.update(**meta)
@@ -410,11 +1583,7 @@ def train(
                 if t % policy_update_frequency == 0:
                     key, subkey = jax.random.split(key)
                     minibatch = buffer.sample(key=subkey, batch_size=batch_size)
-                    loss = update(
-                        # atoms,
-                        # num_atoms,
-                        # z_min,
-                        # z_max,
+                    loss = func_update(
                         optimizer=optimizer,
                         model_policy=model_policy,
                         model_target=model_target,
@@ -425,21 +1594,9 @@ def train(
                         rewards=minibatch.rewards,
                         dones=minibatch.dones,
                         gamma=gamma,
+                        policy_type=policy_type,
                         target_type=target_type,
                     )
-                    
-                    # update(
-                    #     optimizer: nnx.Optimizer,
-                    #     model_policy: QuantumNativeQNetworkSplit,
-                    #     model_target: QuantumNativeQNetworkSplit,
-                    #     observations: jax.Array,
-                    #     actions: jax.Array,
-                    #     action_pmfs: jax.Array,
-                    #     next_observations: jax.Array,
-                    #     rewards: jax.Array,
-                    #     dones: jax.Array,
-                    #     gamma: float,
-                    #     ):
                     
                     # Update the history and progress bar.
                     meta = dict(
@@ -488,13 +1645,16 @@ def train(
 def eval(
     seed: int,
     env: gym.Env,
-    model_policy: QuantumNativeQNetworkSplit,
+    model_policy: QuantumNativeQNetwork,
     total_timesteps: int, # Max number of training steps.
     policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy'] = 'greedy', # Greedy or stochastic policy.
+    env_wrappers: list[Callable[[gym.Env], gym.Env]] = [],
     ) -> list:
 
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
+    for wrapper_func in env_wrappers:
+        env = wrapper_func(env)
     
     # Seed random generators.
     np.random.seed(seed)
@@ -510,9 +1670,6 @@ def eval(
     pbar = tqdm(range(total_timesteps), unit='step', leave=True)
     pbar_postfix = dict() # Current progress bar postfix content.
     for t in pbar:
-        # action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
-        # action = jnp.argmax(action_pmf, axis=-1).item() # ()
-        # 
         action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
         match policy_type:
             case 'greedy':
@@ -523,7 +1680,7 @@ def eval(
             case _:
                 raise ValueError(f"unsupported policy type {policy_type}")
         # 
-        next_observation, reward, done, truncation, info = env.step(action)
+        next_observation, reward, done, truncated, info = env.step(action)
         
         meta = {
             'pmfs': action_pmf,
@@ -550,21 +1707,30 @@ def eval(
         # Update current observation with next observation.
         observation = next_observation.copy()
         
-        if done:
+        if done or truncated:
             break
+    
+    # Close environment.
+    # This is necessary if there are wrappers that operate once the environment is closed.
+    env.close()
     
     return history
 
 
 @dataclass(kw_only=True)
 class QnRL(Algorithm):
-    """Configuration for `qnrl.algorithms.qnrl`."""
-    # model_policy: QuantumNativeQNetworkSplit # Policy model configuration.
-    # model_target: QuantumNativeQNetworkSplit # Target model configuration.
-    model: QuantumNativeQNetworkSplit
+    """Quantum-native reinforcement learning (QnRL).
+    
+    A quantum variant of classical distributional reinforcement learning (DRL), loosely based on the work of Bellemare et al. (2017), that learns Q-value return probability distributions directly on quantum Hilbert spaces. QnRL interprets qubit superpositions as probability distributions, which is possible because of the normalization condition of quantum systems. Using superimposed qubits in this manner allows for distributional models to be built naturally on quantum hardware -- hence quantum-native learning systems.
+    
+    Reference:
+        M. G. Bellemare, W. Dabney, and R. Munos, “A distributional perspective on reinforcement learning,” in Proceedings of the 34th international conference on machine learning, D. Precup and Y. W. Teh, Eds., in Proceedings of machine learning research, vol. 70. PMLR, Aug. 2017, pp. 449–458. doi: 10.48550/arXiv.1707.06887.
+    """
+    model: QuantumNativeQNetwork
     optimizer: OptimizerTransform
     policy_type: Literal['greedy', 'stochastic', 'phased_stochastic_greedy']
-    target_type: Literal['greedy', 'stochastic']
+    target_type: Literal['greedy', 'stochastic', 'uniform']
+    update_type: Literal['update_complex_spread_crossentropy', 'update_complex_spread_hermitian', 'update_complex_spread_hermitian_mixed', 'update_complex_spread_hermitian_hybrid', 'update_complex_spread_fidelity', 'update_complex_spread_fidelity_mixed', 'update_complex_spread_crossentropy_hybrid']
     buffer_size: int = 10_000
     seed: int = 0
     batch_size: int = 128
@@ -583,19 +1749,10 @@ class QnRL(Algorithm):
         # Create the environment.
         env = self.env.make()
         
-        # # Create models.
-        # model_policy = self.model_policy
-        # model_target = self.model_target
-        # 
         # Create models, target is a copy of policy.
         model_policy = self.model
         graphdef, state = nnx.split(model_policy)
         model_target = nnx.merge(graphdef, state)
-        
-        # params_policy = nnx.state(model_policy, nnx.Param) # Get the learnable parameters of the policy model.
-        # params_target = nnx.state(model_target, nnx.Param) # Get the learnable parameters of the target model.
-        # params_update = optax.incremental_update(params_policy, params_target, self.tau) # Apply soft update rule for target network weights.
-        # nnx.update(model_target, params_update)
         
         # Create optimizers.
         optimizer = nnx.Optimizer(model_policy, self.optimizer.make(model_policy), wrt=nnx.Param)
@@ -628,6 +1785,7 @@ class QnRL(Algorithm):
             checkpoint_manager=checkpoint_manager,
             metric_manager=self.metric_manager,
             target_type=self.target_type,
+            update_type=self.update_type,
         )
         return train(**{**kwargs_default, **kwargs})
     
