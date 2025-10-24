@@ -396,7 +396,6 @@ class QnRL(Algorithm):
     model: QuantumNativeQNetwork
     optimizer: OptimizerTransform
     buffer_size: int = 10_000
-    seed: int = 0
     batch_size: int = 128
     total_timesteps: int = 500_000
     learning_starts: int = 10_000
