@@ -726,8 +726,9 @@ class QuantumNativeQNetwork(SerializableModule):
         x = self.project_input(observations)
         x = jnp.reshape(x, (-1, *self.circ_observation_shape_out,))
         # Multiplex the encoded observations across the layers of each action operator.
-        x = 2. * jnp.arctan(x) # [0, pi]
+        # x = 2. * jnp.arctan(x) # [-pi, pi]
         x = jnp.einsum("alqf,bqf->balqf", self.circ_weights_enc_obs, x)
+        x = 2. * jnp.arctan(x) + jnp.pi # [0, 2*pi]
         return x
     
     @nnx.jit(static_argnames=['n_reuploads'])
@@ -853,4 +854,4 @@ class QuantumNativeQNetwork(SerializableModule):
             pauli_enc=self.pauli_enc,
             pauli_var=self.pauli_var,
         )
-        return rho
+        return rho#
