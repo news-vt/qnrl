@@ -31,8 +31,11 @@ import jax
 jax.config.update("jax_enable_x64", True) # Enable double-precision for quantum models (default is single-precision).
 
 
-def load_algo_config(path: pathlib.Path) -> algorithm.Algorithm:
-    """Loads algorithm config from path, or throws error."""
+def load_algo_config(path: pathlib.Path, overrides: dict[str, Any] | None = None) -> algorithm.Algorithm:
+    """Loads algorithm config from path, or throws error.
+    
+    Python configurations allow for the most flexibility. There must be a variable called `config` at global scope in the module that is a configuration object. There can also be a `factory()` function with keyword-only arguments that builds the configuration object dynamically from a set of parameters. To load from a factory function the user must provide arguments via the `overrides` dictionary.
+    """
     # Verify config file exists.
     if not path.exists():
         raise ValueError(f"config file does not exist")
@@ -43,22 +46,38 @@ def load_algo_config(path: pathlib.Path) -> algorithm.Algorithm:
             with open(path) as f:
                 data = yaml.safe_load(f) or {}
             # Load the configuration object.
-            return algorithm.Algorithm.from_dict(data)
+            config = algorithm.Algorithm.from_dict(data)
         # Load from JSON.
         case ".json":
             with open(path) as f:
                 data = json.load(f) or {}
             # Load the configuration object.
-            return algorithm.Algorithm.from_dict(data)
+            config = algorithm.Algorithm.from_dict(data)
         # Load from Python.
         case ".py":
             try:
+                # Load configuration module.
                 mod = tools.load_python_module_from_filepath(path)
-                return mod.config # The configuration must be saved in a variable called `config`.
+                
+                # Load config dynamically from factory if one is provided.
+                if overrides is not None and hasattr(mod, 'factory'):
+                    config = mod.factory(**overrides)
+                # Load config object directly.
+                else:
+                    config = mod.config # The configuration must be saved in a variable called `config`.
             except Exception as e:
                 raise ValueError(f"could not load config from {path}: {e}")
         case _:
             raise ValueError(f"{suffix} is an unsupported file extension")
+    
+    # Perform overrides on the configuration object.
+    if overrides is not None:
+        for k, v in overrides.items():
+            if hasattr(config, k):
+                config.__setattr__(k, v)
+
+    # Return the configuration object.
+    return config
 
 
 
@@ -237,12 +256,19 @@ class Train(DataClassDictMixin):
     store: HashStore = field(default_factory=HashStore) # Path of JSON hash store file to use.
     dir: pathlib.Path = pathlib.Path("./") # Path to directory where to store training history, which will be named according to the hash of the training configuration. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
     history_file_type: Literal['.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'] = '.json'
+    seed: int | None = None # Override the config seed for training.
     
     def main(self):
         assert self.history_file_type in ('.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'), "unsupported history file type"
         
         # Load config.
-        config = load_algo_config(path=self.config)
+        # Forcefully override the seed if one was provided.
+        # We do this here because the config object's hash will change once we override the seed.
+        if self.seed is not None:
+            load_kwargs = dict(path=self.config, overrides=dict(seed=self.seed))
+        else:
+            load_kwargs = dict(path=self.config)
+        config = load_algo_config(**load_kwargs)
         
         # Create output directory if it does not exist.
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -268,13 +294,21 @@ class Eval(DataClassDictMixin):
     """Run evaluation algorithm using the given config."""
     config: pathlib.Path # Path of config file in format [yaml, json, python].
     format: DumpFormat = DumpFormat.PRETTY
-    kwargs: dict[str, bool | int | float | str] = field(default_factory=dict)
+    seed: int | None = None # Override the config seed for training.
     
     def main(self):
         # Load config.
-        config = load_algo_config(path=self.config)
-        
-        history_list = config.eval(**self.kwargs) # Run training algorithm.
+        # Forcefully override the seed if one was provided.
+        # We do this here because the config object's hash will change once we override the seed.
+        if self.seed is not None:
+            load_kwargs = dict(path=self.config, overrides=dict(seed=self.seed))
+        else:
+            load_kwargs = dict(path=self.config)
+        config = load_algo_config(**load_kwargs)
+
+        # Run evaluation algorithm.
+        history_list = config.eval()
+
         # Convert to dictionary of lists.
         data = tools.listofdict_to_dictoflist(history_list)
         
