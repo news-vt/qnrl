@@ -309,8 +309,6 @@ def eval(
 @dataclass(kw_only=True)
 class DQN(Algorithm):
     """Configuration for `qnrl.algorithms.dqn.train`."""
-    # model_policy: SerializableModule # Policy model configuration.
-    # model_target: SerializableModule # Target model configuration.
     model: SerializableModule # Target model configuration.
     optimizer: OptimizerTransform
     buffer_size: int = 10_000
