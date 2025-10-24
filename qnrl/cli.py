@@ -170,7 +170,7 @@ class StoreHash(DataClassDictMixin):
 class DumpHash(DataClassDictMixin):
     """Dump a given configuration based on UUID key from hash file."""
     store: HashStore = field(default_factory=HashStore) # Path of JSON hash store file to use.
-    key: str # Path of config file in format [yaml, json, python].
+    key: str # Hash key within store to dump.
     format: DumpFormat
     
     def main(self):
