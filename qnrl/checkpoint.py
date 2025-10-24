@@ -41,7 +41,7 @@ class CheckpointConfig(DataClassDictMixin):
         
         # Build the checkpoint manager.
         checkpoint_manager = ocp.CheckpointManager(
-            directory=ocp.test_utils.erase_and_create_empty(os.path.abspath(self.checkpoint_dir)),
+            directory=os.path.abspath(self.checkpoint_dir),
             options=self.checkpoint_options.make(),
             handler_registry=handler_registry,
         )
