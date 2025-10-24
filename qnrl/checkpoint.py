@@ -26,7 +26,7 @@ class CheckpointOptions(DataClassDictMixin):
 class CheckpointConfig(DataClassDictMixin):
     """Checkpoint configuration."""
     checkpoint_dir: str | pathlib.Path
-    checkpoint_options: CheckpointOptions
+    checkpoint_options: CheckpointOptions | None = None
     
     def make(self) -> ocp.CheckpointManager:
         """Build an `orbax.checkpoint.CheckpointManager` instance."""
@@ -42,7 +42,7 @@ class CheckpointConfig(DataClassDictMixin):
         # Build the checkpoint manager.
         checkpoint_manager = ocp.CheckpointManager(
             directory=os.path.abspath(self.checkpoint_dir),
-            options=self.checkpoint_options.make(),
+            options=self.checkpoint_options.make() if self.checkpoint_options is not None else None,
             handler_registry=handler_registry,
         )
         return checkpoint_manager
