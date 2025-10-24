@@ -388,7 +388,7 @@ def eval(
 @dataclass(kw_only=True)
 class C51(Algorithm):
     """Configuration for `qnrl.algorithms.c51.train`."""
-    model: SerializableModule # Target model configuration.
+    model: SerializableModule # Policy model configuration.
     optimizer: OptimizerTransform
     num_atoms: int
     z_min: float
