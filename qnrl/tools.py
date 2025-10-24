@@ -217,17 +217,18 @@ def serialize_train_results(obj: Any, type: Literal['json', 'yaml', 'yml'], **kw
 def save_model(path: str | pathlib.Path, model: nnx.Module):
     """Save Flax NNX model."""
     state = nnx.state(model)
-    checkpointer = ocp.PyTreeCheckpointer()
-    save_args = orbax_utils.save_args_from_target(state)
-    checkpointer.save(f"{path}/state", state, save_args=save_args)
+    checkpointer = ocp.StandardCheckpointer()
+    checkpointer.save(f"{path}/state", state, force=True)
+    checkpointer.wait_until_finished()
 
 
 def restore_model_from_path(path: str | pathlib.Path, model: M) -> M:
     """Restore a given Flax NNX model to the state designed at the given checkpoint path."""
     state = nnx.state(model) # Get the state of the abstract model.
     # Load state from the saved model.
-    checkpointer = ocp.PyTreeCheckpointer()
-    state = checkpointer.restore(f"{path}/state", item=state)
+    checkpointer = ocp.StandardCheckpointer()
+    state = checkpointer.restore(f"{path}/state", state)
+    checkpointer.wait_until_finished()
     # Update the abstract model with the loaded state.
     nnx.update(model, state)
     return model

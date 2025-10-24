@@ -174,6 +174,10 @@ def train(
     # Training history.
     history: list[dict[str, Any]] = []
     
+    # Track latest episode and loss metadata bundles.
+    episode_meta = dict()
+    loss_meta = dict()
+    
     # Create a buffer for environment interactions.
     buffer = ReplayBuffer(buffer_size=buffer_size, env=env)
     
@@ -222,19 +226,19 @@ def train(
             
             # Record episode statistics.
             if "episode" in info:
-                meta = dict(
+                episode_meta = dict(
                     episode_step=t,
                     episode_reward=info['episode']['r'],
                     episode_length=info['episode']['l'],
                     episode_time=info['episode']['t'],
                 )
-                history.append(meta)
-                pbar_postfix.update(**meta)
+                history.append(episode_meta)
+                pbar_postfix.update(**episode_meta)
                 pbar.set_postfix(pbar_postfix)
                 
                 # Save metrics.
                 if metric_manager is not None:
-                    metric_manager.save(t, meta)
+                    metric_manager.save(t, episode_meta)
             
             # Update models once sufficient environment interactions have been buffered.
             if t > learning_starts:
@@ -260,23 +264,31 @@ def train(
                     )
                     
                     # Update the history and progress bar.
-                    meta = dict(
+                    loss_meta = dict(
                         loss_step=t,
                         loss=loss,
                     )
-                    history.append(meta)
-                    pbar_postfix.update(**meta)
+                    history.append(loss_meta)
+                    pbar_postfix.update(**loss_meta)
                     pbar.set_postfix(pbar_postfix)
                     
                     # Save metrics.
                     if metric_manager is not None:
-                        metric_manager.save(t, meta)
+                        metric_manager.save(t, loss_meta)
                     
                     # Checkpoint model.
                     if checkpoint_manager is not None:
                         state = nnx.state(model_policy) # Get the current model state.
-                        save_args = orbax_utils.save_args_from_target(state)
-                        checkpoint_manager.save(t, state, save_kwargs={'save_args': save_args}, metrics=dict(loss=loss)) # Preserve state via checkpoint.
+                        checkpoint_manager.save(
+                            step=t,
+                            args=ocp.args.Composite(
+                                state=ocp.args.StandardSave(state), 
+                                metrics=ocp.args.JsonSave(dict(
+                                    loss=float(loss_meta['loss'].item()) if 'loss' in loss_meta else None,
+                                    episode_reward=float(episode_meta['episode_reward']) if 'episode_reward' in episode_meta else None,
+                                )),
+                            ),
+                        ) # Preserve state via checkpoint.
                 
                 # Update the target model by replacing its parameters with those of the policy model.
                 if t % target_update_frequency == 0:
@@ -296,6 +308,7 @@ def train(
     # Wait until checkpoint async operations have completed.
     if checkpoint_manager is not None:
         checkpoint_manager.wait_until_finished()
+        checkpoint_manager.close()
 
     return history
 

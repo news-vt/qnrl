@@ -17,8 +17,8 @@ class CheckpointOptions(DataClassDictMixin):
     def make(self) -> ocp.CheckpointManagerOptions:
         """Build an `orbax.checkpoint.CheckpointManagerOptions` instance."""
         return ocp.CheckpointManagerOptions(
-            save_interval_steps=self.save_interval_steps,
-            max_to_keep=self.max_to_keep,
+            save_decision_policy=ocp.checkpoint_managers.save_decision_policy.FixedIntervalPolicy(self.save_interval_steps),
+            preservation_policy=ocp.checkpoint_managers.preservation_policy.LatestN(self.max_to_keep),
             enable_async_checkpointing=self.enable_async_checkpointing,
         )
 
@@ -30,10 +30,20 @@ class CheckpointConfig(DataClassDictMixin):
     
     def make(self) -> ocp.CheckpointManager:
         """Build an `orbax.checkpoint.CheckpointManager` instance."""
+        
+        # Create a registry for state and metrics metadata.
+        # We freeze these options here to conform the training code to a specific pattern.
+        handler_registry = ocp.handlers.DefaultCheckpointHandlerRegistry()
+        handler_registry.add('state', ocp.args.StandardSave, ocp.StandardCheckpointHandler)
+        handler_registry.add('state', ocp.args.StandardRestore, ocp.StandardCheckpointHandler)
+        handler_registry.add('metrics', ocp.args.JsonSave, ocp.JsonCheckpointHandler)
+        handler_registry.add('metrics', ocp.args.JsonRestore, ocp.JsonCheckpointHandler)
+        
+        # Build the checkpoint manager.
         checkpoint_manager = ocp.CheckpointManager(
-            directory=os.path.abspath(self.checkpoint_dir),
-            checkpointers=ocp.PyTreeCheckpointer(),
+            directory=ocp.test_utils.erase_and_create_empty(os.path.abspath(self.checkpoint_dir)),
             options=self.checkpoint_options.make(),
+            handler_registry=handler_registry,
         )
         return checkpoint_manager
 
