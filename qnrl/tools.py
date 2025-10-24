@@ -218,7 +218,7 @@ def save_model(path: str | pathlib.Path, model: nnx.Module):
     """Save Flax NNX model."""
     state = nnx.state(model)
     checkpointer = ocp.StandardCheckpointer()
-    checkpointer.save(f"{path}/state", state, force=True)
+    checkpointer.save(f"{path}/state", state)
     checkpointer.wait_until_finished()
 
 
@@ -251,8 +251,11 @@ def restore_model_from_checkpointmanager(
     # Get latest step if none was provided.
     if step is None:
         step = checkpoint_manager.latest_step()
-    restored_state = checkpoint_manager.restore(step, items=original_state)
-    nnx.update(model, restored_state)
+    # Restore elements from composite dictionary format.
+    restored_composite_dict = checkpoint_manager.restore(step, args=ocp.args.Composite(
+        state=ocp.args.StandardRestore(original_state),
+    ))
+    nnx.update(model, restored_composite_dict['state'])
     # Return the model object.
     return model
 
