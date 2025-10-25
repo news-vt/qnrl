@@ -41,8 +41,9 @@ class HashStore(DataClassDictMixin):
         # Ensure object can be serialized as a dictionary.
         else:
             assert hasattr(obj, 'to_dict'), "only standard Python types (bool, int, float, str, list, tuple, dict) or custom classes that implement a `to_dict()` method can be serialized."
-            # Serialize object as dictionary.
-            obj_ser = obj.to_dict()
+            # De-serialize and re-serialize again to ensure types will be correct on load.
+            # to_dict() -> from_dict() -> to_dict()
+            obj_ser = obj.from_dict(obj.to_dict()).to_dict()
         # Generate a serialized object from the input using JSON.
         obj_str = json.dumps(obj_ser, **kwargs) # Dump serialized object as JSON string.
         return obj_str
