@@ -298,6 +298,9 @@ class Train(DataClassDictMixin):
         
         # Store the configuration and get it's unique hash.
         cfg_hash, _ = self.store.store_obj(config)
+        # Inform user of store and hash for the config.
+        print(f"Store: {self.store.path}")
+        print(f"Hash: {cfg_hash}")
         
         # Override checkpoint manager using the hash ID as filename if none was provided.
         if config.checkpoint is None:
@@ -320,9 +323,7 @@ class Train(DataClassDictMixin):
         history_filepath = self.dir_metrics / f"{cfg_hash}{self.history_file_type}"
         tools.save_train_results(history_filepath, history_list)
         
-        # Inform the user about the store, hash, and history file location.
-        print(f"Store: {self.store.path}")
-        print(f"Hash: {cfg_hash}")
+        # Inform the user about the history file location.
         print(f"History: {history_filepath}")
 
 
