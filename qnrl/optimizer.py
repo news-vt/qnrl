@@ -6,6 +6,8 @@ import jax
 from flax import nnx
 import optax
 from mashumaro.mixins.dict import DataClassDictMixin
+from mashumaro.config import BaseConfig
+from mashumaro.types import Discriminator
 
 def optimizer_tagger(cls):
     """Tag serializable optimizers by their class name in lower-case format."""
@@ -18,6 +20,12 @@ class OptimizerTransformIdentifier(enum.StrEnum):
 
 @dataclass(kw_only=True)
 class OptimizerTransform(DataClassDictMixin):
+    class Config(BaseConfig):
+        discriminator = Discriminator(
+            field="type",
+            include_subtypes=True,
+            variant_tagger_fn=optimizer_tagger,
+        )
     
     def make(self, model: nnx.Module) -> optax.GradientTransformationExtraArgs:
         raise NotImplementedError
