@@ -31,44 +31,61 @@ import jax
 jax.config.update("jax_enable_x64", True) # Enable double-precision for quantum models (default is single-precision).
 
 
-def load_algo_config(path: pathlib.Path, overrides: dict[str, Any] | None = None) -> algorithm.Algorithm:
-    """Loads algorithm config from path, or throws error.
+def load_algo_config(
+    key: str | None = None,
+    store: HashStore | None = None,
+    path: pathlib.Path | None = None,
+    overrides: dict[str, Any] | None = None,
+    ) -> algorithm.Algorithm:
+    """Loads algorithm config from path or key + store, or throws error.
     
     Python configurations allow for the most flexibility. There must be a variable called `config` at global scope in the module that is a configuration object. There can also be a `factory()` function with keyword-only arguments that builds the configuration object dynamically from a set of parameters. To load from a factory function the user must provide arguments via the `overrides` dictionary.
     """
-    # Verify config file exists.
-    if not path.exists():
-        raise ValueError(f"config file does not exist")
     
-    suffix = path.suffix
-    match suffix:
-        case ".yaml" | ".yml":
-            with open(path) as f:
-                data = yaml.safe_load(f) or {}
-            # Load the configuration object.
+    # Load from hash store.
+    if key is not None and store is not None:
+        try:
+            data = store.decode(store[key])
             config = algorithm.Algorithm.from_dict(data)
-        # Load from JSON.
-        case ".json":
-            with open(path) as f:
-                data = json.load(f) or {}
-            # Load the configuration object.
-            config = algorithm.Algorithm.from_dict(data)
-        # Load from Python.
-        case ".py":
-            try:
-                # Load configuration module.
-                mod = tools.load_python_module_from_filepath(path)
-                
-                # Load config dynamically from factory if one is provided.
-                if overrides is not None and hasattr(mod, 'factory'):
-                    config = mod.factory(**overrides)
-                # Load config object directly.
-                else:
-                    config = mod.config # The configuration must be saved in a variable called `config`.
-            except Exception as e:
-                raise ValueError(f"could not load config from {path}: {e}")
-        case _:
-            raise ValueError(f"{suffix} is an unsupported file extension")
+        except Exception as e:
+            raise ValueError(f"could not load config from {store}: {e}")
+    
+    elif path is not None:
+        # Verify config file exists.
+        if not path.exists():
+            raise ValueError(f"config file does not exist")
+        
+        suffix = path.suffix
+        match suffix:
+            case ".yaml" | ".yml":
+                with open(path) as f:
+                    data = yaml.safe_load(f) or {}
+                # Load the configuration object.
+                config = algorithm.Algorithm.from_dict(data)
+            # Load from JSON.
+            case ".json":
+                with open(path) as f:
+                    data = json.load(f) or {}
+                # Load the configuration object.
+                config = algorithm.Algorithm.from_dict(data)
+            # Load from Python.
+            case ".py":
+                try:
+                    # Load configuration module.
+                    mod = tools.load_python_module_from_filepath(path)
+                    
+                    # Load config dynamically from factory if one is provided.
+                    if overrides is not None and hasattr(mod, 'factory'):
+                        config = mod.factory(**overrides)
+                    # Load config object directly.
+                    else:
+                        config = mod.config # The configuration must be saved in a variable called `config`.
+                except Exception as e:
+                    raise ValueError(f"could not load config from {path}: {e}")
+            case _:
+                raise ValueError(f"{suffix} is an unsupported file extension")
+    else:
+        raise ValueError("must provide either path or key + store.")
     
     # Perform overrides on the configuration object.
     if overrides is not None:
@@ -252,11 +269,15 @@ class Hash(DataClassDictMixin):
 @dataclass(kw_only=True)
 class Train(DataClassDictMixin):
     """Run training algorithm using the given config."""
-    config: pathlib.Path # Path of config file in format [yaml, json, python].
+    config: pathlib.Path | None = None # Path of config file in format [yaml, json, python].
+    key: str | None = None # Config hash key.
     store: HashStore = field(default_factory=HashStore) # Path of JSON hash store file to use.
-    dir: pathlib.Path = pathlib.Path("./") # Path to directory where to store training history, which will be named according to the hash of the training configuration. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
+    dir_checkpoints: pathlib.Path = pathlib.Path("./checkpoints") # Path to directory where to store model checkpoints. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
+    dir_metrics: pathlib.Path = pathlib.Path("./metrics") # Path to directory where to store model performance metrics. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
     history_file_type: Literal['.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'] = '.json'
     seed: int | None = None # Override the config seed for training.
+    save_interval_steps: int = 1 # Save model checkpoints every N steps (exact frequency determined by when the training algorithm calls `checkpoint_manager.save()``).
+    max_to_keep: int = 1 # Maximum number of checkpoints to keep.
     
     def main(self):
         assert self.history_file_type in ('.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'), "unsupported history file type"
@@ -264,23 +285,39 @@ class Train(DataClassDictMixin):
         # Load config.
         # Forcefully override the seed if one was provided.
         # We do this here because the config object's hash will change once we override the seed.
+        load_kwargs = dict(
+            path=self.config, key=self.key, store=self.store
+        )
         if self.seed is not None:
-            load_kwargs = dict(path=self.config, overrides=dict(seed=self.seed))
-        else:
-            load_kwargs = dict(path=self.config)
+            load_kwargs['overrides'] = dict(seed=self.seed)
         config = load_algo_config(**load_kwargs)
         
         # Create output directory if it does not exist.
-        self.dir.mkdir(parents=True, exist_ok=True)
+        self.dir_checkpoints.mkdir(parents=True, exist_ok=True)
+        self.dir_metrics.mkdir(parents=True, exist_ok=True)
         
         # Store the configuration and get it's unique hash.
         cfg_hash, _ = self.store.store_obj(config)
+        
+        # Override checkpoint manager using the hash ID as filename if none was provided.
+        if config.checkpoint is None:
+            checkpoint_dir = (self.dir_checkpoints / f"{cfg_hash}").resolve()
+            if checkpoint_dir.exists():
+                ocp.test_utils.erase_and_create_empty(checkpoint_dir)
+            config.checkpoint = CheckpointConfig(
+                checkpoint_dir=checkpoint_dir,
+                checkpoint_options=CheckpointOptions(
+                    save_interval_steps=self.save_interval_steps,
+                    max_to_keep=self.max_to_keep,
+                    enable_async_checkpointing=True,
+                ),
+            )
         
         # Run training algorithm.
         history_list = config.train()
         
         # Save train results based on hash.
-        history_filepath = self.dir / f"{cfg_hash}{self.history_file_type}"
+        history_filepath = self.dir_metrics / f"{cfg_hash}{self.history_file_type}"
         tools.save_train_results(history_filepath, history_list)
         
         # Inform the user about the store, hash, and history file location.
@@ -292,22 +329,32 @@ class Train(DataClassDictMixin):
 @dataclass(kw_only=True)
 class Eval(DataClassDictMixin):
     """Run evaluation algorithm using the given config."""
-    config: pathlib.Path # Path of config file in format [yaml, json, python].
+    config: pathlib.Path | None = None # Path of config file in format [yaml, json, python].
+    key: str | None = None # Config hash key.
+    store: HashStore = field(default_factory=HashStore) # Path of JSON hash store file to use.
     format: DumpFormat = DumpFormat.PRETTY
-    seed: int | None = None # Override the config seed for training.
+    seed: int | None = None # Override the config seed for to match the one used in training and also update the evaluation seed.
+    dir_checkpoints: pathlib.Path = pathlib.Path("./checkpoints") # Path to directory where to store model checkpoints. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
+    dir_metrics: pathlib.Path = pathlib.Path("./metrics") # Path to directory where to store model performance metrics. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
     
     def main(self):
         # Load config.
-        # Forcefully override the seed if one was provided.
-        # We do this here because the config object's hash will change once we override the seed.
-        if self.seed is not None:
-            load_kwargs = dict(path=self.config, overrides=dict(seed=self.seed))
-        else:
-            load_kwargs = dict(path=self.config)
-        config = load_algo_config(**load_kwargs)
+        config = load_algo_config(path=self.config, key=self.key, store=self.store)
+        
+        # Generate hash for config, assuming the key wasn't provided.
+        cfg_hash, _ = self.store.hash(config)
+        
+        # Override checkpoint manager using the hash ID as filename if none was provided.
+        if config.checkpoint is None:
+            config.checkpoint = CheckpointConfig(
+                checkpoint_dir=(self.dir_checkpoints / f"{cfg_hash}").resolve(),
+            )
 
         # Run evaluation algorithm.
-        history_list = config.eval()
+        eval_kwargs = {}
+        if self.seed is not None:
+            eval_kwargs['seed'] = self.seed
+        history_list = config.eval(**eval_kwargs)
 
         # Convert to dictionary of lists.
         data = tools.listofdict_to_dictoflist(history_list)
