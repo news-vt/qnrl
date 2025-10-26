@@ -64,6 +64,30 @@ class Adam(OptimizerTransform):
         )
 
 @dataclass(kw_only=True)
+class AdamW(OptimizerTransform):
+    """Config for `optax.adamw`."""
+    learning_rate: float
+    b1: float = 0.9
+    b2: float = 0.999
+    eps: float = 1e-8
+    eps_root: float = 0.0
+    mu_dtype: Any = None
+    weight_decay: float = 1e-4
+    nesterov: bool = False
+    
+    def make(self, model: nnx.Module) -> optax.GradientTransformationExtraArgs:
+        return optax.adamw(
+            learning_rate=self.learning_rate,
+            b1=self.b1,
+            b2=self.b2,
+            eps=self.eps,
+            eps_root=self.eps_root,
+            mu_dtype=self.mu_dtype,
+            weight_decay=self.weight_decay,
+            nesterov=self.nesterov,
+        )
+
+@dataclass(kw_only=True)
 class SGD(OptimizerTransform):
     """Config for `optax.sgd`."""
     learning_rate: float
@@ -114,4 +138,10 @@ class Partition(OptimizerTransform):
             # param_labels=nnx.State.replace_by_pure_dict(params, self.pytree),
         )
 
-type SupportedOptimizerTransforms = Union[Adam, SGD, Partition, SetToZero]
+type SupportedOptimizerTransforms = Union[
+    Adam,
+    AdamW,
+    SGD,
+    Partition,
+    SetToZero,
+]
