@@ -134,6 +134,36 @@ def update(
     
     target_return_pmfs = jax.vmap(project_to_bins)(target_return_pmfs, l, u, dml, dmu)
 
+    # Compute other metrics prior to update.
+    def compute_other_metrics(model, observations, action_pmfs, y) -> dict:
+        y_hat = model.call_gen_return_dist(observations, action_pmfs) # (batch_size, n_atoms)
+        # 
+        y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        y = jnp.clip(y, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        #
+        # Cross entropy.
+        cross_entropy = -y * jnp.log(y_hat) # (batch_size, n_atoms)
+        cross_entropy = cross_entropy.sum(axis=-1).mean()
+        
+        # KL Divergence.
+        kl_div = jax.vmap(jax.scipy.special.kl_div)(p=y, q=y_hat) # (batch_size, n_atoms,)
+        kl_div = kl_div.sum(axis=-1).mean()
+        
+        # Add all additional metrics to a dictionary.
+        metrics = dict(
+            cross_entropy=cross_entropy,
+            kl_div=kl_div,
+        )
+        return metrics
+    
+    # Compute other metrics
+    metrics = compute_other_metrics(
+        model=model_policy,
+        observations=observations,
+        action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action.
+        y=target_return_pmfs,
+        )
+
     # Categorical cross-entropy loss.
     def cross_entropy_loss(model, observations, action_pmfs, y):
         y_hat = model.call_gen_return_dist(observations, action_pmfs) # (batch_size, n_atoms)
@@ -141,17 +171,32 @@ def update(
         y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
         loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
         return loss.mean()
+    
+    # KL divergence loss.
+    def kl_div_loss(model, observations, action_pmfs, y):
+        y_hat = model.call_gen_return_dist(observations, action_pmfs) # (batch_size, n_atoms)
+        # 
+        y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        y = jnp.clip(y, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        # kl_div = jax.vmap(jax.scipy.special.kl_div)(p=y, q=y_hat) # (batch_size, n_atoms,)
+        # kl_div = kl_div.sum(axis=-1).mean()
+        kl_div = optax.losses.kl_divergence(log_predictions=jnp.log(y_hat), targets=y)
+        kl_div = kl_div.mean()
+        return kl_div
+    
     #
     loss, grads = nnx.value_and_grad(cross_entropy_loss)(
+    # loss, grads = nnx.value_and_grad(kl_div_loss)(
         model=model_policy,
         observations=observations,
         action_pmfs=nnx.one_hot(actions, num_classes=model_policy.n_actions), # Compute loss w.r.t. the chosen action.
         y=target_return_pmfs,
         )
     
-    optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
+    # Update the policy Q-network in-place.
+    optimizer.update(model_policy, grads)
     
-    return loss
+    return loss, metrics
 
 
 def train(
@@ -265,7 +310,7 @@ def train(
                 if t % policy_update_frequency == 0:
                     key, subkey = jax.random.split(key)
                     minibatch = buffer.sample(key=subkey, batch_size=batch_size)
-                    loss = update(
+                    loss, metrics = update(
                         optimizer=optimizer,
                         model_policy=model_policy,
                         model_target=model_target,
@@ -278,7 +323,7 @@ def train(
                         gamma=gamma,
                     )
                     
-                    # Update the history and progress bar.
+                    # Update the history and progress bar with loss information.
                     loss_meta = dict(
                         loss_step=t,
                         loss=loss,
@@ -287,9 +332,19 @@ def train(
                     pbar_postfix.update(**loss_meta)
                     pbar.set_postfix(pbar_postfix)
                     
+                    # Update the history and progress bar with metric information.
+                    # This is separate from loss so that it can be correlated with a different time step variable.
+                    metric_meta = dict(
+                        metric_step=t,
+                        **metrics,
+                    )
+                    history.append(metric_meta)
+                    pbar_postfix.update(**metric_meta)
+                    pbar.set_postfix(pbar_postfix)
+                    
                     # Save metrics.
                     if metric_manager is not None:
-                        metric_manager.save(t, loss_meta)
+                        metric_manager.save(t, {**loss_meta, **metric_meta})
                     
                     # Checkpoint model.
                     if checkpoint_manager is not None:
@@ -301,6 +356,7 @@ def train(
                                 metrics=ocp.args.JsonSave(dict(
                                     loss=float(loss_meta['loss'].item()) if 'loss' in loss_meta else None,
                                     episode_reward=float(episode_meta['episode_reward']) if 'episode_reward' in episode_meta else None,
+                                    **{k: float(v) for k,v in metrics.items()},
                                 )),
                             ),
                             force=True,
