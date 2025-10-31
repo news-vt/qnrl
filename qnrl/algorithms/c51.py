@@ -245,7 +245,13 @@ def train(
             next_observation, reward, done, truncation, info = env.step(action)
             
             # Push interaction onto buffer.
-            buffer.add(observation, next_observation, action, reward, done)
+            buffer.add(
+                observation=observation,
+                next_observation=next_observation,
+                action=action,
+                reward=reward,
+                done=done,
+            )
             
             # Override current observation to be the next observation for subsequent loop iteration.
             observation = next_observation.copy()
@@ -274,19 +280,19 @@ def train(
                     key, subkey = jax.random.split(key)
                     minibatch = buffer.sample(key=subkey, batch_size=batch_size)
                     loss, metrics = update(
-                        atoms,
-                        num_atoms,
-                        z_min,
-                        z_max,
-                        optimizer,
-                        model_policy,
-                        model_target,
-                        minibatch.observations,
-                        minibatch.actions,
-                        minibatch.next_observations,
-                        minibatch.rewards,
-                        minibatch.dones,
-                        gamma,
+                        atoms=atoms,
+                        num_atoms=num_atoms,
+                        z_min=z_min,
+                        z_max=z_max,
+                        optimizer=optimizer,
+                        model_policy=model_policy,
+                        model_target=model_target,
+                        observations=minibatch.observations,
+                        actions=minibatch.actions,
+                        next_observations=minibatch.next_observations,
+                        rewards=minibatch.rewards,
+                        dones=minibatch.dones,
+                        gamma=gamma,
                     )
                     
                     # Update the history and progress bar with loss information.
