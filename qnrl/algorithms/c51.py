@@ -17,6 +17,7 @@ import optax
 import numpy as np
 from typing import Any, Callable
 import orbax.checkpoint as ocp
+import datetime
 
 from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
@@ -263,6 +264,7 @@ def train(
                     episode_reward=info['episode']['r'],
                     episode_length=info['episode']['l'],
                     episode_time=info['episode']['t'],
+                    episode_utcisotime=datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
                 )
                 history.append(episode_meta)
                 pbar_postfix.update(**episode_meta)
