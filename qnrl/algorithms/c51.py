@@ -78,7 +78,8 @@ def update(
     actions: jax.Array,
     next_observations: jax.Array,
     rewards: jax.Array,
-    dones: jax.Array,
+    terminations: jax.Array,
+    truncations: jax.Array,
     gamma: float,
     ):
     batch_idx = jnp.arange(actions.shape[0])
@@ -94,7 +95,7 @@ def update(
     ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
     # 
     # `tz` are the atoms shifted by the discounted reward.
-    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - terminations)[:, jnp.newaxis] # (batch_size, num_atoms)
     tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
     
     ## Project the current atoms to the target atoms.
@@ -243,7 +244,7 @@ def train(
                 )
             
             # Interaction within environment using selected actions.
-            next_observation, reward, done, truncation, info = env.step(action)
+            next_observation, reward, terminated, truncated, info = env.step(action)
             
             # Push interaction onto buffer.
             buffer.add(
@@ -251,7 +252,8 @@ def train(
                 next_observation=next_observation,
                 action=action,
                 reward=reward,
-                done=done,
+                terminated=terminated,
+                truncated=truncated,
             )
             
             # Override current observation to be the next observation for subsequent loop iteration.
@@ -293,7 +295,8 @@ def train(
                         actions=minibatch.actions,
                         next_observations=minibatch.next_observations,
                         rewards=minibatch.rewards,
-                        dones=minibatch.dones,
+                        terminations=minibatch.terminations,
+                        truncations=minibatch.truncations,
                         gamma=gamma,
                     )
                     
@@ -390,7 +393,7 @@ def eval(
         q_vals = jnp.sum(pmfs * atoms, axis=-1)
         action = jnp.argmax(q_vals, axis=-1).item()
         # 
-        next_observation, reward, done, truncated, info = env.step(action)
+        next_observation, reward, terminated, truncated, info = env.step(action)
         
         meta = {
             'pmfs': pmfs,
@@ -398,7 +401,8 @@ def eval(
             'reward': reward,
             'observation': observation,
             'next_observation': next_observation,
-            'done': done,
+            'terminated': terminated,
+            'truncated': truncated,
         }
         history.append(meta)
         
@@ -417,7 +421,7 @@ def eval(
         # Update current observation with next observation.
         observation = next_observation.copy()
         
-        if done or truncated:
+        if terminated or truncated:
             break
     
     # Close environment.

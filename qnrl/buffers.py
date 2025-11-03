@@ -41,7 +41,8 @@ class ReplayBufferSlice:
     next_observations: jax.Array
     actions: jax.Array
     rewards: jax.Array
-    dones: jax.Array
+    terminations: jax.Array
+    truncations: jax.Array
 
 
 @dataclass # This allows the buffer to be displayed properly using `IPython.display`.
@@ -58,7 +59,8 @@ class ReplayBuffer:
     next_observations: jax.Array
     actions: jax.Array
     rewards: jax.Array
-    dones: jax.Array
+    terminations: jax.Array
+    truncations: jax.Array
     
     def __init__(self,
         buffer_size: int,
@@ -83,7 +85,8 @@ class ReplayBuffer:
         self.next_observations = jnp.zeros_like(self.observations)
         self.actions = jnp.zeros(shape=(self.buffer_size, *self.action_shape), dtype=self.action_space.dtype)
         self.rewards = jnp.zeros(shape=(self.buffer_size, self.num_envs), dtype=jnp.float32)
-        self.dones = jnp.zeros(shape=(self.buffer_size, self.num_envs), dtype=bool)
+        self.terminations = jnp.zeros(shape=(self.buffer_size, self.num_envs), dtype=bool)
+        self.truncations = jnp.zeros(shape=(self.buffer_size, self.num_envs), dtype=bool)
     
     def reset(self):
         """Reinitialize the buffer with all zeroes."""
@@ -93,14 +96,16 @@ class ReplayBuffer:
         self.next_observations = jnp.zeros_like(self.next_observations)
         self.actions = jnp.zeros_like(self.actions)
         self.rewards = jnp.zeros_like(self.rewards)
-        self.dones = jnp.zeros_like(self.dones)
+        self.terminations = jnp.zeros_like(self.terminations)
+        self.truncations = jnp.zeros_like(self.truncations)
     
     def add(self,
         observation: jax.Array,
         next_observation: jax.Array,
         action: jax.Array,
         reward: jax.Array,
-        done: jax.Array,
+        terminated: jax.Array,
+        truncated: jax.Array,
         ):
         """Insert an environment interaction onto the buffer in circular fashion."""
         
@@ -109,7 +114,8 @@ class ReplayBuffer:
         self.next_observations = self.next_observations.at[self.idx].set(jnp.asarray(next_observation).reshape((*self.observations.shape[1:],)))
         self.actions = self.actions.at[self.idx].set(jnp.asarray(action).reshape((*self.actions.shape[1:],)))
         self.rewards = self.rewards.at[self.idx].set(jnp.asarray(reward).reshape((*self.rewards.shape[1:],)))
-        self.dones = self.dones.at[self.idx].set(jnp.asarray(done).reshape((*self.dones.shape[1:],)))
+        self.terminations = self.terminations.at[self.idx].set(jnp.asarray(terminated).reshape((*self.terminations.shape[1:],)))
+        self.truncations = self.truncations.at[self.idx].set(jnp.asarray(truncated).reshape((*self.truncations.shape[1:],)))
         
         self.idx += 1 # Increment buffer index.
         if self.idx >= self.buffer_size:
@@ -139,7 +145,8 @@ class ReplayBuffer:
             next_observations=self.next_observations[idx],
             actions=self.actions[idx],
             rewards=self.rewards[idx],
-            dones=self.dones[idx],
+            terminations=self.terminations[idx],
+            truncations=self.truncations[idx],
         )
         return ReplayBufferSlice(**data)
 
@@ -175,7 +182,8 @@ class PmfReplayBuffer(ReplayBuffer):
         action: jax.Array,
         action_pmf: jax.Array,
         reward: jax.Array,
-        done: jax.Array,
+        terminated: jax.Array,
+        truncated: jax.Array,
         ):
         """Insert an environment interaction onto the buffer in circular fashion."""
         
@@ -187,7 +195,8 @@ class PmfReplayBuffer(ReplayBuffer):
             next_observation=next_observation,
             action=action,
             reward=reward,
-            done=done,
+            terminated=terminated,
+            truncated=truncated,
         )
     
     def __getitem__(self, idx: int | list[int] | tuple[ArrayLike, ...] | ArrayLike) -> PmfReplayBufferSlice:
@@ -198,6 +207,7 @@ class PmfReplayBuffer(ReplayBuffer):
             actions=self.actions[idx],
             action_pmfs=self.action_pmfs[idx],
             rewards=self.rewards[idx],
-            dones=self.dones[idx],
+            terminations=self.terminations[idx],
+            truncations=self.truncations[idx],
         )
         return PmfReplayBufferSlice(**data)

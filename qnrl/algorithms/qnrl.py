@@ -71,7 +71,8 @@ def update(
     action_pmfs: jax.Array,
     next_observations: jax.Array,
     rewards: jax.Array,
-    dones: jax.Array,
+    terminations: jax.Array,
+    truncations: jax.Array,
     gamma: float,
     ):
     """Update using complex spreading operator, which "spreads" the amplitudes of the target distribution onto the support of the original atoms."""
@@ -98,7 +99,7 @@ def update(
     ## Compute the atoms of the target distribution and clip to range [z_min, z_max], which are not aligned with the original distribution.
     # 
     # `tz` are the atoms shifted by the discounted reward.
-    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - dones)[:, jnp.newaxis] # (batch_size, num_atoms)
+    tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - terminations)[:, jnp.newaxis] # (batch_size, num_atoms)
     tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
     
     ## Project the current atoms to the target atoms.
@@ -119,8 +120,6 @@ def update(
     dml = dml_scalar * next_return_pmfs # (batch_size, num_atoms), Split the weight onto the lower bin.
     dmu = dmu_scalar * next_return_pmfs # (batch_size, num_atoms), Split the weight onto the upper bin.
     
-    target_return_pmfs = jnp.zeros_like(next_return_pmfs)
-    
     def project_to_bins(target_return_pmfs: jax.Array, l: jax.Array, u: jax.Array, dml: jax.Array, dmu: jax.Array):
         """Project an instance of return atoms.
         
@@ -132,7 +131,7 @@ def update(
         target_return_pmfs = target_return_pmfs.at[u.astype(jnp.int32)].add(dmu)
         return target_return_pmfs
     
-    target_return_pmfs = jax.vmap(project_to_bins)(target_return_pmfs, l, u, dml, dmu)
+    target_return_pmfs = jax.vmap(project_to_bins)(jnp.zeros_like(next_return_pmfs), l, u, dml, dmu) # (batch, num_atoms,)
 
     # Compute other metrics prior to update.
     def compute_other_metrics(model, observations, action_pmfs, y) -> dict:
@@ -270,7 +269,7 @@ def train(
                 )
             
             # Interaction within environment using selected actions.
-            next_observation, reward, done, truncated, info = env.step(action)
+            next_observation, reward, terminated, truncated, info = env.step(action)
             
             # Push interaction onto buffer.
             buffer.add(
@@ -279,8 +278,8 @@ def train(
                 action=action,
                 action_pmf=action_pmf,
                 reward=reward,
-                done=done,
-                # done=done or truncated,
+                terminated=terminated,
+                truncated=truncated,
                 )
             
             # Override current observation to be the next observation for subsequent loop iteration.
@@ -319,7 +318,8 @@ def train(
                         action_pmfs=minibatch.action_pmfs,
                         next_observations=minibatch.next_observations,
                         rewards=minibatch.rewards,
-                        dones=minibatch.dones,
+                        terminations=minibatch.terminations,
+                        truncations=minibatch.truncations,
                         gamma=gamma,
                     )
                     
@@ -417,7 +417,7 @@ def eval(
     for t in pbar:
         action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
         action = jnp.argmax(action_pmf, axis=-1).item() # ()
-        next_observation, reward, done, truncated, info = env.step(action)
+        next_observation, reward, terminated, truncated, info = env.step(action)
         
         meta = {
             'pmfs': action_pmf,
@@ -425,7 +425,8 @@ def eval(
             'reward': reward,
             'observation': observation,
             'next_observation': next_observation,
-            'done': done,
+            'terminated': terminated,
+            'truncated': truncated,
         }
         history.append(meta)
         
@@ -444,7 +445,7 @@ def eval(
         # Update current observation with next observation.
         observation = next_observation.copy()
         
-        if done or truncated:
+        if terminated or truncated:
             break
     
     # Close environment.

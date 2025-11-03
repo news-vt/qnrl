@@ -69,7 +69,8 @@ def update(
     actions: jax.Array,
     next_observations: jax.Array,
     rewards: jax.Array,
-    dones: jax.Array,
+    terminations: jax.Array,
+    truncations: jax.Array,
     gamma: float,
     ) -> float:
     """Deep Q-learning policy model update."""
@@ -81,7 +82,7 @@ def update(
     
     q_next_target = model_target(next_observations) # (batch_size, n_actions)
     q_next_target = jnp.max(q_next_target, axis=-1) # (batch_size,)
-    next_q_value = rewards + (1 - dones) * gamma * q_next_target
+    next_q_value = rewards + (1 - terminations) * gamma * q_next_target
     
     loss, grads = nnx.value_and_grad(mse_loss)(model=model_policy, x=observations, y=next_q_value)
     optimizer.update(model_policy, grads) # Update the policy Q-network in-place.
@@ -159,10 +160,17 @@ def train(
                 )
             
             # Interaction within environment using selected actions.
-            next_observation, reward, done, truncation, info = env.step(action)
+            next_observation, reward, terminated, truncated, info = env.step(action)
             
             # Push interaction onto buffer.
-            buffer.add(observation, next_observation, action, reward, done)
+            buffer.add(
+                observation=observation,
+                next_observation=next_observation,
+                action=action,
+                reward=reward,
+                terminated=terminated,
+                truncated=truncated,
+                )
             
             # Override current observation to be the next observation for subsequent loop iteration.
             observation = next_observation.copy()
@@ -191,15 +199,16 @@ def train(
                     key, subkey = jax.random.split(key)
                     minibatch = buffer.sample(key=subkey, batch_size=batch_size)
                     loss = update(
-                        optimizer,
-                        model_policy,
-                        model_target,
-                        minibatch.observations,
-                        minibatch.actions,
-                        minibatch.next_observations,
-                        minibatch.rewards,
-                        minibatch.dones,
-                        gamma,
+                        optimizer=optimizer,
+                        model_policy=model_policy,
+                        model_target=model_target,
+                        observations=minibatch.observations,
+                        actions=minibatch.actions,
+                        next_observations=minibatch.next_observations,
+                        rewards=minibatch.rewards,
+                        terminations=minibatch.terminations,
+                        truncations=minibatch.truncations,
+                        gamma=gamma,
                     )
                     
                     # Update the history and progress bar.
@@ -282,14 +291,15 @@ def eval(
         q_values = model_policy(observation) # (num_actions,), environment axis is treated as batch index.
         action = q_values.argmax(axis=-1).item()
         # 
-        next_observation, reward, done, truncated, info = env.step(action)
+        next_observation, reward, terminated, truncated, info = env.step(action)
         
         meta = {
             'action': action,
             'reward': reward,
             'observation': observation,
             'next_observation': next_observation,
-            'done': done,
+            'terminated': terminated,
+            'truncated': truncated,
         }
         history.append(meta)
         
@@ -308,7 +318,7 @@ def eval(
         # Update current observation with next observation.
         observation = next_observation.copy()
         
-        if done or truncated:
+        if terminated or truncated:
             break
     
     # Close environment.
