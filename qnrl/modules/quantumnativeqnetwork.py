@@ -54,6 +54,7 @@ def circuit_layer_pauli_feature_map(phi: jax.Array, wires: list[int], pauli: str
     pauli_tup = tuple(pauli.lower()[::-1])
     # Iterate over all n-pairs of wires.
     wire_pairs = list(combinations(wires, len(pauli_tup)))
+    wire_to_phi_index = {w: i for i, w in enumerate(wires)} # w -> i for phi[i]
     for wire_tup in wire_pairs:
         ## Basis change.
         basis_change(wire_tup=wire_tup, pauli_tup=pauli_tup, inverse=False)
@@ -62,10 +63,10 @@ def circuit_layer_pauli_feature_map(phi: jax.Array, wires: list[int], pauli: str
         ## Phase gate at last qubit in the tuple chain.
         # Rotation angle is only a single parameter.
         if len(wire_tup) == 1:
-            angle = phi[wire_tup[-1]]
+            angle = phi[wire_to_phi_index[wire_tup[-1]]]
         # Rotation angle is a difference of multiple parameters in the Pauli chain.
         else:
-            angle = reduce(lambda a, b: a * b, jnp.pi - phi[jnp.array(wire_tup)])
+            angle = reduce(lambda a, b: a * b, jnp.pi - phi[jnp.array([wire_to_phi_index[w] for w in wire_tup])])
         # # Multiply angle by 2.
         # angle = angle * 2.
         # Apply phase shift using custom rotation angle.
@@ -86,20 +87,20 @@ def circuit_layer_parameterized_ops(phi: jax.Array, wires: list[int], pauli: tup
     for f, pauli_string in enumerate(pauli): # (feature_index, pauli_string)
         match pauli_string.lower():
             case 'rx':
-                for w in wires:
-                    qml.RX(phi=phi[w,f], wires=w)
+                for i, w in enumerate(wires):
+                    qml.RX(phi=phi[i,f], wires=w)
             case 'ry':
-                for w in wires:
-                    qml.RY(phi=phi[w,f], wires=w)
+                for i, w in enumerate(wires):
+                    qml.RY(phi=phi[i,f], wires=w)
             case 'rz':
-                for w in wires:
-                    qml.RZ(phi=phi[w,f], wires=w)
+                for i, w in enumerate(wires):
+                    qml.RZ(phi=phi[i,f], wires=w)
             case 'globalphase':
-                for w in wires:
-                    qml.GlobalPhase(phi=phi[w,f], wires=w)
+                for i, w in enumerate(wires):
+                    qml.GlobalPhase(phi=phi[i,f], wires=w)
             case 'phaseshift':
-                for w in wires:
-                    qml.PhaseShift(phi=phi[w,f], wires=w)
+                for i, w in enumerate(wires):
+                    qml.PhaseShift(phi=phi[i,f], wires=w)
             case _:
                 # Create a Pauli feature map from only `x`, `y`, `z` contents.
                 if set(pauli_string.lower()).issubset(set('xyz')):
