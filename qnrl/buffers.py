@@ -10,6 +10,8 @@ def get_observation_space_shape(observation_space: gym.spaces.Space):
         return (1,)
     elif isinstance(observation_space, gym.spaces.MultiDiscrete):
         return (int(len(observation_space.nvec)),)
+    elif isinstance(observation_space, gym.spaces.MultiBinary):
+        return observation_space.shape
     elif isinstance(observation_space, gym.spaces.Box):
         return observation_space.shape
     else:
@@ -21,6 +23,8 @@ def get_action_space_shape(action_space: gym.spaces.Space):
         return (1,)
     elif isinstance(action_space, gym.spaces.MultiDiscrete):
         return (int(len(action_space.nvec)),)
+    elif isinstance(action_space, gym.spaces.MultiBinary):
+        return action_space.shape
     else:
         raise NotImplementedError(f"{action_space} action space is not supported")
 
