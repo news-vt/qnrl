@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Callable
 
+import jax
 import jax.numpy as jnp
 import gymnasium as gym
 from mashumaro.mixins.dict import DataClassDictMixin
@@ -64,4 +65,24 @@ class ObservationExpandDims(EnvWrapperConfig):
         """Wrapper for `gymnasium.make` using config arguments."""
         env = super().make(**kwargs)
         env = gym.wrappers.TransformObservation(env, lambda obs: jnp.expand_dims(jnp.array(obs), axis=self.axis), env.observation_space)
+        return env
+
+@dataclass(kw_only=True)
+class ObservationDiscreteOneHot(EnvWrapperConfig):
+    """Transforms a discrete observation into a one-hot encoded representation.
+    
+    If a desired number of classes are not provided then it will be inferred from the wrapped environment observation space.
+    """
+    num_classes: int | None = None
+    
+    def make(self, **kwargs) -> gym.Env:
+        env = super().make(**kwargs)
+        assert isinstance(env.observation_space, gym.spaces.Discrete), "Only environment with discrete observation spaces are supported for one-hot transformation."
+        if self.num_classes is None:
+            self.num_classes = int(env.observation_space.n)
+        env = gym.wrappers.TransformObservation(
+            env=env,
+            func=lambda obs: jax.nn.one_hot(obs, num_classes=self.num_classes, dtype=int),
+            observation_space=gym.spaces.MultiBinary(n=self.num_classes),
+            )
         return env
