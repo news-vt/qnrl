@@ -37,10 +37,10 @@ def circuit(
             phi (jax.Array): Variational parameters for the layer of shape `(num_wires,3)`.
             wires (list[int]): List of wires.
         """
-        for w in wires:
-            qml.RZ(phi=phi[w,0], wires=w)
-            qml.RY(phi=phi[w,1], wires=w)
-            qml.RZ(phi=phi[w,2], wires=w)
+        for i, w in enumerate(wires):
+            qml.RZ(phi=phi[i,0], wires=w)
+            qml.RY(phi=phi[i,1], wires=w)
+            qml.RZ(phi=phi[i,2], wires=w)
     
     def circ(wires: list[int]):
         """Circular entanglement layer using `CZ`.
@@ -49,9 +49,9 @@ def circuit(
             wires (list[int]): List of wires.
         """
         for w0, w1 in zip(wires, wires[1:]):
-            qml.CZ(wires=[w0, w1])
+            qml.CZ(wires=[w0, w1]) # Control w0, target w1.
         if len(wires) != 2:
-            qml.CZ(wires=[wires[0], wires[-1]])
+            qml.CZ(wires=[wires[-1], wires[0]]) # Control w[-1], target w[0].
     
     def enc(phi: jax.Array, wires: list[int]):
         """Encoding layer using `RX`.
@@ -60,8 +60,8 @@ def circuit(
             phi (jax.Array): Encoding parameters for the layer of shape `(num_wires,1)`.
             wires (list[int]): _description_
         """
-        for w in wires:
-            qml.RX(phi=phi[w,0], wires=w)
+        for i, w in enumerate(wires):
+            qml.RX(phi=phi[i,0], wires=w)
     
     # Create list of wire indices.
     wires = list(range(num_wires))
@@ -70,7 +70,7 @@ def circuit(
     for l in range(num_layers):
         var(phi=weights[l], wires=wires)
         circ(wires=wires)
-        enc(phi=inputs, wires=wires)
+        enc(phi=inputs[l], wires=wires)
     # Final variational layer at the end.
     var(phi=weights[-1], wires=wires)
     
@@ -186,7 +186,7 @@ class QuantumQNetworkLinear(SerializableModule):
         self.diff_method = diff_method
         self.shots = shots
         
-        self.circ_inputs_shape = (num_wires,1,) # Each qubit has (Rx,).
+        self.circ_inputs_shape = (num_layers,num_wires,1,) # Each qubit has (Rx,).
         self.circ_weights_shape = (num_layers+1,num_wires,3,) # Each qubit has (Rz, Ry, Rz).
         self.circ_outputs_shape = num_wires
         
