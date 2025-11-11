@@ -108,7 +108,7 @@ def update(
     # 
     # `tz` are the atoms shifted by the discounted reward.
     tz = rewards[:, jnp.newaxis] + gamma * atoms * (1 - terminations)[:, jnp.newaxis] # (batch_size, num_atoms)
-    tz = jnp.clip(tz, a_min=z_min, a_max=z_max) # Clip to range [z_min, z_max].
+    tz = jnp.clip(tz, min=z_min, max=z_max) # Clip to range [z_min, z_max].
     
     ## Project the current atoms to the target atoms.
     #
@@ -119,9 +119,9 @@ def update(
     # For example, if the shifted atom 0 is `b[0] = 0.31` then it is between the original atom 0 and atom 1, therefore `l[0] = 0`, `u[0] = 1`, `dml_scalar[0] = 0.69`, `dmu_scalar[0] = 0.31`. So we multiply the original PMF probability at each atom index by `dml_scalar` for the fraction that should be reassigned to the lower bin, and multiply by `dmu_scalar` for the fraction assigned to the upper bin.
     b = (tz - z_min) / dz
     # `l` are the indices of the atoms to the left of `b`.
-    l = jnp.clip(jnp.floor(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
+    l = jnp.clip(jnp.floor(b), min=0, max=num_atoms - 1) # (batch_size, num_atoms), Lower (left) bin index.
     # `u` are the indices of the atoms to the right of `b`.
-    u = jnp.clip(jnp.ceil(b), a_min=0, a_max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
+    u = jnp.clip(jnp.ceil(b), min=0, max=num_atoms - 1) # (batch_size, num_atoms), Upper (right) bin index.
     # Here we split the original PMF `next_return_pmfs` into lower / upper bins by multiplying a fraction of the original probability that should be reassigned to each bin.
     dml_scalar = ((u + (l == u).astype(u.dtype)) - b) # Handle the case where `b_j` is exactly an integer via `(l == u).astype(u.dtype)`.
     dmu_scalar = (b - l)
