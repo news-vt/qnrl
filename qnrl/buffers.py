@@ -169,10 +169,11 @@ class PmfReplayBuffer(ReplayBuffer):
     def __init__(self,
         buffer_size: int,
         env: gym.Env | gym.vector.VectorEnv,
+        action_pmf_dtype: jnp.dtype = jnp.float64,
         ):
         super().__init__(buffer_size=buffer_size, env=env)
         self.action_pmf_shape = get_action_pmf_space_shape(self.action_space)
-        self.action_pmfs = jnp.zeros(shape=(self.buffer_size, *self.action_pmf_shape), dtype=jnp.float32)
+        self.action_pmfs = jnp.zeros(shape=(self.buffer_size, *self.action_pmf_shape), dtype=action_pmf_dtype)
     
     def reset(self):
         """Reinitialize the buffer with all zeroes."""
