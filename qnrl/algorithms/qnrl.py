@@ -23,6 +23,16 @@ from qnrl.tools import restore_model_from_checkpointmanager
 from qnrl.modules import QuantumNativeQNetwork
 
 
+def get_action_from_policy(model: QuantumNativeQNetwork, observation: jax.Array):
+    # Generate action distribution from input observation.
+    action_pmf = model.call_gen_action_dist(observation).squeeze() # (n_actions,)
+    # Take greedy action.
+    action = jnp.argmax(action_pmf, axis=-1) # Singleton array.
+    action = jax.device_get(action) # Singleton array.
+    action = action.item() # ()
+    return action, action_pmf
+
+
 @nnx.jit
 def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
     """Linear epsilon decay schedule."""
@@ -54,10 +64,8 @@ def epsilon_greedy_policy(
         action_pmf = jnp.array([1./env.action_space.n] * env.action_space.n) # Uniform distribution.
         return action, action_pmf
     else:
-        # Generate action distribution from input observation.
-        action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
-        # Take greedy action.
-        action = jnp.argmax(action_pmf, axis=-1).item() # ()
+        # Get action from policy model.
+        action, action_pmf = get_action_from_policy(model=model_policy, observation=observation)
         return action, action_pmf
 
 
@@ -415,8 +423,7 @@ def eval(
     pbar = tqdm(range(total_timesteps), unit='step', leave=True)
     pbar_postfix = dict() # Current progress bar postfix content.
     for t in pbar:
-        action_pmf = model_policy.call_gen_action_dist(observation).squeeze() # (n_actions,)
-        action = jnp.argmax(action_pmf, axis=-1).item() # ()
+        action, action_pmf = get_action_from_policy(model=model_policy, observation=observation)
         next_observation, reward, terminated, truncated, info = env.step(action)
         
         meta = {
