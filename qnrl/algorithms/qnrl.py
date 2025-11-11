@@ -151,10 +151,12 @@ def update(
         # Cross entropy.
         cross_entropy = -y * jnp.log(y_hat) # (batch_size, n_atoms)
         cross_entropy = cross_entropy.sum(axis=-1).mean()
+        cross_entropy = jax.device_get(cross_entropy)
         
         # KL Divergence.
         kl_div = jax.vmap(jax.scipy.special.kl_div)(p=y, q=y_hat) # (batch_size, n_atoms,)
         kl_div = kl_div.sum(axis=-1).mean()
+        kl_div = jax.device_get(kl_div)
         
         # Add all additional metrics to a dictionary.
         metrics = dict(
@@ -202,6 +204,9 @@ def update(
     
     # Update the policy Q-network in-place.
     optimizer.update(model_policy, grads)
+    
+    # Detach loss from device.
+    loss = jax.device_get(loss)
     
     return loss, metrics
 
