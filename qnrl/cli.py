@@ -403,7 +403,7 @@ class Plot(DataClassDictMixin):
         assert self.config or self.history, "must provide either list of configurations or direct list of history files"
         
         ### Create a map from unique keys to data source.
-        self.source_map: dict[str, pathlib.Path | algorithm.Algorithm] = {}
+        self.source_map: dict[str, pathlib.Path | algorithm.Algorithm | MetricManager] = {}
         #
         # Data source is a config object.
         if self.config:
@@ -416,7 +416,17 @@ class Plot(DataClassDictMixin):
             self.source_map.update(cfgs)
         # Data source is a direct history file.
         if self.history:
-            self.source_map.update({path.stem: path for path in self.history})
+            for path in self.history:
+                if path.is_dir():
+                    metric_manager = MetricManager(
+                        metric_dir=path.resolve(),
+                        metric_file_type="json", # TODO assume JSON for now, but this should be inferred from the directory somehow.
+                        )
+                    self.source_map.update({path.stem: metric_manager})
+                elif path.is_file():
+                    self.source_map.update({path.stem: path})
+                else:
+                    raise ValueError(f"Unsupported history source {path} (must be either directory, regular file, or algorithm config)")
     
     
     def main(self):
@@ -437,10 +447,17 @@ class Plot(DataClassDictMixin):
                 metric_manager = src.metric_manager # It cannot be None here because we check in main.
                 metric_manager.load()
                 metrics = metric_manager.get_metrics()
+            # Load metrics directly from metric manager.
+            elif isinstance(src, MetricManager):
+                metric_manager = src
+                metric_manager.load()
+                metrics = metric_manager.get_metrics()
             # Load metrics from history file.
             elif isinstance(src, pathlib.Path):
                 history_list = tools.load_train_results(src)
                 metrics = tools.listofdict_to_dictoflist(history_list)
+            else:
+                raise ValueError(f"Unsupported history source {src} (must be either directory, regular file, or algorithm config)")
             
             # Ensure desired keys are present.
             if self.x not in metrics:
@@ -633,7 +650,6 @@ class PlotLive(DataClassDictMixin):
             self.source_map.update(cfgs)
         # Data source is a direct history file.
         if self.history:
-            
             for path in self.history:
                 if path.is_dir():
                     metric_manager = MetricManager(
