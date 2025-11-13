@@ -756,7 +756,7 @@ class PlotLive(DataClassDictMixin):
                 # Plot data in each file.
                 for key in self.source_map.keys():
                     if self.stats:
-                        label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
+                        label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f}, first {data_dict['y'][key][0]:.4f}, last {data_dict['y'][key][-1]:.4f})"
                     else:
                         label = key
                     plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
