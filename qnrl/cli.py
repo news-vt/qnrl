@@ -25,6 +25,7 @@ from .gym import *
 from .checkpoint import *
 from .algorithms import *
 from .modules import SerializableModule
+from .metric import MetricManager
 
 
 import jax
@@ -619,7 +620,7 @@ class PlotLive(DataClassDictMixin):
         assert self.config or self.history, "must provide either list of configurations or direct list of history files"
         
         ### Create a map from unique keys to data source.
-        self.source_map: dict[str, pathlib.Path | algorithm.Algorithm] = {}
+        self.source_map: dict[str, pathlib.Path | algorithm.Algorithm | MetricManager] = {}
         #
         # Data source is a config object.
         if self.config:
@@ -632,7 +633,21 @@ class PlotLive(DataClassDictMixin):
             self.source_map.update(cfgs)
         # Data source is a direct history file.
         if self.history:
-            self.source_map.update({path.stem: path for path in self.history})
+            
+            for path in self.history:
+                if path.is_dir():
+                    metric_manager = MetricManager(
+                        metric_dir=path.resolve(),
+                        metric_file_type="json", # TODO assume JSON for now, but this should be inferred from the directory somehow.
+                        )
+                    self.source_map.update({path.stem: metric_manager})
+                elif path.is_file():
+                    self.source_map.update({path.stem: path})
+                else:
+                    raise ValueError(f"Unsupported history source {path} (must be either directory, regular file, or algorithm config)")
+
+                
+            # self.source_map.update({path.stem: path for path in self.history})
     
     def main(self):
         
@@ -647,7 +662,17 @@ class PlotLive(DataClassDictMixin):
         import plotext as plt
         plt.theme(theme=self.theme)
         
-        metric_sources = [src.metric_manager.metric_dir if isinstance(src, algorithm.Algorithm) else src for _, src in self.source_map.items()]
+        # Build list of file-based metric sources to watch for updates.
+        metric_sources = []
+        for _, src in self.source_map.items():
+            if isinstance(src, algorithm.Algorithm):
+                metric_sources.append(src.metric_manager.metric_dir)
+            elif isinstance(src, MetricManager):
+                metric_sources.append(src.metric_dir)
+            elif isinstance(src, pathlib.Path):
+                metric_sources.append(src)
+            else:
+                raise ValueError(f"Unsupported history source {src} (must be either directory, regular file, or algorithm config)")
         
         try:
             while True:
@@ -663,10 +688,17 @@ class PlotLive(DataClassDictMixin):
                         metric_manager = src.metric_manager # It cannot be None here because we check in main.
                         metric_manager.load()
                         metrics = metric_manager.get_metrics()
+                    # Load metrics directly from metric manager.
+                    elif isinstance(src, MetricManager):
+                        metric_manager = src
+                        metric_manager.load()
+                        metrics = metric_manager.get_metrics()
                     # Load metrics from history file.
                     elif isinstance(src, pathlib.Path):
                         history_list = tools.load_train_results(src)
                         metrics = tools.listofdict_to_dictoflist(history_list)
+                    else:
+                        raise ValueError(f"Unsupported history source {src} (must be either directory, regular file, or algorithm config)")
                     
                     if self.x not in metrics:
                         print(f"ERROR:X-axis key {self.x} not found in metrics file", file=sys.stderr)
