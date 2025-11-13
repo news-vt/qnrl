@@ -394,6 +394,7 @@ class Plot(DataClassDictMixin):
     show_last_n: int | None = None # Show the last `N` data points
     sync: bool = False # Synchronize X and Y axis data ranges to what is available across all configs.
     stats: bool = False # Report min/max/mean statistics in plot label.
+    plot_type: Literal['line', 'scatter'] = 'line' # Plot type as line or scatter plot.
     
     def __call__(self):
         return self.main()
@@ -544,6 +545,15 @@ class PlotMatplotlib(Plot):
         if self.style is not None:
             plt.style.use(style=self.style)
         
+        # Set plot function.
+        match self.plot_type:
+            case 'line':
+                plot_fn = plt.plot
+            case 'scatter':
+                plot_fn = plt.scatter
+            case _:
+                raise ValueError(f"Unsupported plot type {self.plot_type}")
+        
         # Create figure.
         fig = plt.figure(**self.figure_kwargs)
         
@@ -553,7 +563,7 @@ class PlotMatplotlib(Plot):
                 label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
             else:
                 label = key
-            plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label, zorder=self.zorder[key], alpha=self.alpha)
+            plot_fn(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label, zorder=self.zorder[key], alpha=self.alpha)
         
         # Set axis labels and title.
         plt.xlabel(self.x)
@@ -586,6 +596,15 @@ class PlotPlotext(Plot):
         import plotext as plt
 
         plt.theme(theme=self.theme or "pro")
+        
+        # Set plot function.
+        match self.plot_type:
+            case 'line':
+                plot_fn = plt.plot
+            case 'scatter':
+                plot_fn = plt.scatter
+            case _:
+                raise ValueError(f"Unsupported plot type {self.plot_type}")
 
         # Plot data in each file.
         for key in self.source_map.keys():
@@ -593,7 +612,7 @@ class PlotPlotext(Plot):
                 label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f})"
             else:
                 label = key
-            plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
+            plot_fn(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
 
         # Set axis labels and title.
         plt.xlabel(self.x)
@@ -631,6 +650,7 @@ class PlotLive(DataClassDictMixin):
     color: list[str] | None = None # Plot line color.
     sync: bool = False # Synchronize X and Y axis data ranges to what is available across all configs.
     stats: bool = False # Report min/max/mean statistics in plot label.
+    plot_type: Literal['line', 'scatter'] = 'line' # Plot type as line or scatter plot.
     
     def __post_init__(self):
         # Ensure that either config or history file list was given.
@@ -689,6 +709,15 @@ class PlotLive(DataClassDictMixin):
                 metric_sources.append(src)
             else:
                 raise ValueError(f"Unsupported history source {src} (must be either directory, regular file, or algorithm config)")
+        
+        # Set plot function.
+        match self.plot_type:
+            case 'line':
+                plot_fn = plt.plot
+            case 'scatter':
+                plot_fn = plt.scatter
+            case _:
+                raise ValueError(f"Unsupported plot type {self.plot_type}")
         
         try:
             while True:
@@ -775,7 +804,7 @@ class PlotLive(DataClassDictMixin):
                         label = f"{key} (min {data_dict['y'][key].min():.4f}, max {data_dict['y'][key].max():.4f}, mean {data_dict['y'][key].mean():.4f}, first {data_dict['y'][key][0]:.4f}, last {data_dict['y'][key][-1]:.4f})"
                     else:
                         label = key
-                    plt.plot(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
+                    plot_fn(data_dict['x'][key], data_dict['y'][key], color=colors[key], label=label)
                 
                 # Set axis labels and title.
                 plt.xlabel(self.x)
