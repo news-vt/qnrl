@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import jax
 import jax.numpy as jnp
 import gymnasium as gym
 from mashumaro.mixins.dict import DataClassDictMixin
-import dill
+import numpy as np
 
 
 # MARK: Environments
@@ -84,6 +84,26 @@ class ObservationDiscreteOneHot(EnvWrapperConfig):
         env = gym.wrappers.TransformObservation(
             env=env,
             func=lambda obs: jax.nn.one_hot(obs, num_classes=self.num_classes, dtype=observation_space.dtype),
+            observation_space=observation_space,
+            )
+        return env
+
+@dataclass(kw_only=True)
+class ObservationDiscreteUnravel(EnvWrapperConfig):
+    """Transforms a discrete 1-dimensional observation into an N-dimension observation using `numpy.unravel_index`.
+    
+    For example, this transformation is useful in 2-dimensional grid-world environments (e.g., CliffWalking-v1 with shape `(4,12)`) that have observations that report a singular grid index value (e.g., `47`) corresponding to a grid location (e.g., `(3,11)`). This transformation will "unravel" the singular index value into the multi-dimensional grid coordinate location.
+    """
+    shape: tuple[int,...]
+    order: Literal['C', 'F'] = 'F' # 'F' column-major, 'C' row-major style.
+    
+    def make(self, **kwargs) -> gym.Env:
+        env = super().make(**kwargs)
+        assert isinstance(env.observation_space, gym.spaces.Discrete), "Only environment with discrete observation spaces are supported for unravel transformation."
+        observation_space = gym.spaces.MultiDiscrete(nvec=list(self.shape))
+        env = gym.wrappers.TransformObservation(
+            env=env,
+            func=lambda obs: jnp.asarray(np.unravel_index(obs, self.shape, order=self.order)),
             observation_space=observation_space,
             )
         return env
