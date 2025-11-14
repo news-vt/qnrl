@@ -80,9 +80,10 @@ class ObservationDiscreteOneHot(EnvWrapperConfig):
         assert isinstance(env.observation_space, gym.spaces.Discrete), "Only environment with discrete observation spaces are supported for one-hot transformation."
         if self.num_classes is None:
             self.num_classes = int(env.observation_space.n)
+        observation_space = gym.spaces.MultiBinary(n=self.num_classes)
         env = gym.wrappers.TransformObservation(
             env=env,
-            func=lambda obs: jax.nn.one_hot(obs, num_classes=self.num_classes, dtype=int),
-            observation_space=gym.spaces.MultiBinary(n=self.num_classes),
+            func=lambda obs: jax.nn.one_hot(obs, num_classes=self.num_classes, dtype=observation_space.dtype),
+            observation_space=observation_space,
             )
         return env
