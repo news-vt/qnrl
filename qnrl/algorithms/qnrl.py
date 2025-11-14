@@ -145,8 +145,12 @@ def update(
     def compute_other_metrics(model, observations, action_pmfs, y) -> dict:
         y_hat = model.call_gen_return_dist(observations, action_pmfs) # (batch_size, n_atoms)
         # 
-        y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
-        y = jnp.clip(y, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        # y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        # y = jnp.clip(y, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        ######
+        y_hat = jnp.clip(y_hat, min=1e-10, max=1 - 1e-10) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        # y = jnp.clip(y, min=1e-10, max=1 - 1e-10) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        ######
         #
         # Cross entropy.
         cross_entropy = -y * jnp.log(y_hat) # (batch_size, n_atoms)
@@ -177,22 +181,23 @@ def update(
     def cross_entropy_loss(model, observations, action_pmfs, y):
         y_hat = model.call_gen_return_dist(observations, action_pmfs) # (batch_size, n_atoms)
         # 
-        y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        # y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+        y_hat = jnp.clip(y_hat, min=1e-10, max=1 - 1e-10) # Clip the PMFs for passing to the log, to prevent -inf and 0.
         loss = -jnp.sum(y * jnp.log(y_hat), axis=-1) # (batch_size,)
         return loss.mean()
     
-    # KL divergence loss.
-    def kl_div_loss(model, observations, action_pmfs, y):
-        y_hat = model.call_gen_return_dist(observations, action_pmfs) # (batch_size, n_atoms)
-        # 
-        y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
-        y = jnp.clip(y, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
-        # kl_div = jax.vmap(jax.scipy.special.kl_div)(p=y, q=y_hat) # (batch_size, n_atoms,)
-        # kl_div = kl_div.sum(axis=-1).mean()
-        kl_div = optax.losses.kl_divergence(log_predictions=jnp.log(y_hat), targets=y)
-        kl_div = kl_div.mean()
-        return kl_div
-    
+    # # KL divergence loss.
+    # def kl_div_loss(model, observations, action_pmfs, y):
+    #     y_hat = model.call_gen_return_dist(observations, action_pmfs) # (batch_size, n_atoms)
+    #     # 
+    #     y_hat = jnp.clip(y_hat, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+    #     y = jnp.clip(y, a_min=1e-5, a_max=1 - 1e-5) # Clip the PMFs for passing to the log, to prevent -inf and 0.
+    #     # kl_div = jax.vmap(jax.scipy.special.kl_div)(p=y, q=y_hat) # (batch_size, n_atoms,)
+    #     # kl_div = kl_div.sum(axis=-1).mean()
+    #     kl_div = optax.losses.kl_divergence(log_predictions=jnp.log(y_hat), targets=y)
+    #     kl_div = kl_div.mean()
+    #     return kl_div
+    # 
     #
     loss, grads = nnx.value_and_grad(cross_entropy_loss)(
     # loss, grads = nnx.value_and_grad(kl_div_loss)(
