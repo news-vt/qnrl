@@ -3,10 +3,16 @@ from typing import Any, Callable, Literal
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import gymnasium as gym
 from mashumaro.mixins.dict import DataClassDictMixin
-import numpy as np
+from mashumaro.config import BaseConfig
+from mashumaro.types import Discriminator
 
+
+def env_config_tagger(cls):
+    """Tag serializable environment configurations by their class name."""
+    return cls.__name__
 
 # MARK: Environments
 @dataclass(kw_only=True)
@@ -33,7 +39,24 @@ class EnvConfig(DataClassDictMixin):
         return gym.make(
             **{**kwargs_default, **kwargs}, # Apply default keyword arguments with per-make overrides.
         )
-
+    
+    class Config(BaseConfig):
+        discriminator = Discriminator(
+            field="type",
+            include_subtypes=True,
+            variant_tagger_fn=env_config_tagger,
+        )
+    
+    def __pre_serialize__(self):
+        return self
+    
+    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        # Re-build serialization dictionary by creating a `type` field as the first key.
+        d = {
+            'type': env_config_tagger(type(self)), # Discriminator field.
+            **d,
+        }
+        return d
 
 @dataclass(kw_only=True)
 class EnvWrapperConfig(DataClassDictMixin):
@@ -44,6 +67,25 @@ class EnvWrapperConfig(DataClassDictMixin):
         """Wrapper for `gymnasium.make` using config arguments."""
         env = self.env.make(**kwargs)
         return env
+    
+    class Config(BaseConfig):
+        discriminator = Discriminator(
+            field="type",
+            include_subtypes=True,
+            variant_tagger_fn=env_config_tagger,
+        )
+    
+    def __pre_serialize__(self):
+        return self
+    
+    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        # Re-build serialization dictionary by creating a `type` field as the first key.
+        d = {
+            'type': env_config_tagger(type(self)), # Discriminator field.
+            **d,
+        }
+        return d
+    
 
 @dataclass(kw_only=True)
 class ScaleObservation(EnvWrapperConfig):
