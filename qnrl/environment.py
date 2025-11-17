@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -42,8 +42,6 @@ class EnvironmentBase(DataClassDictMixin):
         }
         return d
 
-
-# MARK: Environments
 @dataclass(kw_only=True)
 class EnvConfig(EnvironmentBase):
     """Config for `gymnasium.make`."""
@@ -54,7 +52,7 @@ class EnvConfig(EnvironmentBase):
     # Maximum number of steps per episode.
     max_episode_steps: int | None = None
     # Environment-specific keyword arguments.
-    extra_args: dict[str, int | float | str] | None = None
+    extra_args: dict[str, int | float | str | tuple | list | dict | None] | None = None
     
     def make(self, **kwargs) -> gym.Env:
         """Wrapper for `gymnasium.make` using config arguments."""
@@ -79,7 +77,7 @@ class EnvWrapperConfig(EnvironmentBase):
         """Wrapper for `gymnasium.make` using config arguments."""
         env = self.env.make(**kwargs)
         return env
-    
+
 
 @dataclass(kw_only=True)
 class ScaleObservation(EnvWrapperConfig):
