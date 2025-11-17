@@ -5,6 +5,6 @@ from . import cli
 from . import modules
 from . import metric
 from . import checkpoint
-from . import gym
+from . import environment
 from . import optimizer
 from . import store

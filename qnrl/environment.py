@@ -14,9 +14,38 @@ def env_config_tagger(cls):
     """Tag serializable environment configurations by their class name."""
     return cls.__name__
 
+
+@dataclass(kw_only=True)
+class EnvironmentBase(DataClassDictMixin):
+    """Base environment configuration class for serialize/deserialize. Do not use this class directly. Instead, use the `EnvConfig` class for creating environments, or `EnvWrapperConfig` for wrapping environment.
+    """
+    
+    def make(self, **kwargs) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        raise NotImplementedError
+    
+    class Config(BaseConfig):
+        discriminator = Discriminator(
+            field="type",
+            include_subtypes=True,
+            variant_tagger_fn=env_config_tagger,
+        )
+    
+    def __pre_serialize__(self):
+        return self
+    
+    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        # Re-build serialization dictionary by creating a `type` field as the first key.
+        d = {
+            'type': env_config_tagger(type(self)), # Discriminator field.
+            **d,
+        }
+        return d
+
+
 # MARK: Environments
 @dataclass(kw_only=True)
-class EnvConfig(DataClassDictMixin):
+class EnvConfig(EnvironmentBase):
     """Config for `gymnasium.make`."""
     # Environment string name ID.
     env_id: str
@@ -39,52 +68,17 @@ class EnvConfig(DataClassDictMixin):
         return gym.make(
             **{**kwargs_default, **kwargs}, # Apply default keyword arguments with per-make overrides.
         )
-    
-    class Config(BaseConfig):
-        discriminator = Discriminator(
-            field="type",
-            include_subtypes=True,
-            variant_tagger_fn=env_config_tagger,
-        )
-    
-    def __pre_serialize__(self):
-        return self
-    
-    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
-        # Re-build serialization dictionary by creating a `type` field as the first key.
-        d = {
-            'type': env_config_tagger(type(self)), # Discriminator field.
-            **d,
-        }
-        return d
 
 @dataclass(kw_only=True)
-class EnvWrapperConfig(DataClassDictMixin):
+class EnvWrapperConfig(EnvironmentBase):
     """Config for `gymnasium.wrappers.*`."""
-    env: 'EnvConfig | EnvWrapperConfig'
+    # env: 'EnvConfig | EnvWrapperConfig'
+    env: EnvironmentBase
     
     def make(self, **kwargs) -> gym.Env:
         """Wrapper for `gymnasium.make` using config arguments."""
         env = self.env.make(**kwargs)
         return env
-    
-    class Config(BaseConfig):
-        discriminator = Discriminator(
-            field="type",
-            include_subtypes=True,
-            variant_tagger_fn=env_config_tagger,
-        )
-    
-    def __pre_serialize__(self):
-        return self
-    
-    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
-        # Re-build serialization dictionary by creating a `type` field as the first key.
-        d = {
-            'type': env_config_tagger(type(self)), # Discriminator field.
-            **d,
-        }
-        return d
     
 
 @dataclass(kw_only=True)

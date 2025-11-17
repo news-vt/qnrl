@@ -21,7 +21,7 @@ from plotext._figure import default_figure_class as PlotextFigure
 from . import tools
 from .store import HashStore
 from .optimizer import *
-from .gym import *
+from .environment import *
 from .checkpoint import *
 from .algorithms import *
 from .modules import SerializableModule

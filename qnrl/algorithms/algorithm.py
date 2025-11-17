@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import enum
-from typing import Any
+from typing import Any, Annotated, Union
 
 from mashumaro.mixins.dict import DataClassDictMixin
 from mashumaro.config import BaseConfig
@@ -8,7 +8,7 @@ from mashumaro.types import Discriminator
 
 from ..checkpoint import CheckpointConfig
 from ..metric import MetricManager
-from ..gym import EnvConfig, EnvWrapperConfig
+from ..environment import EnvironmentBase
 
 
 def algorithm_tagger(cls):
@@ -22,7 +22,7 @@ class Algorithm(DataClassDictMixin):
     
     This class contains a `run()` method, that is intended to invoke the `qnrl.algorithm.*.train()` function, along with any other training procedures. The `run()` method will be called with no arguments.
     """
-    env: EnvConfig | EnvWrapperConfig # Gymnasium environment configuration.
+    env: EnvironmentBase # Gymnasium environment configuration.
     seed: int = 0 # Random seed.
     metric_manager: MetricManager | None = None # Metric management configuration.
     checkpoint: CheckpointConfig | None = None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
