@@ -95,7 +95,7 @@ class ObservationDiscreteUnravel(EnvWrapperConfig):
     For example, this transformation is useful in 2-dimensional grid-world environments (e.g., CliffWalking-v1 with shape `(4,12)`) that have observations that report a singular grid index value (e.g., `47`) corresponding to a grid location (e.g., `(3,11)`). This transformation will "unravel" the singular index value into the multi-dimensional grid coordinate location.
     """
     shape: tuple[int,...]
-    order: Literal['C', 'F'] = 'F' # 'F' column-major, 'C' row-major style.
+    order: Literal['C', 'F'] = 'C' # 'C' row-major style, 'F' column-major.
     
     def make(self, **kwargs) -> gym.Env:
         env = super().make(**kwargs)
