@@ -491,7 +491,7 @@ class QnRL(Algorithm):
     target_update_frequency: int = 500 # Apply a target model update every `t % target_update_frequency == 0` steps after `t>total_timesteps`.
     gamma: float = 0.99
     tau: float = 1.0
-    eps_start: int = 1
+    eps_start: float = 1.0
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
     
