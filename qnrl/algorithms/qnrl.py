@@ -427,7 +427,7 @@ def eval(
     
     history = []
 
-    observation, _ = env.reset() # Reset the environment.
+    observation, _ = env.reset(seed=seed) # Reset the environment.
     
     # Iteratively step through environment.
     pbar = tqdm(range(total_timesteps), unit='step', leave=True)
