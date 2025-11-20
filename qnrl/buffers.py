@@ -130,10 +130,8 @@ class ReplayBuffer:
         """Collect randomized samples from the buffer."""
         # Collect random batch indices.
         key, subkey = jax.random.split(key) # Generate a new random key, use `subkey` for calls to jax.random, preserve `self.key` for future splits.
-        if self.is_full:
-            idx_batch = (jax.random.randint(subkey, shape=(batch_size,), minval=1, maxval=self.buffer_size) + self.idx) % self.buffer_size
-        else:
-            idx_batch = jax.random.randint(subkey, shape=(batch_size,), minval=0, maxval=self.idx)
+        upper_bound = self.buffer_size if self.is_full else self.idx
+        idx_batch = jax.random.randint(subkey, shape=(batch_size,), minval=0, maxval=upper_bound)
 
         # Collect random environment indices.
         key, subkey = jax.random.split(key) # Generate a new random key, use `subkey` for calls to jax.random, preserve `self.key` for future splits.
