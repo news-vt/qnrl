@@ -230,3 +230,81 @@ class LocalFileMetricManager(MetricManager):
         d.pop('_latest_step_untracked', None)
         d.pop('_lock', None)
         return d
+
+
+@dataclass(kw_only=True)
+class WandBMetricManager(DataClassDictMixin):
+    """Weights and Biases plugin for managing metrics."""
+    
+    login: bool
+    project: str
+    name: str
+    config: dict
+    monitor_gym: bool
+    save_code: bool
+    entity: str | None = None
+    
+    def __post_init__(self):
+        self._run, self._api = self._init_wandb()
+    
+    def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
+        # Remove hidden properties.
+        d.pop('_run', None)
+        d.pop('_api', None)
+        return d
+    
+    def _init_wandb(self):
+        import wandb
+        if self.login:
+            wandb.login()
+        run = wandb.init(
+            project=self.project,
+            entity=self.entity,
+            config=self.config,
+            name=self.name,
+            monitor_gym=self.monitor_gym,
+            save_code=self.save_code,
+        )
+        api = wandb.Api()
+        return run, api
+    
+    def get_dataframe(self) -> pd.DataFrame:
+        path = f"{self.project}/{self._run.id}"
+        if self.entity is not None:
+            path = f"{self.entity}/{path}"
+        run = self._api.run(path)
+        full_history = list(run.scan_history())
+        return pd.DataFrame(full_history) # Pandas DataFrame.
+    
+    def get_history(self) -> list[dict[str, Any]]:
+        """Return history as list of time-sorted dictionary metric entries."""
+        df = self.get_dataframe()
+        return df.to_dict('records')
+
+    def get_metrics(self) -> dict[str, Any]:
+        """Return metrics as dictionary of lists."""
+        df = self.get_dataframe()
+        return df.to_dict(orient='list')
+    
+    # TODO make saving async.
+    def save(self, step: int, metrics: dict[str, Any]):
+        """Save a given metric dictionary entry into the history list, and preserve as file according to save interval."""
+        self._run.log(metrics, step=step)
+    
+    def all_steps(self) -> list[int]:
+        """Return all steps tracked by the manager."""
+        df = self.get_dataframe()
+        steps = df['_step'].tolist()
+        return steps
+
+    def latest_step(self) -> int | None:
+        """Returns the latest step saved."""
+        steps = self.all_steps()
+        return steps[-1]
+    
+    # TODO wait for async saves to finish.
+    def wait_until_finished(self):
+        self._run.finish()
+    
+    def load(self, step: int | None = None):
+        pass # Not needed. Do nothing.
