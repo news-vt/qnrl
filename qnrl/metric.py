@@ -7,12 +7,46 @@ from typing import Any, Literal
 
 from filelock import Timeout, SoftFileLock
 from mashumaro.mixins.dict import DataClassDictMixin
+import pandas as pd
 
 from . import tools
 
 
 @dataclass(kw_only=True)
 class MetricManager(DataClassDictMixin):
+    
+    def get_history(self) -> list[dict[str, Any]]:
+        """Return history as list of time-sorted dictionary metric entries."""
+        raise NotImplementedError
+
+    def get_metrics(self) -> dict[str, Any]:
+        """Return metrics as dictionary of lists."""
+        raise NotImplementedError
+    
+    # TODO make saving async.
+    def save(self, step: int, metrics: dict[str, Any]):
+        """Save a given metric dictionary entry into the history list, and preserve as file according to save interval."""
+        raise NotImplementedError
+    
+    def all_steps(self) -> list[int]:
+        """Return all steps tracked by the manager."""
+        raise NotImplementedError
+
+    def latest_step(self) -> int | None:
+        """Returns the latest step saved."""
+        raise NotImplementedError
+    
+    # TODO wait for async saves to finish.
+    def wait_until_finished(self):
+        raise NotImplementedError
+    
+    def load(self, step: int | None = None):
+        raise NotImplementedError
+
+
+
+@dataclass(kw_only=True)
+class LocalFileMetricManager(MetricManager):
     # path: pathlib.Path
     metric_dir: pathlib.Path # Path to unique directory where to store the files.
     metric_file_type: Literal['json', 'yaml', 'npy', 'npz'] # File format for metrics.
