@@ -5,6 +5,8 @@ import sys
 import shutil
 from typing import Any, Literal
 
+import wandb
+
 from filelock import Timeout, SoftFileLock
 from mashumaro.mixins.dict import DataClassDictMixin
 import pandas as pd
@@ -243,6 +245,8 @@ class WandBMetricManager(DataClassDictMixin):
     monitor_gym: bool
     save_code: bool
     entity: str | None = None
+    terminate_on_wait_until_finished: bool = True
+    """Automatically call `wandb.run.finish()` when `wait_until_finished()` is called. Set to `False` if you want to use this metric manager for any other operations after `wait_until_finished()` is called once training ends."""
     
     def __post_init__(self):
         self._run, self._api = self._init_wandb()
@@ -254,7 +258,6 @@ class WandBMetricManager(DataClassDictMixin):
         return d
     
     def _init_wandb(self):
-        import wandb
         if self.login:
             wandb.login()
         run = wandb.init(
@@ -304,7 +307,18 @@ class WandBMetricManager(DataClassDictMixin):
     
     # TODO wait for async saves to finish.
     def wait_until_finished(self):
-        self._run.finish()
+        if self.terminate_on_wait_until_finished:
+            self._run.finish()
     
     def load(self, step: int | None = None):
         pass # Not needed. Do nothing.
+    
+    ### WandB-specific methods and properties.
+    
+    @property
+    def run(self):
+        return self._run
+    
+    @property
+    def api(self):
+        return self._api
