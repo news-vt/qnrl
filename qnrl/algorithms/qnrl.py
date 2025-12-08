@@ -238,11 +238,15 @@ def train(
     checkpoint_manager: ocp.CheckpointManager | None = None,
     metric_manager: MetricManager | None = None,
     return_buffer: bool = False,
+    meta_prefix_key: str = "train/",
     ):
     """Quantum-native reinforcement learning (QnRL).
     
     A variant of distributional reinforcement learning (DRL) algorithm C51 leveraging quantum superposition as the distributional generator.
     """
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
+    
     # Training history.
     history: list[dict[str, Any]] = []
     
@@ -306,13 +310,13 @@ def train(
             
             # Record episode statistics.
             if "episode" in info:
-                episode_meta = dict(
-                    episode_step=t,
-                    episode_reward=info['episode']['r'],
-                    episode_length=info['episode']['l'],
-                    episode_time=info['episode']['t'],
-                    episode_utcisotime=datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
-                )
+                episode_meta = {
+                    meta_prefix_fn("episode_step"): t,
+                    meta_prefix_fn("episode_reward"): info['episode']['r'],
+                    meta_prefix_fn("episode_length"): info['episode']['l'],
+                    meta_prefix_fn("episode_time"): info['episode']['t'],
+                    meta_prefix_fn("episode_utcisotime"): datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
+                }
                 history.append(episode_meta)
                 pbar_postfix.update(**episode_meta)
                 pbar.set_postfix(pbar_postfix)
@@ -343,20 +347,20 @@ def train(
                     )
                     
                     # Update the history and progress bar with loss information.
-                    loss_meta = dict(
-                        loss_step=t,
-                        loss=loss,
-                    )
+                    loss_meta = {
+                        meta_prefix_fn("loss_step"): t,
+                        meta_prefix_fn("loss"): loss,
+                    }
                     history.append(loss_meta)
                     pbar_postfix.update(**loss_meta)
                     pbar.set_postfix(pbar_postfix)
                     
                     # Update the history and progress bar with metric information.
                     # This is separate from loss so that it can be correlated with a different time step variable.
-                    metric_meta = dict(
-                        metric_step=t,
-                        **metrics,
-                    )
+                    metric_meta = {
+                        meta_prefix_fn("metric_step"): t,
+                        **{meta_prefix_fn(k): v for k,v in metrics.items()}, # Prefix "train/" to key.
+                    }
                     history.append(metric_meta)
                     pbar_postfix.update(**metric_meta)
                     pbar.set_postfix(pbar_postfix)
@@ -373,8 +377,8 @@ def train(
                             args=ocp.args.Composite(
                                 state=ocp.args.StandardSave(state), 
                                 metrics=ocp.args.JsonSave(dict(
-                                    loss=float(loss_meta['loss'].item()) if 'loss' in loss_meta else None,
-                                    episode_reward=float(episode_meta['episode_reward']) if 'episode_reward' in episode_meta else None,
+                                    loss=float(loss_meta[meta_prefix_fn('loss')].item()) if meta_prefix_fn('loss') in loss_meta else None,
+                                    episode_reward=float(episode_meta[meta_prefix_fn('episode_reward')]) if meta_prefix_fn('episode_reward') in episode_meta else None,
                                     **{k: float(v) for k,v in metrics.items()},
                                 )),
                             ),
@@ -413,7 +417,11 @@ def eval(
     model_policy: QuantumNativeQNetwork,
     total_timesteps: int, # Max number of training steps.
     env_wrappers: list[Callable[[gym.Env], gym.Env]] = [],
+    meta_prefix_key: str = "eval/",
     ) -> list:
+    
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
 
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
@@ -450,12 +458,12 @@ def eval(
         
         # Record episode statistics.
         if "episode" in info:
-            meta = dict(
-                episode_step=t,
-                episode_reward=info['episode']['r'],
-                episode_length=info['episode']['l'],
-                episode_time=info['episode']['t'],
-            )
+            meta = {
+                meta_prefix_fn("episode_step"): t,
+                meta_prefix_fn("episode_reward"): info['episode']['r'],
+                meta_prefix_fn("episode_length"): info['episode']['l'],
+                meta_prefix_fn("episode_time"): info['episode']['t'],
+            }
             history.append(meta)
             pbar_postfix.update(meta)
             pbar.set_postfix(pbar_postfix)
