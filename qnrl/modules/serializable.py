@@ -43,6 +43,7 @@ activation_function_dispatcher: dict[str, Callable] = {
     'swish': nnx.swish,
     'tanh': nnx.tanh,
     'arctan': jnp.arctan,
+    'linear': lambda x: x,
 }
 """Dictionary mapping activation function name strings to their associated functions."""
 
