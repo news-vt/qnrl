@@ -42,6 +42,7 @@ activation_function_dispatcher: dict[str, Callable] = {
     'standardize': nnx.standardize,
     'swish': nnx.swish,
     'tanh': nnx.tanh,
+    'arctan': jnp.arctan,
 }
 """Dictionary mapping activation function name strings to their associated functions."""
 
