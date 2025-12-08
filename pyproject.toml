@@ -18,6 +18,7 @@ dependencies = [
     "jaxlib~=0.6.0", # Freeze version for compatibility with PennyLane.
     "mashumaro>=3.16",
     "matplotlib>=3.10.6",
+    "nbformat>=5.10.4",
     "numpy>=2.3.3",
     "orbax-checkpoint~=0.11.0",
     "pennylane~=0.42.0", # Freeze version for compatibility.
@@ -29,6 +30,7 @@ dependencies = [
     "sqlalchemy>=2.0.43",
     "tqdm>=4.67.1",
     "tyro>=0.9.31",
+    "wandb>=0.23.1",
 ]
 
 [tool.setuptools.packages]
