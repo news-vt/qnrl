@@ -3,6 +3,6 @@ from .linear import Linear
 from .linearcascade import LinearCascade
 from .rescaleinput import RescaleInput
 from .sequential import Sequential
-from .serializable import SerializableModule
+from .serializable import SerializableModule, activation_function_dispatcher
 from .quantumnativeqnetwork import QuantumNativeQNetwork
 from .quantumqnetworklinear import QuantumQNetworkLinear
