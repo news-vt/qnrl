@@ -8,3 +8,4 @@ from . import checkpoint
 from . import environment
 from . import optimizer
 from . import store
+from . import serialization
