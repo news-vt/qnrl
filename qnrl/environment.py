@@ -23,6 +23,10 @@ class EnvironmentBase(DataClassDictMixin):
     def make(self, **kwargs) -> gym.Env:
         """Wrapper for `gymnasium.make` using config arguments."""
         raise NotImplementedError
+
+    @property
+    def unwrapped(self):
+        return self
     
     class Config(BaseConfig):
         discriminator = Discriminator(
@@ -77,6 +81,10 @@ class EnvWrapperConfig(EnvironmentBase):
         """Wrapper for `gymnasium.make` using config arguments."""
         env = self.env.make(**kwargs)
         return env
+    
+    @property
+    def unwrapped(self):
+        return self.env.unwrapped
 
 
 @dataclass(kw_only=True)
