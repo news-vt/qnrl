@@ -193,12 +193,16 @@ def train(
     eps_end: float,
     eps_exploration: float,
     checkpoint_manager: ocp.CheckpointManager | None = None,
-    metric_manager: MetricManager | None = None
+    metric_manager: MetricManager | None = None,
+    meta_prefix_key: str = "train/",
     ) -> list[dict[str, Any]]:
     """Categorical DQN (C51).
 
     Distributional reinforcement learning variant of DQN.
     """
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
+    
     # Training history.
     history: list[dict[str, Any]] = []
     
@@ -261,13 +265,13 @@ def train(
             
             # Record episode statistics.
             if "episode" in info:
-                episode_meta = dict(
-                    episode_step=t,
-                    episode_reward=info['episode']['r'],
-                    episode_length=info['episode']['l'],
-                    episode_time=info['episode']['t'],
-                    episode_utcisotime=datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
-                )
+                episode_meta = {
+                    meta_prefix_fn("episode_step"): t,
+                    meta_prefix_fn("episode_reward"): info['episode']['r'],
+                    meta_prefix_fn("episode_length"): info['episode']['l'],
+                    meta_prefix_fn("episode_time"): info['episode']['t'],
+                    meta_prefix_fn("episode_utcisotime"): datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
+                }
                 history.append(episode_meta)
                 pbar_postfix.update(**episode_meta)
                 pbar.set_postfix(pbar_postfix)
@@ -301,20 +305,20 @@ def train(
                     )
                     
                     # Update the history and progress bar with loss information.
-                    loss_meta = dict(
-                        loss_step=t,
-                        loss=loss,
-                    )
+                    loss_meta = {
+                        meta_prefix_fn("loss_step"): t,
+                        meta_prefix_fn("loss"): loss,
+                    }
                     history.append(loss_meta)
                     pbar_postfix.update(**loss_meta)
                     pbar.set_postfix(pbar_postfix)
                     
                     # Update the history and progress bar with metric information.
                     # This is separate from loss so that it can be correlated with a different time step variable.
-                    metric_meta = dict(
-                        metric_step=t,
-                        **metrics,
-                    )
+                    metric_meta = {
+                        meta_prefix_fn("metric_step"): t,
+                        **{meta_prefix_fn(k): v for k,v in metrics.items()}, # Prefix "train/" to key.
+                    }
                     history.append(metric_meta)
                     pbar_postfix.update(**metric_meta)
                     pbar.set_postfix(pbar_postfix)
@@ -331,8 +335,8 @@ def train(
                             args=ocp.args.Composite(
                                 state=ocp.args.StandardSave(state), 
                                 metrics=ocp.args.JsonSave(dict(
-                                    loss=float(loss_meta['loss'].item()) if 'loss' in loss_meta else None,
-                                    episode_reward=float(episode_meta['episode_reward']) if 'episode_reward' in episode_meta else None,
+                                    loss=float(loss_meta[meta_prefix_fn('loss')].item()) if meta_prefix_fn('loss') in loss_meta else None,
+                                    episode_reward=float(episode_meta[meta_prefix_fn('episode_reward')]) if meta_prefix_fn('episode_reward') in episode_meta else None,
                                     **{k: float(v) for k,v in metrics.items()},
                                 )),
                             ),
@@ -368,7 +372,11 @@ def eval(
     atoms: jax.Array,
     total_timesteps: int, # Max number of training steps.
     env_wrappers: list[Callable[[gym.Env], gym.Env]] = [],
+    meta_prefix_key: str = "eval/",
     ) -> list:
+    
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
 
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
@@ -408,12 +416,12 @@ def eval(
         
         # Record episode statistics.
         if "episode" in info:
-            meta = dict(
-                episode_step=t,
-                episode_reward=info['episode']['r'],
-                episode_length=info['episode']['l'],
-                episode_time=info['episode']['t'],
-            )
+            meta = {
+                meta_prefix_fn("episode_step"): t,
+                meta_prefix_fn("episode_reward"): info['episode']['r'],
+                meta_prefix_fn("episode_length"): info['episode']['l'],
+                meta_prefix_fn("episode_time"): info['episode']['t'],
+            }
             history.append(meta)
             pbar_postfix.update(meta)
             pbar.set_postfix(pbar_postfix)
@@ -454,7 +462,7 @@ class C51(Algorithm):
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
     
-    def train(self) -> list:
+    def train(self, **kwargs) -> list:
         
         # Create the environment.
         env = self.env.make()
@@ -476,8 +484,9 @@ class C51(Algorithm):
         else:
             checkpoint_manager = None
         
+        
         # Run the training algorithm.
-        history_list = train(
+        kwargs_default = dict(
             seed=self.seed,
             env=env,
             atoms=atoms,
@@ -501,6 +510,33 @@ class C51(Algorithm):
             checkpoint_manager=checkpoint_manager,
             metric_manager=self.metric_manager,
         )
+        return train(**{**kwargs_default, **kwargs})
+        
+        # # Run the training algorithm.
+        # history_list = train(
+        #     seed=self.seed,
+        #     env=env,
+        #     atoms=atoms,
+        #     num_atoms=self.num_atoms,
+        #     z_min=self.z_min,
+        #     z_max=self.z_max,
+        #     model_policy=model_policy,
+        #     model_target=model_target,
+        #     optimizer=optimizer,
+        #     buffer_size=self.buffer_size,
+        #     batch_size=self.batch_size,
+        #     total_timesteps=self.total_timesteps,
+        #     learning_starts=self.learning_starts,
+        #     policy_update_frequency=self.policy_update_frequency,
+        #     target_update_frequency=self.target_update_frequency,
+        #     gamma=self.gamma,
+        #     tau=self.tau,
+        #     eps_start=self.eps_start,
+        #     eps_end=self.eps_end,
+        #     eps_exploration=self.eps_exploration,
+        #     checkpoint_manager=checkpoint_manager,
+        #     metric_manager=self.metric_manager,
+        # )
 
         return history_list
 
