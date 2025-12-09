@@ -247,15 +247,23 @@ class WandBMetricManager(DataClassDictMixin):
     entity: str | None = None
     terminate_on_wait_until_finished: bool = True
     """Automatically call `wandb.run.finish()` when `wait_until_finished()` is called. Set to `False` if you want to use this metric manager for any other operations after `wait_until_finished()` is called once training ends."""
+    define_metrics: list[dict] = field(default_factory=list)
+    """List of dictionaries passed to `wandb.run.define_metric()`."""
     
     def __post_init__(self):
         self._run, self._api = self._init_wandb()
+        if self.define_metrics:
+            self._init_define_metrics()
     
     def __post_serialize__(self, d: dict[Any, Any]) -> dict[Any, Any]:
         # Remove hidden properties.
         d.pop('_run', None)
         d.pop('_api', None)
         return d
+    
+    def _init_define_metrics(self):
+        for d in self.define_metrics:
+            self._run.define_metric(**d)
     
     def _init_wandb(self):
         if self.login:
