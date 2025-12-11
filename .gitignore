@@ -2,6 +2,7 @@
 *.db
 checkpoints/
 metrics/
+wandb/
 
 # Ignore macOS specific files.
 .DS_Store
