@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from functools import partial, reduce
 from itertools import combinations
+from typing import Literal
 
 import pennylane as qml
 import numpy as np
@@ -8,127 +9,219 @@ import jax
 from jax import numpy as jnp # JAX version of NumPy.
 from flax import nnx # Neural networks in JAX.
 
-from .serializable import SerializableModule
+from .serializable import SerializableModule, activation_function_dispatcher
+
+
+
+class PhaseShiftX(qml.operation.Operation):
+    """Variation of `qml.PhaseShift` with Pauli X rotation.
+    
+    This is useful because the same rotation angle `phi` is used for both the Pauli rotation and the global phase operation.
+    """
+    num_wires = 1
+    num_params = 1
+    
+    @staticmethod
+    def compute_decomposition(phi: qml.typing.TensorLike, wires: qml.wires.WiresLike) -> qml.operation.Operator:
+        return [qml.RX(phi, wires=wires), qml.GlobalPhase(-phi / 2.)]
+
+
+class PhaseShiftY(qml.operation.Operation):
+    """Variation of `qml.PhaseShift` with Pauli Y rotation.
+    
+    This is useful because the same rotation angle `phi` is used for both the Pauli rotation and the global phase operation.
+    """
+    num_wires = 1
+    num_params = 1
+    
+    @staticmethod
+    def compute_decomposition(phi: qml.typing.TensorLike, wires: qml.wires.WiresLike) -> qml.operation.Operator:
+        return [qml.RY(phi, wires=wires), qml.GlobalPhase(-phi / 2.)]
+
+
+OP_STRINGS_ONE_QUBIT: dict[str, type[qml.operation.Operation]] = {
+    'rx': qml.RX,
+    'ry': qml.RY,
+    'rz': qml.RZ,
+    'globalphase': qml.GlobalPhase,
+    'phaseshift': qml.PhaseShift,
+    'pz': qml.PhaseShift, # Alias for 'phaseshift'.
+    'px': PhaseShiftX,
+    'py': PhaseShiftY,
+    'rot': qml.Rot,
+}
+"""Link PennyLane one-qubit (parameterized) operations to string names."""
+
+
+type OpTypeOneQubit = Literal[*tuple(OP_STRINGS_ONE_QUBIT.keys())]
+
+
+OP_STRINGS_TWO_QUBIT: dict[str, type[qml.ops.op_math.ControlledOp]] = {
+    'cnot': qml.CNOT,
+    'cx': qml.CNOT,
+    'cy': qml.CY,
+    'cz': qml.CZ,
+}
+"""Link PennyLane two-qubit operations to string names."""
+
+
+type OpTypeTwoQubit = Literal[*tuple(OP_STRINGS_TWO_QUBIT.keys())]
+
+
+def get_op_from_string_one_qubit(op: OpTypeOneQubit) -> type[qml.operation.Operation]:
+    """Map a one-qubit (parameterized) operation from string name to operation class type."""
+    try:
+        op_fn = OP_STRINGS_ONE_QUBIT[op.lower()]
+        return op_fn
+    except:
+        raise ValueError(f"Unsupported one-qubit parameterized operation string: {op}")
+
+
+def get_op_from_string_two_qubit(op: OpTypeTwoQubit) -> type[qml.ops.op_math.ControlledOp]:
+    """Map a two-qubit operation from string name to operation class type."""
+    try:
+        op_fn = OP_STRINGS_TWO_QUBIT[op.lower()]
+        return op_fn
+    except:
+        raise ValueError(f"Unsupported two-qubit operation string: {op}")
+
+
+def get_op_from_string(op: OpTypeOneQubit) -> type[qml.operation.Operation]:
+    """Map a parameterized operation from string name to operation class type."""
+    try:
+        op_fn = OP_STRINGS_ONE_QUBIT[op.lower()]
+        return op_fn
+    except:
+        raise ValueError(f"Unsupported parameterized operation string: {op}")
+
+
+def get_op_num_params(op: str) -> int:
+    obj = get_op_from_string_one_qubit(op)
+    return obj.num_params
+
+
+def get_ops_num_params(ops: tuple[str,...]) -> int:
+    """Get total number of parameters for operations in tuple."""
+    return sum(get_op_from_string_one_qubit(op_string).num_params for op_string in ops)
+
+
+def get_ops_params_shape(wires: list[int], ops: tuple[str,...]):
+    num_params = get_ops_num_params(ops)
+    num_wires = len(wires)
+    return (num_wires, num_params,)
+
+
+def circuit_layer_ent_neighbor(wires: list[int], op: OpTypeTwoQubit, reverse: bool = False):
+    """Next-neighbor entanglement layer.
+
+    Args:
+        wires (list[int]): List of wires.
+    """
+    op_func = get_op_from_string_two_qubit(op=op)
+    
+    gen = zip(wires, wires[1:])
+    if reverse:
+        gen = list(reversed(list(gen)))
+    for w0, w1 in gen:
+        op_func(wires=[w0, w1]) # Control w0, target w1.
+
+
+def circuit_layer_ent_circ(wires: list[int], op: OpTypeTwoQubit):
+    """Circular entanglement layer.
+
+    Args:
+        wires (list[int]): List of wires.
+    """
+    op_func = get_op_from_string_two_qubit(op=op)
+    
+    for w0, w1 in zip(wires, wires[1:]):
+        op_func(wires=[w0, w1]) # Control w0, target w1.
+    if len(wires) != 2:
+        op_func(wires=[wires[-1], wires[0]]) # Control w[-1], target w[0].
+
+
+def circuit_layer_ent_circ_offset(wires: list[int], imprimitive_offset: int, op: OpTypeTwoQubit):
+    """Circular entanglement that is governed by an offset index, defining which qubits are entangled (with circular rollover).
+
+    Args:
+        wires (list[int]): List of wires.
+    """
+    op_func = get_op_from_string_two_qubit(op=op)
+    
+    wires = qml.wires.Wires(wires)
+    for i in range(len(wires)):
+        act_on = wires.subset([i, i + imprimitive_offset], periodic_boundary=True)
+        op_func(wires=act_on)
+
+
+def circuit_layer_op(phi: jax.Array, wires: list[int], pauli: tuple[str,...]):
+    """Operational layer `U |psi>`.
+
+    Args:
+        phi (jax.Array): Variational parameters for the layer of shape `(num_wires,len(pauli),)`.
+        wires (list[int]): List of wires.
+    """
+    param_idx = 0
+    for op_str in pauli:
+        op_num_params = get_op_num_params(op_str)
+        op_fn = get_op_from_string(op_str)
+        idx_offset = param_idx + op_num_params
+        idx_slice = slice(param_idx, idx_offset)
+        for i, w in enumerate(wires):
+            op_fn(*phi[i,idx_slice], wires=w)
+        param_idx = idx_offset
+
 
 def circuit_layer_reset(wires: list[int]):
     """Measure the given qubits to collapse their state, then reset to zero."""
     for w in wires:
         qml.measure(wires=w, reset=True)
 
-def circuit_layer_pauli_feature_map(phi: jax.Array, wires: list[int], pauli: str):
-    """Parameterized Pauli feature maps such as `Z`, `ZZ`, `YY`, etc.
-    
-    Loosely based on Qiskit's `PauliFeatureMap` (https://quantum.cloud.ibm.com/docs/en/api/qiskit/qiskit.circuit.library.PauliFeatureMap).
-    
-    The parameter `phi` should have shape `(len(pauli),)`.
-    """
-    
-    def basis_change(wire_tup: tuple[int, ...], pauli_tup: tuple[str, ...], inverse: bool = False):
-        assert len(wire_tup) == len(pauli_tup), "number of wires must match length of Pauli string"
-        ## Basis change.
-        # Iterate over every wire in the n-pair, and match it with associate Pauli.
-        for w, p in zip(wire_tup, pauli_tup):
-            match (p, inverse):
-                case ('x', _):
-                    qml.Hadamard(wires=w)
-                case ('y', False):
-                    qml.SX(wires=w)
-                case ('y', True):
-                    qml.adjoint(qml.SX(wires=w))
-
-    def cx_chain(wire_tup: tuple[int, ...], inverse: bool = False):
-        ## CNOT chain.
-        # Pair items in the tuple in groups of 2.
-        gen = range(len(wire_tup) - 1)
-        if inverse:
-            gen = reversed(gen)
-        for i in gen:
-            qml.CNOT(wires=[wire_tup[i], wire_tup[i+1]])
-    
-    # Apply Hadamard on every qubit.
-    for w in wires:
-        qml.Hadamard(wires=w)
-    
-    # Collect the individual Pauli operators of the current Pauli string chain.
-    # Reverse the order for correct qubit assignment (i.e., [p2,p1,p0][::-1] -> [q0,q1,q2]).
-    pauli_tup = tuple(pauli.lower()[::-1])
-    # Iterate over all n-pairs of wires.
-    wire_pairs = list(combinations(wires, len(pauli_tup)))
-    wire_to_phi_index = {w: i for i, w in enumerate(wires)} # w -> i for phi[i]
-    for wire_tup in wire_pairs:
-        ## Basis change.
-        basis_change(wire_tup=wire_tup, pauli_tup=pauli_tup, inverse=False)
-        ## CNOT chain.
-        cx_chain(wire_tup=wire_tup, inverse=False)
-        ## Phase gate at last qubit in the tuple chain.
-        # Rotation angle is only a single parameter.
-        if len(wire_tup) == 1:
-            angle = phi[wire_to_phi_index[wire_tup[-1]]]
-        # Rotation angle is a difference of multiple parameters in the Pauli chain.
-        else:
-            angle = reduce(lambda a, b: a * b, jnp.pi - phi[jnp.array([wire_to_phi_index[w] for w in wire_tup])])
-        # # Multiply angle by 2.
-        # angle = angle * 2.
-        # Apply phase shift using custom rotation angle.
-        qml.PhaseShift(phi=angle, wires=wire_tup[-1])
-        ## CNOT chain.
-        cx_chain(wire_tup=wire_tup, inverse=True)
-        ## Basis change.
-        basis_change(wire_tup=wire_tup, pauli_tup=pauli_tup, inverse=True)
-
-def circuit_layer_parameterized_ops(phi: jax.Array, wires: list[int], pauli: tuple[str,...]):
-    """Parameterized operation layer.
-
-    Args:
-        phi (jax.Array): Variational parameters for the layer of shape `(num_wires,3)`.
-        wires (list[int]): List of wires.
-        pauli (tuple[str,...]): Tuple of strings denoting the parameterized gates to be applied.
-    """
-    for f, pauli_string in enumerate(pauli): # (feature_index, pauli_string)
-        match pauli_string.lower():
-            case 'rx':
-                for i, w in enumerate(wires):
-                    qml.RX(phi=phi[i,f], wires=w)
-            case 'ry':
-                for i, w in enumerate(wires):
-                    qml.RY(phi=phi[i,f], wires=w)
-            case 'rz':
-                for i, w in enumerate(wires):
-                    qml.RZ(phi=phi[i,f], wires=w)
-            case 'globalphase':
-                for i, w in enumerate(wires):
-                    qml.GlobalPhase(phi=phi[i,f], wires=w)
-            case 'phaseshift':
-                for i, w in enumerate(wires):
-                    qml.PhaseShift(phi=phi[i,f], wires=w)
-            case _:
-                # Create a Pauli feature map from only `x`, `y`, `z` contents.
-                if set(pauli_string.lower()).issubset(set('xyz')):
-                    circuit_layer_pauli_feature_map(phi=phi[:,f], wires=wires, pauli=pauli_string)
-                else:
-                    raise ValueError(f"Unsupported Pauli string: {pauli_string}")
 
 def get_ops_for_returns_distribution(
-    inputs: jax.Array, # (n_layers, d_returns, 1,)
-    weights: jax.Array, # (n_layers+1, d_returns, 3,)
+    inputs: jax.Array, # (n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_layers, d_returns, num_var_features,)
     n_layers: int,
     wires: list[int],
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Return-atom distribution unitary.
     
     Generates a return distribuion encoded on the given wires.
     
     The schema of this operation is:
+        - `n_layers+1` Variational layers
+        - `n_layers` Circular-entanglement layers
         - `n_layers` Input encoding layers
-        - `n_layers` Variational layers
     """
+    
+    imprimitive_offset_by_layer = tuple((l % (len(wires) - 1)) + 1 for l in range(n_layers))
+    
+    imprimitive_type = None
+    if imprimitive is not None and "-" in imprimitive:
+        imprimitive_type, imprimitive = imprimitive.split("-")
+    
     for l in range(n_layers):
-        # Encoder.
-        circuit_layer_parameterized_ops(phi=inputs[l], wires=wires, pauli=pauli_enc)
-        # Variational.
-        circuit_layer_parameterized_ops(phi=weights[l], wires=wires, pauli=pauli_var)
+        
+        # Encoder as a function of the layer number.
+        circuit_layer_op(phi=inputs[l], wires=wires, pauli=pauli_enc)
+        
+        # Entangle.
+        if imprimitive is not None:
+            
+            match imprimitive_type:
+                case "circ" | None: # Defaults to circular entanglement.
+                    circuit_layer_ent_circ(wires=wires, op=imprimitive)
+                case "offset":
+                    circuit_layer_ent_circ_offset(wires=wires, op=imprimitive, imprimitive_offset=imprimitive_offset_by_layer[l])
+                case _:
+                    raise ValueError(f"Unsupported imprimitive type: {imprimitive_type}")
+        
+        # Variation.
+        circuit_layer_op(phi=weights[l], wires=wires, pauli=pauli_var)
+
 
 def prepare_m_moment(
     m_moment: int,
@@ -141,16 +234,20 @@ def prepare_m_moment(
         qml.QubitUnitary(U_atoms, wires=wires_returns, unitary_check=False) # We know it's not unitary, so don't check.
 
 def prepare_returns_probability_distribution(
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     n_actions: int,
     n_layers: int,
     wires_actions: list[int],
     wires_returns: list[int],
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Prepare return probability distribuion for every action."""
+    ###
+    # Generate unique return-atom distribution for every action.
+    ###
     ops = [
         qml.prod(get_ops_for_returns_distribution)(
             inputs=inputs[a],
@@ -159,15 +256,22 @@ def prepare_returns_probability_distribution(
             wires=wires_returns,
             pauli_enc=pauli_enc,
             pauli_var=pauli_var,
+            imprimitive=imprimitive,
         )
         for a in range(n_actions)
     ]
     qml.Select(ops, control=wires_actions)
+    
+    ###
+    # Apply operations on all action-return distributions.
+    ###
+    # Quantum Fourier Transform.
+    qml.QFT(wires=wires_returns)
 
 def circuit_action_dist(
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
     probs_actions: jax.Array,
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     n_actions: int,
     d_actions: int,
     d_returns: int,
@@ -176,6 +280,7 @@ def circuit_action_dist(
     U_atoms: jax.Array,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Quantum circuit for estimating the action distribution via m-th moment of return distribuion followed by amplitude kickback trick with respect to an input observation."""
     
@@ -201,6 +306,7 @@ def circuit_action_dist(
         wires_returns=wiredict['returns'],
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
+        imprimitive=imprimitive,
     )
     # Prepare the m-th moment of the returns distribution.
     prepare_m_moment(
@@ -215,15 +321,16 @@ def circuit_action_dist(
     return qml.probs(wires=wiredict['actions'])
 
 def circuit_return_dist(
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
     probs_actions: jax.Array,
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     n_actions: int,
     d_actions: int,
     d_returns: int,
     n_layers: int,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
     
@@ -249,21 +356,115 @@ def circuit_return_dist(
         wires_returns=wiredict['returns'],
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
+        imprimitive=imprimitive,
     )
     
     # Generate weighted return distribuion via measurements across the return wires.
     return qml.probs(wires=wiredict['returns'])
 
-def circuit_return_density_matrix(
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
+def circuit_return_dist_shifted(
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
     probs_actions: jax.Array,
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    U_shift: jax.Array, # (2**d_returns, 2**d_returns)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     n_actions: int,
     d_actions: int,
     d_returns: int,
     n_layers: int,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
+    
+    # Create wires.
+    num_wires = d_actions + d_returns
+    wirelist = list(range(num_wires)) # All wires.
+    wiredict = { # Wires separated into blocks for each section.
+        'actions': wirelist[:d_actions],
+        'returns': wirelist[d_actions:]
+    }
+    
+    # Weighted superposition of all actions.
+    # Use `StatePrep` here because there may be fewer "active" actions than the total number of actions supported by the number of qubits in the action register. This ensures that all "inactive" actions have 0 amplitude.
+    qml.StatePrep(probs_actions, wires=wiredict['actions'], normalize=True, pad_with=0)
+    
+    # Prepare returns probability distribution for every policy.
+    prepare_returns_probability_distribution(
+        inputs=inputs,
+        weights=weights,
+        n_actions=n_actions,
+        n_layers=n_layers,
+        wires_actions=wiredict['actions'],
+        wires_returns=wiredict['returns'],
+        pauli_enc=pauli_enc,
+        pauli_var=pauli_var,
+        imprimitive=imprimitive,
+    )
+    
+    # Redistribute shifted return-atoms to align with original PMF atoms.
+    qml.QubitUnitary(U_shift, wires=wiredict['returns'], unitary_check=False) # We know it's not unitary, so don't check.
+    
+    # Generate weighted return distribuion via measurements across the return wires.
+    return qml.probs(wires=wiredict['returns'])
+
+# TODO Input environment observation must pass through an ML layer to project the observations into a space ingestible for the quantum circuit.
+def circuit_hermitian_loss(
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    probs_actions: jax.Array,
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    rho: jax.Array, # Hermitian operator core.
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
+    
+    # Create wires.
+    num_wires = d_actions + d_returns
+    wirelist = list(range(num_wires)) # All wires.
+    wiredict = { # Wires separated into blocks for each section.
+        'actions': wirelist[:d_actions],
+        'returns': wirelist[d_actions:]
+    }
+    
+    # Weighted superposition of all actions.
+    # Use `StatePrep` here because there may be fewer "active" actions than the total number of actions supported by the number of qubits in the action register. This ensures that all "inactive" actions have 0 amplitude.
+    qml.StatePrep(probs_actions, wires=wiredict['actions'], normalize=True, pad_with=0)
+    
+    # Prepare returns probability distribution for every policy.
+    prepare_returns_probability_distribution(
+        inputs=inputs,
+        weights=weights,
+        n_actions=n_actions,
+        n_layers=n_layers,
+        wires_actions=wiredict['actions'],
+        wires_returns=wiredict['returns'],
+        pauli_enc=pauli_enc,
+        pauli_var=pauli_var,
+        imprimitive=imprimitive,
+    )
+    
+    # Measure the expectation of the return-atom wires w.r.t. a given Hermitian operator.
+    H = qml.Hermitian(rho, wires=wiredict['returns']) # Return-atom wires.
+    # H = qml.Hermitian(rho, wires=wirelist) # All wires.
+    return qml.expval(H)
+
+def circuit_return_density_matrix(
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    probs_actions: jax.Array,
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
     
@@ -291,6 +492,7 @@ def circuit_return_density_matrix(
         wires_returns=wiredict['returns'],
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
+        imprimitive=imprimitive,
     )
     
     qml.Snapshot('after_return_prep', measurement=qml.density_matrix(wires=wirelist))
@@ -300,7 +502,56 @@ def circuit_return_density_matrix(
     # # Density matrix for all wires.
     # return qml.density_matrix(wires=wirelist)
 
+def circuit_return_density_matrix_shifted(
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    probs_actions: jax.Array,
+    U_shift: jax.Array, # (2**d_returns, 2**d_returns)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
+    
+    # Create wires.
+    num_wires = d_actions + d_returns
+    wirelist = list(range(num_wires)) # All wires.
+    wiredict = { # Wires separated into blocks for each section.
+        'actions': wirelist[:d_actions],
+        'returns': wirelist[d_actions:]
+    }
+    
+    # Weighted superposition of all actions.
+    # Use `StatePrep` here because there may be fewer "active" actions than the total number of actions supported by the number of qubits in the action register. This ensures that all "inactive" actions have 0 amplitude.
+    qml.StatePrep(probs_actions, wires=wiredict['actions'], normalize=True, pad_with=0)
+    
+    # Prepare returns probability distribution for every policy.
+    prepare_returns_probability_distribution(
+        inputs=inputs,
+        weights=weights,
+        n_actions=n_actions,
+        n_layers=n_layers,
+        wires_actions=wiredict['actions'],
+        wires_returns=wiredict['returns'],
+        pauli_enc=pauli_enc,
+        pauli_var=pauli_var,
+        imprimitive=imprimitive,
+    )
+    
+    # Redistribute shifted return-atoms to align with original PMF atoms.
+    qml.QubitUnitary(U_shift, wires=wiredict['returns'], unitary_check=False) # We know it's not unitary, so don't check.
+    
+    # Density matrix for return-atom wires.
+    return qml.density_matrix(wires=wiredict['returns'])
+    # # Density matrix for all wires.
+    # return qml.density_matrix(wires=wirelist)
 
+# @partial(nnx.vmap, in_axes=(0,None,None,None,0,None,0,None,None,None,None,None,None))
+# 
 @partial(nnx.jit, static_argnames=[
     # Device and QNode parameters.
     'device_name', 'shots', 'diff_method',
@@ -313,6 +564,7 @@ def circuit_return_density_matrix(
     'U_atoms',
     'pauli_enc',
     'pauli_var',
+    'imprimitive',
 ])
 def run_circuit_action_dist(
     # All device and QNode parameters.
@@ -321,8 +573,8 @@ def run_circuit_action_dist(
     shots: int | None,
     diff_method: str | None,
     # Circuit arguments.
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     probs_actions: jax.Array,
     n_actions: int,
     d_actions: int,
@@ -332,6 +584,7 @@ def run_circuit_action_dist(
     U_atoms: jax.Array,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Run `circuit_action_dist` on a single input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -348,6 +601,7 @@ def run_circuit_action_dist(
         U_atoms=U_atoms,
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
+        imprimitive=imprimitive,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -362,6 +616,7 @@ def run_circuit_action_dist(
     'U_atoms',
     'pauli_enc',
     'pauli_var',
+    'imprimitive',
 ])
 def batched_run_circuit_action_dist(
     # All device and QNode parameters.
@@ -370,8 +625,8 @@ def batched_run_circuit_action_dist(
     shots: int | None,
     diff_method: str | None,
     # Circuit arguments.
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     probs_actions: jax.Array,
     n_actions: int,
     d_actions: int,
@@ -381,6 +636,7 @@ def batched_run_circuit_action_dist(
     U_atoms: jax.Array,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Run `circuit_action_dist` on a batch of input instances."""
     # Create vmap of core function.
@@ -402,6 +658,7 @@ def batched_run_circuit_action_dist(
             None, # U_atoms
             None, # pauli_enc
             None, # pauli_var
+            None, # imprimitive
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -421,6 +678,7 @@ def batched_run_circuit_action_dist(
         U_atoms,
         pauli_enc,
         pauli_var,
+        imprimitive,
     )
 
 
@@ -434,6 +692,7 @@ def batched_run_circuit_action_dist(
     'n_layers',
     'pauli_enc',
     'pauli_var',
+    'imprimitive',
 ])
 def run_circuit_return_dist(
     # All device and QNode parameters.
@@ -442,8 +701,8 @@ def run_circuit_return_dist(
     shots: int | None,
     diff_method: str | None,
     # Circuit arguments.
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     probs_actions: jax.Array,
     n_actions: int,
     d_actions: int,
@@ -451,6 +710,7 @@ def run_circuit_return_dist(
     n_layers: int,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Run `circuit_return_dist` on a single input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -465,6 +725,7 @@ def run_circuit_return_dist(
         n_layers=n_layers,
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
+        imprimitive=imprimitive,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -477,6 +738,7 @@ def run_circuit_return_dist(
     'n_layers',
     'pauli_enc',
     'pauli_var',
+    'imprimitive',
 ])
 def batched_run_circuit_return_dist(
     # All device and QNode parameters.
@@ -485,8 +747,8 @@ def batched_run_circuit_return_dist(
     shots: int | None,
     diff_method: str | None,
     # Circuit arguments.
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     probs_actions: jax.Array,
     n_actions: int,
     d_actions: int,
@@ -494,6 +756,7 @@ def batched_run_circuit_return_dist(
     n_layers: int,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Run `circuit_return_dist` on a batch of input instances."""
     # Create vmap of core function.
@@ -513,6 +776,7 @@ def batched_run_circuit_return_dist(
             None, # n_layers
             None, # pauli_enc
             None, # pauli_var
+            None, # imprimitive
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -530,6 +794,127 @@ def batched_run_circuit_return_dist(
         n_layers,
         pauli_enc,
         pauli_var,
+        imprimitive,
+    )
+
+@partial(nnx.jit, static_argnames=[
+    # Device and QNode parameters.
+    'device_name', 'shots', 'diff_method',
+    # Circuit parameters.
+    'n_actions',
+    'd_actions',
+    'd_returns',
+    'n_layers',
+    'pauli_enc',
+    'pauli_var',
+    'imprimitive',
+])
+def run_circuit_return_dist_shifted(
+    # All device and QNode parameters.
+    key: jax.Array,
+    device_name: str,
+    shots: int | None,
+    diff_method: str | None,
+    # Circuit arguments.
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    probs_actions: jax.Array,
+    U_shift: jax.Array, # (2**d_returns,2**d_returns,)
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Run `circuit_return_dist` on a single input instance."""
+    device = qml.device(name=device_name, shots=shots, seed=key)
+    qnode = qml.QNode(func=circuit_return_dist_shifted, device=device, interface="jax", diff_method=diff_method)
+    return qnode(
+        inputs=inputs,
+        probs_actions=probs_actions,
+        U_shift=U_shift,
+        weights=weights,
+        n_actions=n_actions,
+        d_actions=d_actions,
+        d_returns=d_returns,
+        n_layers=n_layers,
+        pauli_enc=pauli_enc,
+        pauli_var=pauli_var,
+        imprimitive=imprimitive,
+    )
+
+@partial(nnx.jit, static_argnames=[
+    # Device and QNode parameters.
+    'device_name', 'shots', 'diff_method',
+    # Circuit parameters.
+    'n_actions',
+    'd_actions',
+    'd_returns',
+    'n_layers',
+    'pauli_enc',
+    'pauli_var',
+    'imprimitive',
+])
+def batched_run_circuit_return_dist_shifted(
+    # All device and QNode parameters.
+    key: jax.Array,
+    device_name: str,
+    shots: int | None,
+    diff_method: str | None,
+    # Circuit arguments.
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    probs_actions: jax.Array,
+    U_shift: jax.Array, # (2**d_returns,2**d_returns,)
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Run `circuit_return_dist` on a batch of input instances."""
+    # Create vmap of core function.
+    mapped_func = nnx.vmap(
+        f=run_circuit_return_dist_shifted, 
+        in_axes=(
+            0, # key
+            None, # device_name
+            None, # shots
+            None, # diff_method
+            0, # inputs
+            None, # weights
+            0, # probs_actions
+            0, # U_shift
+            None, # n_actions
+            None, # d_actions
+            None, # d_returns
+            None, # n_layers
+            None, # pauli_enc
+            None, # pauli_var
+            None, # imprimitive
+            ),
+        )
+    # Call mapped function with manually assigned positional arguments.
+    return mapped_func(
+        key,
+        device_name,
+        shots,
+        diff_method,
+        inputs,
+        weights,
+        probs_actions,
+        U_shift,
+        n_actions,
+        d_actions,
+        d_returns,
+        n_layers,
+        pauli_enc,
+        pauli_var,
+        imprimitive,
     )
 
 
@@ -543,6 +928,128 @@ def batched_run_circuit_return_dist(
     'n_layers',
     'pauli_enc',
     'pauli_var',
+    'imprimitive',
+])
+def run_circuit_hermitian_loss(
+    # All device and QNode parameters.
+    key: jax.Array,
+    device_name: str,
+    shots: int | None,
+    diff_method: str | None,
+    # Circuit arguments.
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    probs_actions: jax.Array,
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    rho: jax.Array, # Hermitian operator core.
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Run `circuit_hermitian_loss` on a single input instance."""
+    device = qml.device(name=device_name, shots=shots, seed=key)
+    qnode = qml.QNode(func=circuit_hermitian_loss, device=device, interface="jax", diff_method=diff_method)
+    return qnode(
+        inputs=inputs,
+        probs_actions=probs_actions,
+        weights=weights,
+        n_actions=n_actions,
+        d_actions=d_actions,
+        d_returns=d_returns,
+        n_layers=n_layers,
+        rho=rho,
+        pauli_enc=pauli_enc,
+        pauli_var=pauli_var,
+        imprimitive=imprimitive,
+    )
+
+@partial(nnx.jit, static_argnames=[
+    # Device and QNode parameters.
+    'device_name', 'shots', 'diff_method',
+    # Circuit parameters.
+    'n_actions',
+    'd_actions',
+    'd_returns',
+    'n_layers',
+    'pauli_enc',
+    'pauli_var',
+    'imprimitive',
+])
+def batched_run_circuit_hermitian_loss(
+    # All device and QNode parameters.
+    key: jax.Array,
+    device_name: str,
+    shots: int | None,
+    diff_method: str | None,
+    # Circuit arguments.
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    probs_actions: jax.Array,
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    rho: jax.Array, # Hermitian operator core.
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Run `circuit_hermitian_loss` on a batch of input instances."""
+    # Create vmap of core function.
+    mapped_func = nnx.vmap(
+        f=run_circuit_hermitian_loss, 
+        in_axes=(
+            0, # key
+            None, # device_name
+            None, # shots
+            None, # diff_method
+            0, # inputs
+            None, # weights
+            0, # probs_actions
+            None, # n_actions
+            None, # d_actions
+            None, # d_returns
+            None, # n_layers
+            0, # rho
+            None, # pauli_enc
+            None, # pauli_var
+            None, # imprimitive
+            ),
+        )
+    # Call mapped function with manually assigned positional arguments.
+    return mapped_func(
+        key,
+        device_name,
+        shots,
+        diff_method,
+        inputs,
+        weights,
+        probs_actions,
+        n_actions,
+        d_actions,
+        d_returns,
+        n_layers,
+        rho,
+        pauli_enc,
+        pauli_var,
+        imprimitive,
+    )
+
+
+@partial(nnx.jit, static_argnames=[
+    # Device and QNode parameters.
+    'device_name', 'shots', 'diff_method',
+    # Circuit parameters.
+    'n_actions',
+    'd_actions',
+    'd_returns',
+    'n_layers',
+    'pauli_enc',
+    'pauli_var',
+    'imprimitive',
 ])
 def run_circuit_return_density_matrix(
     # All device and QNode parameters.
@@ -551,8 +1058,8 @@ def run_circuit_return_density_matrix(
     shots: int | None,
     diff_method: str | None,
     # Circuit arguments.
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     probs_actions: jax.Array,
     n_actions: int,
     d_actions: int,
@@ -560,6 +1067,7 @@ def run_circuit_return_density_matrix(
     n_layers: int,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Run `circuit_return_density_matrix` on a single of input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -574,6 +1082,7 @@ def run_circuit_return_density_matrix(
         n_layers=n_layers,
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
+        imprimitive=imprimitive,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -586,6 +1095,7 @@ def run_circuit_return_density_matrix(
     'n_layers',
     'pauli_enc',
     'pauli_var',
+    'imprimitive',
 ])
 def batched_run_circuit_return_density_matrix(
     # All device and QNode parameters.
@@ -594,8 +1104,8 @@ def batched_run_circuit_return_density_matrix(
     shots: int | None,
     diff_method: str | None,
     # Circuit arguments.
-    inputs: jax.Array, # (n_actions, n_layers, d_returns, 1,)
-    weights: jax.Array, # (n_actions, n_layers+1, d_returns, 3,)
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
     probs_actions: jax.Array,
     n_actions: int,
     d_actions: int,
@@ -603,6 +1113,7 @@ def batched_run_circuit_return_density_matrix(
     n_layers: int,
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
     ):
     """Run `circuit_return_density_matrix` on a batch of input instances."""
     # Create vmap of core function.
@@ -622,6 +1133,7 @@ def batched_run_circuit_return_density_matrix(
             None, # n_layers
             None, # pauli_enc
             None, # pauli_var
+            None, # imprimitive
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -639,24 +1151,145 @@ def batched_run_circuit_return_density_matrix(
         n_layers,
         pauli_enc,
         pauli_var,
+        imprimitive,
+    )
+
+
+@partial(nnx.jit, static_argnames=[
+    # Device and QNode parameters.
+    'device_name', 'shots', 'diff_method',
+    # Circuit parameters.
+    'n_actions',
+    'd_actions',
+    'd_returns',
+    'n_layers',
+    'pauli_enc',
+    'pauli_var',
+    'imprimitive',
+])
+def run_circuit_return_density_matrix_shifted(
+    # All device and QNode parameters.
+    key: jax.Array,
+    device_name: str,
+    shots: int | None,
+    diff_method: str | None,
+    # Circuit arguments.
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    probs_actions: jax.Array,
+    U_shift: jax.Array, # (2**d_returns,2**d_returns,)
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Run `circuit_return_density_matrix_shifted` on a single of input instance."""
+    device = qml.device(name=device_name, shots=shots, seed=key)
+    qnode = qml.QNode(func=circuit_return_density_matrix_shifted, device=device, interface="jax", diff_method=diff_method)
+    return qnode(
+        inputs=inputs,
+        probs_actions=probs_actions,
+        U_shift=U_shift,
+        weights=weights,
+        n_actions=n_actions,
+        d_actions=d_actions,
+        d_returns=d_returns,
+        n_layers=n_layers,
+        pauli_enc=pauli_enc,
+        pauli_var=pauli_var,
+        imprimitive=imprimitive,
+    )
+
+@partial(nnx.jit, static_argnames=[
+    # Device and QNode parameters.
+    'device_name', 'shots', 'diff_method',
+    # Circuit parameters.
+    'n_actions',
+    'd_actions',
+    'd_returns',
+    'n_layers',
+    'pauli_enc',
+    'pauli_var',
+    'imprimitive',
+])
+def batched_run_circuit_return_density_matrix_shifted(
+    # All device and QNode parameters.
+    key: jax.Array,
+    device_name: str,
+    shots: int | None,
+    diff_method: str | None,
+    # Circuit arguments.
+    inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
+    weights: jax.Array, # (n_actions, n_layers, d_returns, num_var_features,)
+    probs_actions: jax.Array,
+    U_shift: jax.Array, # (2**d_returns,2**d_returns,)
+    n_actions: int,
+    d_actions: int,
+    d_returns: int,
+    n_layers: int,
+    pauli_enc: tuple[str, ...],
+    pauli_var: tuple[str, ...],
+    imprimitive: str | None, # Entanglement gate string.
+    ):
+    """Run `circuit_return_density_matrix_shifted` on a batch of input instances."""
+    # Create vmap of core function.
+    mapped_func = nnx.vmap(
+        f=run_circuit_return_density_matrix_shifted, 
+        in_axes=(
+            0, # key
+            None, # device_name
+            None, # shots
+            None, # diff_method
+            0, # inputs
+            None, # weights
+            0, # probs_actions
+            0, # U_shift
+            None, # n_actions
+            None, # d_actions
+            None, # d_returns
+            None, # n_layers
+            None, # pauli_enc
+            None, # pauli_var
+            None, # imprimitive
+            ),
+        )
+    # Call mapped function with manually assigned positional arguments.
+    return mapped_func(
+        key,
+        device_name,
+        shots,
+        diff_method,
+        inputs,
+        weights,
+        probs_actions,
+        U_shift,
+        n_actions,
+        d_actions,
+        d_returns,
+        n_layers,
+        pauli_enc,
+        pauli_var,
+        imprimitive,
     )
 
 
 
 @dataclass(kw_only=True)
 class QuantumNativeQNetwork(SerializableModule):
-    """Quantum-native Q-value return distribution network.
-    """
+    """Quantum-native (distributional) Q-value network."""
     din: int
-    """Number of input dimensions creating shape `(din,)`."""
+    """Dimension of input data. The model will map this dimension into one that is supported by the number of return-atom qubits."""
     n_actions: int
     """Number of actions (will require `ceil(log2(n))` qubits)."""
     n_returns: int
     """Number of return atoms (will require `ceil(log2(n))` qubits)."""
     z_min: float
-    """Lower value for return-atom range."""
+    """Lower bound for return value."""
     z_max: float
-    """Upper value for return-atom range."""
+    """Upper bound for return value."""
     m_moment: int
     """m-th moment of the return atoms distribution (`E[Z^m]`)."""
     n_reuploads: int
@@ -664,11 +1297,17 @@ class QuantumNativeQNetwork(SerializableModule):
     n_layers: int
     """Number of re-upload layers to use for the return-atom distribution unitary."""
     rngs_kwargs: dict[str, int]
-    """Keyword arguments for `flax.nnx.Rngs`."""
     pauli_enc: tuple[str, ...]
     """List of Pauli operator strings for encoding layer (e.g., 'X', 'Y', 'Z', 'RX', 'RY', 'RZ')."""
     pauli_var: tuple[str, ...]
     """List of Pauli operator strings for variational layer (e.g., 'X', 'Y', 'Z', 'RX', 'RY', 'RZ')."""
+    imprimitive: str | None
+    """Entanglement gate string (e.g., 'CNOT', 'CX', 'CZ')."""
+    """Number of circuit shots used to compute action probability distribution."""
+    input_preprocess: SerializableModule | None = None
+    """Nested module for input preprocessing (can be trainable). We need this because the `QuantumNativeQNetworkSplit` class has methods required by the QnRL training algorithm, hence it cannot be wrapped inside another module. To support customizing input preprocessing on a per-environment basis we allow a nested input preprocessing layer to be a member of the `QuantumNativeQNetworkSplit` module."""
+    input_multiplex_activation: str = 'linear'
+    """Activation function to use after multiplexing input for quantum circuit. Must be a string key contained within the `qnrl.modules.serializable.activation_function_dispatcher` dictionary."""
     
     def __post_init__(self):
         self.rngs: nnx.Rngs = nnx.Rngs(**self.rngs_kwargs)
@@ -693,10 +1332,7 @@ class QuantumNativeQNetwork(SerializableModule):
         atoms_values = self.atoms
         atoms_values = atoms_values - atoms_values.min() # Start from zero.
         atoms_values = atoms_values / atoms_values.sum() # Normalize to probability distribution.
-        # atoms_values = nnx.softmax(atoms_values) # Normalize to probability distribution.
-        atoms_values = jnp.sqrt(atoms_values * self.n_returns) # Ensure that L2-norm of quantum state amplitude will produce the atom probability (i.e., $|amp|^2 = prob$).
-        atoms_values = atoms_values + 1e-5 # Small offset to ensure the lowest value is not zero.
-        atoms_values = atoms_values / atoms_values.max() # Ensure maximum value is 1.
+        atoms_values = jnp.sqrt(atoms_values) # Ensure that L2-norm of quantum state amplitude will produce the atom probability (i.e., $|amp|^2 = prob$).
         # Pad with zeros if return atoms shape is not a power of 2.
         if self.n_returns != 2**self.d_returns:
             atoms_values = jnp.pad(atoms_values, (0,2**self.d_returns - self.n_returns), mode='constant')
@@ -704,18 +1340,25 @@ class QuantumNativeQNetwork(SerializableModule):
         self.U_atoms = jnp.diag(atoms_values)
         
         # Weights for return-atom distribution generation.
-        self.circ_weights_var_shape = (self.n_actions,self.n_layers,self.d_returns,len(self.pauli_var),)
-        self.circ_weights_var = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_var_shape, minval=0, maxval=2*jnp.pi))
-        #
-        self.circ_weights_enc_obs_shape = (self.n_actions,self.n_layers,self.d_returns,len(self.pauli_enc),)
-        self.circ_weights_enc_obs = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_enc_obs_shape, minval=-1., maxval=1.))
+        # Every action gets their own return-atom distribution unitary.
+        num_var_params = get_ops_num_params(ops=self.pauli_var)
+        self.circ_weights_var_shape = (self.n_actions,self.n_layers,self.d_returns,num_var_params,) # Each qubit has (Rz, Ry, Rz).
+        self.circ_weights_var = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_var_shape, minval=0., maxval=jnp.pi))
         
         # Inputs to circuit will be encoded onto the return-atom wires.
-        self.circ_observation_shape_in = self.din # Input dimension of the observations.
-        self.circ_observation_shape_out = (self.d_returns,len(self.pauli_enc),)
+        num_enc_params = get_ops_num_params(ops=self.pauli_enc)
+        self.circ_weights_enc_obs_shape = (self.n_actions,self.n_layers,self.d_returns,num_enc_params,)
+        self.circ_weights_enc_obs_kernel = nnx.Param(nnx.initializers.ones_init()(key=self.rngs.params(), shape=self.circ_weights_enc_obs_shape)) # w
+        # self.circ_weights_enc_obs_bias = nnx.Param(nnx.initializers.zeros_init()(key=self.rngs.params(), shape=self.circ_weights_enc_obs_shape)) # b
+        self.circ_observation_shape_in = self.din # Input dimension of the 
+        self.circ_observation_shape_out = (self.n_actions,self.d_returns,num_enc_params,)
         
-        # Linear layer for projecting input dimension into dimension of return-atom qubits.
-        self.project_input = nnx.Linear(in_features=self.din, out_features=reduce(lambda x,y: x*y, self.circ_observation_shape_out), rngs=self.rngs)
+        # Projects input dimension to dimension supported by quantum circuit.
+        self.linear_input_projection = nnx.Linear(in_features=self.din, out_features=reduce(lambda x,y: x*y, self.circ_observation_shape_out), rngs=self.rngs, param_dtype='float64')
+        
+        # Ensure input multiplex activation string key is valid.
+        assert self.input_multiplex_activation in activation_function_dispatcher, f"Invalid activation function key {self.input_multiplex_activation}"
+        
     
     @nnx.jit
     def __call__(self, x): # (batch,din,)
@@ -723,13 +1366,22 @@ class QuantumNativeQNetwork(SerializableModule):
     
     @nnx.jit
     def project_observations(self, observations: jax.Array): # (batch,din,)
-        # Project observation into qubit space using cascade of fully-connected layers.
-        x = self.project_input(observations)
+        x = observations
+        # Preprocess input data.
+        if self.input_preprocess is not None:
+            x = self.input_preprocess(x)
+        # Project input data into dimension required for quantum circuit.
+        x = self.linear_input_projection(x)
         x = jnp.reshape(x, (-1, *self.circ_observation_shape_out,))
         # Multiplex the encoded observations across the layers of each action operator.
-        # x = 2. * jnp.arctan(x) # [-pi, pi]
-        x = jnp.einsum("alqf,bqf->balqf", self.circ_weights_enc_obs, x)
-        x = 2. * jnp.arctan(x) + jnp.pi # [0, 2*pi]
+        # Einsum dimension labels:
+        #   b = batch
+        #   l = layer
+        #   q = qubit
+        #   f = feature
+        x = jnp.einsum("alqf,baqf->balqf", self.circ_weights_enc_obs_kernel, x)
+        # Pass multiplex result through activation function.
+        x = activation_function_dispatcher[self.input_multiplex_activation](x)
         return x
     
     @nnx.jit(static_argnames=['n_reuploads'])
@@ -744,12 +1396,11 @@ class QuantumNativeQNetwork(SerializableModule):
         
         # Prepare the n-th power of the m-th moment of the returns distribution.
         key = self.rngs.default() # Generate new random key for circuit measurement.
+        # Initially set all actions to equal probability (here all have magnitude of 1, which will be normalized within the quantum circuit code later).
         probs_actions = jnp.ones(shape=(batch_size, self.n_actions,), dtype='float64')
         if n_reuploads is None:
             n_reuploads = self.n_reuploads
-        # for _ in range(self.n_reuploads):
         # Create a batch of keys.
-        # subkeys = jax.random.split(key=key, num=batch_size)
         subkeys = [key]
         for _ in range(n_reuploads):
             # Create a batch of keys for the current reupload.
@@ -773,6 +1424,7 @@ class QuantumNativeQNetwork(SerializableModule):
                 U_atoms=self.U_atoms,
                 pauli_enc=self.pauli_enc,
                 pauli_var=self.pauli_var,
+                imprimitive=self.imprimitive,
             )
             # Filter circuit output based on number of "active" actions.
             # If desired number of actions is not a multiple of 2, then filter out the excess actions on the qubit register (i.e., more actions can be represented on the register and we don't care about them).
@@ -780,7 +1432,7 @@ class QuantumNativeQNetwork(SerializableModule):
             # Ensure probabilities are normalized after the filter.
             probs_actions = probs_actions / probs_actions.sum(axis=-1, keepdims=True)
         return probs_actions
-
+    
     @nnx.jit
     def call_gen_return_dist(self, x, probs_actions): # (batch,din,)
         """Generate return distribuion from input observation."""
@@ -802,7 +1454,8 @@ class QuantumNativeQNetwork(SerializableModule):
             # All device and QNode parameters.
             key=subkeys,
             device_name='default.qubit',
-            shots=None, diff_method='backprop',
+            shots=None,
+            diff_method='backprop',
             #
             # Circuit arguments.
             inputs=observation_proj_batched,
@@ -814,6 +1467,7 @@ class QuantumNativeQNetwork(SerializableModule):
             n_layers=self.n_layers,
             pauli_enc=self.pauli_enc,
             pauli_var=self.pauli_var,
+            imprimitive=self.imprimitive,
         )
         # Filter circuit output based on number of "active" returns.
         # If desired number of returns is not a multiple of 2, then filter out the excess returns on the qubit register (i.e., more returns can be represented on the register and we don't care about them).
@@ -821,6 +1475,89 @@ class QuantumNativeQNetwork(SerializableModule):
         # Ensure probabilities are normalized after the filter.
         probs_returns = probs_returns / probs_returns.sum(axis=-1, keepdims=True)
         return probs_returns
+    
+    @nnx.jit
+    def call_gen_return_dist_shifted(self, x, probs_actions, U_shift): # (batch,din,)
+        """Generate shifted return distribuion from input observation and action probability distribution."""
+        
+        # Track the batch size.
+        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
+        
+        # Project input observation into shape that is compatible with the quantum circuit.
+        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Generate new random key for circuit measurement.
+        key = self.rngs.default()
+
+        # Create a batch of keys.
+        subkeys = jax.random.split(key=key, num=batch_size)
+        
+        # Run the circuit.
+        probs_returns = batched_run_circuit_return_dist_shifted( # (batch,2**d_returns,)
+            # All device and QNode parameters.
+            key=subkeys,
+            device_name='default.mixed',
+            shots=None,
+            diff_method='backprop',
+            #
+            # Circuit arguments.
+            inputs=observation_proj_batched,
+            probs_actions=probs_actions,
+            U_shift=U_shift,
+            weights=self.circ_weights_var,
+            n_actions=self.n_actions,
+            d_actions=self.d_actions,
+            d_returns=self.d_returns,
+            n_layers=self.n_layers,
+            pauli_enc=self.pauli_enc,
+            pauli_var=self.pauli_var,
+            imprimitive=self.imprimitive,
+        )
+        # Filter circuit output based on number of "active" returns.
+        # If desired number of returns is not a multiple of 2, then filter out the excess returns on the qubit register (i.e., more returns can be represented on the register and we don't care about them).
+        probs_returns = probs_returns[:,jnp.array(self.active_return_idx, dtype=int)] # (batch,n_returns,)
+        # Ensure probabilities are normalized after the filter.
+        probs_returns = probs_returns / probs_returns.sum(axis=-1, keepdims=True)
+        return probs_returns
+    
+    
+    @nnx.jit
+    def call_hermitian_loss(self, x, probs_actions, rho): # (batch,din,)
+        """Compute Hermitian loss across the return-atom qubits with respect to an input density matrix rho."""
+        
+        # Track the batch size.
+        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
+        
+        # Project input observation into shape that is compatible with the quantum circuit.
+        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Generate new random key for circuit measurement.
+        key = self.rngs.default()
+
+        # Create a batch of keys.
+        subkeys = jax.random.split(key=key, num=batch_size)
+        
+        # Run the circuit.
+        loss = batched_run_circuit_hermitian_loss( # (batch,2**d_returns,)
+            # All device and QNode parameters.
+            key=subkeys,
+            device_name="default.qubit",
+            shots=None,
+            diff_method='backprop',
+            # Circuit arguments.
+            inputs=observation_proj_batched,
+            probs_actions=probs_actions,
+            weights=self.circ_weights_var,
+            n_actions=self.n_actions,
+            d_actions=self.d_actions,
+            d_returns=self.d_returns,
+            n_layers=self.n_layers,
+            rho=rho,
+            pauli_enc=self.pauli_enc,
+            pauli_var=self.pauli_var,
+            imprimitive=self.imprimitive,
+        )
+        return loss
     
     @nnx.jit
     def call_return_density_matrix(self, x, probs_actions): # (batch,din,)
@@ -842,8 +1579,9 @@ class QuantumNativeQNetwork(SerializableModule):
         rho = batched_run_circuit_return_density_matrix( # (batch,2**d_returns,2**d_returns)
             # All device and QNode parameters.
             key=subkeys,
-            device_name="default.qubit",
-            shots=None, diff_method='backprop',
+            device_name="default.qubit", # Use mixed state simulation for density matrix.
+            shots=None,
+            diff_method='backprop',
             # Circuit arguments.
             inputs=observation_proj_batched,
             probs_actions=probs_actions,
@@ -854,5 +1592,44 @@ class QuantumNativeQNetwork(SerializableModule):
             n_layers=self.n_layers,
             pauli_enc=self.pauli_enc,
             pauli_var=self.pauli_var,
+            imprimitive=self.imprimitive,
         )
-        return rho#
+        return rho
+    
+    @nnx.jit
+    def call_return_density_matrix_shifted(self, x, probs_actions, U_shift): # (batch,din,)
+        """Generate the shifted density matrix across the return-atom qubits according to an input observation and action probability distribution."""
+        
+        # Track the batch size.
+        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
+        
+        # Project input observation into shape that is compatible with the quantum circuit.
+        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Generate new random key for circuit measurement.
+        key = self.rngs.default()
+
+        # Create a batch of keys.
+        subkeys = jax.random.split(key=key, num=batch_size)
+        
+        # Run the circuit.
+        rho = batched_run_circuit_return_density_matrix_shifted( # (batch,2**d_returns,2**d_returns)
+            # All device and QNode parameters.
+            key=subkeys,
+            device_name="default.qubit", # Use mixed state simulation for density matrix.
+            shots=None,
+            diff_method='backprop',
+            # Circuit arguments.
+            inputs=observation_proj_batched,
+            probs_actions=probs_actions,
+            U_shift=U_shift,
+            weights=self.circ_weights_var,
+            n_actions=self.n_actions,
+            d_actions=self.d_actions,
+            d_returns=self.d_returns,
+            n_layers=self.n_layers,
+            pauli_enc=self.pauli_enc,
+            pauli_var=self.pauli_var,
+            imprimitive=self.imprimitive,
+        )
+        return rho
