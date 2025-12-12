@@ -503,6 +503,13 @@ class QnRL(Algorithm):
     eps_start: float = 1.0
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
+    reseed_model_on_init: bool = False # Overwrite model seed after algorithm config initialization. Set this to `False` if you want to set the seed manually or use an existing model seed. Set this to `True` if you want any existing model seed to be overridden to the algorithm config seed.
+    
+    def __post_init__(self):
+        # Manually reset the the seed of the model.
+        # WARNING: This will overwrite all existing model parameters.
+        if self.reseed_model_on_init:
+            self.model.reseed(dict(default=self.seed))
     
     def train(self, **kwargs) -> list | tuple[list, PmfReplayBuffer]:
         
