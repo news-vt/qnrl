@@ -977,7 +977,7 @@ class Train(DataClassDictMixin):
         metric_manager.run.summary.update(train_report)
         
         # Evaluate multiple times and preserve results.
-        eval_reports = []
+        # eval_reports = []
         key = jax.random.PRNGKey(seed=algo_config.seed)
         for _ in range(self.num_eval):
             
@@ -987,6 +987,7 @@ class Train(DataClassDictMixin):
             # Evaluate the model using a different random seed.
             seed_eval = int(subkey[0])
             _, eval_report = algo_config.eval(seed=seed_eval)
+            # eval_reports.append(eval_report)
             
             # Log evaluation results.
             metric_manager.run.log(eval_report)
