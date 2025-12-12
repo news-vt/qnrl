@@ -17,6 +17,8 @@ import numpy as np
 import jax.numpy as jnp
 from matplotlib.figure import Figure as MatplotlibFigure
 from plotext._figure import default_figure_class as PlotextFigure
+import wandb
+import pandas as pd
 
 from . import tools
 from .store import HashStore
@@ -25,7 +27,8 @@ from .environment import *
 from .checkpoint import *
 from .algorithms import *
 from .modules import SerializableModule
-from .metric import MetricManager
+from .metric import MetricManager, LocalFileMetricManager, WandBMetricManager
+from .serialization import hash_serializable_object
 
 
 import jax
@@ -268,7 +271,7 @@ class Hash(DataClassDictMixin):
 
 
 @dataclass(kw_only=True)
-class Train(DataClassDictMixin):
+class Train_OLD(DataClassDictMixin):
     """Run training algorithm using the given config."""
     config: pathlib.Path | None = None # Path of config file in format [yaml, json, python].
     key: str | None = None # Config hash key.
@@ -419,7 +422,7 @@ class Plot(DataClassDictMixin):
         if self.history:
             for path in self.history:
                 if path.is_dir():
-                    metric_manager = MetricManager(
+                    metric_manager = LocalFileMetricManager(
                         metric_dir=path.resolve(),
                         metric_file_type="json", # TODO assume JSON for now, but this should be inferred from the directory somehow.
                         )
@@ -672,7 +675,7 @@ class PlotLive(DataClassDictMixin):
         if self.history:
             for path in self.history:
                 if path.is_dir():
-                    metric_manager = MetricManager(
+                    metric_manager = LocalFileMetricManager(
                         metric_dir=path.resolve(),
                         metric_file_type="json", # TODO assume JSON for now, but this should be inferred from the directory somehow.
                         )
@@ -928,6 +931,147 @@ class Metrics(DataClassDictMixin):
         self.mode.main()
 
 
+from qnrl.serialization import SerialType, hash_serializable_object
+@dataclass(kw_only=True)
+class Train(DataClassDictMixin):
+    """Run training algorithm using the given config."""
+    config: dict[str, int | float | str | bool | list | tuple | dict | None]
+    num_eval: int = 100 # Number of evaluation runs after training.
+    
+    
+    
+    dir_checkpoints: pathlib.Path = pathlib.Path("./checkpoints") # Path to directory where to store model checkpoints. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
+    dir_metrics: pathlib.Path = pathlib.Path("./metrics") # Path to directory where to store model performance metrics. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
+    history_file_type: Literal['.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'] = '.json'
+    # seed: int | None = None # Override the config seed for training.
+    save_interval_steps: int = 1 # Save model checkpoints every N steps (exact frequency determined by when the training algorithm calls `checkpoint_manager.save()``).
+    max_to_keep: int = 1 # Maximum number of checkpoints to keep.
+    
+    def main(self):
+        assert self.history_file_type in ('.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'), "unsupported history file type"
+        
+        # Deserialize algorithm config.
+        algo_config = qnrl.Algorithm.from_dict(self.config)
+        
+        
+        cfg_hash, _ = hash_serializable_object(self.config)
+        
+        
+        env_id = algo_config.env.make().spec.id
+        metric_manager = WandBMetricManager(
+            login=True, # Already logged in at beginning of notebook.
+            name=f"{cfg_hash}",
+            terminate_on_wait_until_finished=False,
+            define_metrics=[
+                {"name": "*", "summary": "min"},
+                {"name": "*", "summary": "max"},
+                {"name": "*", "summary": "mean"},
+                {"name": "*", "summary": "first"},
+                {"name": "*", "summary": "last"},
+            ],
+        )
+        
+        # Run training algorithm.
+        _, train_report = algo_config.train(metric_manager=metric_manager)
+        
+        # Add training report to run summary.
+        metric_manager.run.summary.update(train_report)
+        
+        # Evaluate multiple times and preserve results.
+        eval_reports = []
+        key = jax.random.PRNGKey(seed=algo_config.seed)
+        for _ in range(self.num_eval):
+            
+            # Generate a new random key.
+            key, subkey = jax.random.split(key=key)
+            
+            # Evaluate the model using a different random seed.
+            seed_eval = int(subkey[0])
+            _, eval_report = algo_config.eval(seed=seed_eval)
+            
+            # Log evaluation results.
+            metric_manager.run.log(eval_report)
+        
+        # Create an evaluation summary table.
+        eval_summary_df = pd.DataFrame(eval_reports)
+        table = wandb.Table(eval_summary_df)
+        metric_manager.run.log({"eval/summary": table})
+        
+        # Finalize the logging session.
+        metric_manager.run.finish()
+        
+        ##############
+        
+        # print(f"{self.config = }")
+        # print()
+        # print(f"{algo_config = }")
+        # print(f"{cfg_hash = }")
+        # print()
+        # print(f"{algo_config.to_dict() = }")
+        
+        # # # Load config.
+        # # # Forcefully override the seed if one was provided.
+        # # # We do this here because the config object's hash will change once we override the seed.
+        # # load_kwargs = dict(
+        # #     path=self.config, key=self.key, store=self.store
+        # # )
+        # # if self.seed is not None:
+        # #     load_kwargs['overrides'] = dict(seed=self.seed)
+        # # config = load_algo_config(**load_kwargs)
+        
+        # # Create output directory if it does not exist.
+        # self.dir_checkpoints.mkdir(parents=True, exist_ok=True)
+        # self.dir_metrics.mkdir(parents=True, exist_ok=True)
+        
+        # # Store the configuration and get it's unique hash.
+        # cfg_hash, _ = hash_serializable_object(self.config)
+        # # Inform user of store and hash for the config.
+        # print(f"Hash: {cfg_hash}")
+        
+        # # Override checkpoint manager using the hash ID as filename if none was provided.
+        # if self.config.checkpoint is None:
+        #     checkpoint_dir = (self.dir_checkpoints / f"{cfg_hash}").resolve()
+        #     if checkpoint_dir.exists():
+        #         ocp.test_utils.erase_and_create_empty(checkpoint_dir)
+        #     self.config.checkpoint = CheckpointConfig(
+        #         checkpoint_dir=checkpoint_dir,
+        #         checkpoint_options=CheckpointOptions(
+        #             save_interval_steps=self.save_interval_steps,
+        #             max_to_keep=self.max_to_keep,
+        #             enable_async_checkpointing=True,
+        #         ),
+        #     )
+        
+        # if self.config.metric_manager is None:
+        #     env_id = self.config.env.make().spec.id
+        #     self.config.metric_manager = WandBMetricManager(
+        #         login=False, # Already logged in at beginning of notebook.
+        #         project="qnrl",
+        #         name=f"qnrl/{env_id}/{cfg_hash}",
+        #         config=self.config.to_dict(),
+        #         monitor_gym=False, # Causes error: "'RecordVideo' object has no attribute 'enabled'"
+        #         save_code=True, # Preserve notebook.
+        #         terminate_on_wait_until_finished=False,
+        #         define_metrics=[
+        #             {"name": "*", "summary": "min"},
+        #             {"name": "*", "summary": "max"},
+        #             {"name": "*", "summary": "mean"},
+        #             {"name": "*", "summary": "first"},
+        #             {"name": "*", "summary": "last"},
+        #         ],
+        #     )
+        
+        # # Run training algorithm.
+        # history_list = self.config.train()
+        
+        # # Save train results based on hash.
+        # history_filepath = self.dir_metrics / f"{cfg_hash}{self.history_file_type}"
+        # tools.save_train_results(history_filepath, history_list)
+        
+        # # Inform the user about the history file location.
+        # print(f"History: {history_filepath}")
+
+
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
     """Algorithm CLI."""
@@ -947,7 +1091,12 @@ class Args(DataClassDictMixin):
 
 if __name__ == "__main__":
     
-    args = tyro.cli(Args, config=(tyro.conf.EnumChoicesFromValues, tyro.conf.OmitSubcommandPrefixes,))
+    args = tyro.cli(Args, config=(
+        tyro.conf.EnumChoicesFromValues,
+        tyro.conf.OmitSubcommandPrefixes,
+        tyro.conf.UsePythonSyntaxForLiteralCollections,
+        tyro.conf.FlagConversionOff,
+        ))
     
     # Run program mode.
     args.mode.main()
