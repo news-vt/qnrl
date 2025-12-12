@@ -32,29 +32,22 @@ class DistQNetworkLinear(SerializableModule):
     num_atoms: int
     douts: list[int] = field(default_factory=list)
     rngs_kwargs: dict[str, int]
-
-    def __init__(self,
-        din: int,
-        num_actions: int,
-        num_atoms: int,
-        *,
-        rngs_kwargs: dict[str, int],
-        douts: list[int] = [],
-        ):
+    
+    def __post_init__(self):
+        self.reseed(self.rngs_kwargs)
+    
+    def reseed(self, rngs_kwargs: dict[str, int]):
+        """Re-create model parameters using a dictionary of `nnx.Rngs` keyword arguments."""
+        self.rngs_kwargs = rngs_kwargs
         rngs: nnx.Rngs = nnx.Rngs(**rngs_kwargs)
         
         # Organize dimensions so that the output of one is the input of another.
-        dims = [din, *douts, num_actions * num_atoms]
+        dims = [self.din, *self.douts, self.num_actions * self.num_atoms]
         din_dout = list(zip(dims[:-1], dims[1:])) # (din, dout)
         self.layers = [
             nnx.Linear(in_features=in_features, out_features=out_features, rngs=rngs)
             for in_features, out_features in din_dout
         ]
-        self.din = din
-        self.num_actions = num_actions
-        self.num_atoms = num_atoms
-        self.douts = douts
-        self.rngs_kwargs = rngs_kwargs
     
     @nnx.jit
     def __call__(self, x):

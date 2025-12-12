@@ -32,16 +32,17 @@ class Sequential(SerializableModule):
         }
     """
     layers: list[SerializableModule] | dict[str, SerializableModule]
-    key_order: list[int] | list[str] # Private layer key ordering.
+    key_order: list[int] | list[str] | None = None # Private layer key ordering.
     
-    def __init__(self, layers: list[SerializableModule] | dict[str, SerializableModule], key_order: list[int] | list[str] | None = None):
-        self.layers = layers
+    def __post_init__(self):
         
         # Preserve the original layer order, because of a bug with `nnx.jit` automatically sorting dictionary keys.
-        if key_order is None:
+        if self.key_order is None:
             self.key_order = list(self.layers.keys()) if isinstance(self.layers, dict) else list(range(len(self.layers)))
-        else:
-            self.key_order = key_order
+    
+    def reseed(self, rngs_kwargs: dict[str, int]):
+        for key in self.key_order:
+            self.layers[key].reseed(rngs_kwargs)
     
     def __iter__(self):
         yield from (self.layers[key] for key in self.key_order)

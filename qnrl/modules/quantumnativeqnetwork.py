@@ -1310,7 +1310,6 @@ class QuantumNativeQNetwork(SerializableModule):
     """Activation function to use after multiplexing input for quantum circuit. Must be a string key contained within the `qnrl.modules.serializable.activation_function_dispatcher` dictionary."""
     
     def __post_init__(self):
-        self.rngs: nnx.Rngs = nnx.Rngs(**self.rngs_kwargs)
         
         # Compute qubit count based on number of policies, actions, and return atoms.
         self.d_actions = int(jnp.ceil(jnp.log2(self.n_actions))) # Qubit count for actions.
@@ -1343,22 +1342,31 @@ class QuantumNativeQNetwork(SerializableModule):
         # Every action gets their own return-atom distribution unitary.
         num_var_params = get_ops_num_params(ops=self.pauli_var)
         self.circ_weights_var_shape = (self.n_actions,self.n_layers,self.d_returns,num_var_params,) # Each qubit has (Rz, Ry, Rz).
-        self.circ_weights_var = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_var_shape, minval=0., maxval=jnp.pi))
         
         # Inputs to circuit will be encoded onto the return-atom wires.
         num_enc_params = get_ops_num_params(ops=self.pauli_enc)
         self.circ_weights_enc_obs_shape = (self.n_actions,self.n_layers,self.d_returns,num_enc_params,)
-        self.circ_weights_enc_obs_kernel = nnx.Param(nnx.initializers.ones_init()(key=self.rngs.params(), shape=self.circ_weights_enc_obs_shape)) # w
-        # self.circ_weights_enc_obs_bias = nnx.Param(nnx.initializers.zeros_init()(key=self.rngs.params(), shape=self.circ_weights_enc_obs_shape)) # b
         self.circ_observation_shape_in = self.din # Input dimension of the 
         self.circ_observation_shape_out = (self.n_actions,self.d_returns,num_enc_params,)
-        
-        # Projects input dimension to dimension supported by quantum circuit.
-        self.linear_input_projection = nnx.Linear(in_features=self.din, out_features=reduce(lambda x,y: x*y, self.circ_observation_shape_out), rngs=self.rngs, param_dtype='float64')
         
         # Ensure input multiplex activation string key is valid.
         assert self.input_multiplex_activation in activation_function_dispatcher, f"Invalid activation function key {self.input_multiplex_activation}"
         
+        # Create parameters that depend on random seed.
+        self.reseed(self.rngs_kwargs)
+    
+    def reseed(self, rngs_kwargs: dict[str, int]):
+        self.rngs_kwargs = rngs_kwargs
+        """Re-create model parameters using a dictionary of `nnx.Rngs` keyword arguments."""
+        self.rngs: nnx.Rngs = nnx.Rngs(**self.rngs_kwargs)
+        
+        self.circ_weights_var = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_var_shape, minval=0., maxval=jnp.pi))
+        
+        self.circ_weights_enc_obs_kernel = nnx.Param(nnx.initializers.ones_init()(key=self.rngs.params(), shape=self.circ_weights_enc_obs_shape)) # w
+        # self.circ_weights_enc_obs_bias = nnx.Param(nnx.initializers.zeros_init()(key=self.rngs.params(), shape=self.circ_weights_enc_obs_shape)) # b
+        
+        # Projects input dimension to dimension supported by quantum circuit.
+        self.linear_input_projection = nnx.Linear(in_features=self.din, out_features=reduce(lambda x,y: x*y, self.circ_observation_shape_out), rngs=self.rngs, param_dtype='float64')
     
     @nnx.jit
     def __call__(self, x): # (batch,din,)
