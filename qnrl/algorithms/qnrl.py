@@ -24,6 +24,13 @@ from qnrl.tools import get_model_total_parameter_count, restore_model_from_check
 from qnrl.modules import QuantumNativeQNetwork
 
 
+def meta_prefix_fn_factory(meta_prefix_key: str):
+    """Helper that prefixes string keys by a given prefix."""
+    def wrapped(s: str):
+        return f"{meta_prefix_key}{s}"
+    return wrapped
+
+
 def get_action_from_policy(model: QuantumNativeQNetwork, observation: jax.Array):
     # Generate action distribution from input observation.
     action_pmf = model.call_gen_action_dist(observation).squeeze() # (n_actions,)
@@ -245,7 +252,7 @@ def train(
     A variant of distributional reinforcement learning (DRL) algorithm C51 leveraging quantum superposition as the distributional generator.
     """
     # Function to streamline creating metric keys from base strings.
-    meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
     
     # Training history.
     history: list[dict[str, Any]] = []
@@ -436,7 +443,7 @@ def eval(
     ) -> tuple[pd.DataFrame, dict]:
     
     # Function to streamline creating metric keys from base strings.
-    meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
 
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
