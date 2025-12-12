@@ -215,7 +215,7 @@ def train(
     
     # Track latest episode and loss metadata bundles.
     episode_meta = dict()
-    loss_meta = dict()
+    update_meta = dict()
     
     # Create a buffer for environment interactions.
     buffer = ReplayBuffer(buffer_size=buffer_size, env=env)
@@ -312,27 +312,18 @@ def train(
                     )
                     
                     # Update the history and progress bar with loss information.
-                    loss_meta = {
+                    update_meta = {
                         meta_prefix_fn("step"): t,
                         meta_prefix_fn("loss"): loss.item(),
-                    }
-                    history.append(loss_meta)
-                    pbar_postfix.update(**loss_meta)
-                    pbar.set_postfix(pbar_postfix)
-                    
-                    # Update the history and progress bar with metric information.
-                    # This is separate from loss so that it can be correlated with a different time step variable.
-                    metric_meta = {
-                        meta_prefix_fn("step"): t,
                         **{meta_prefix_fn(k): v.item() for k,v in metrics.items()}, # Prefix "train/" to key.
                     }
-                    history.append(metric_meta)
-                    pbar_postfix.update(**metric_meta)
+                    history.append(update_meta)
+                    pbar_postfix.update(**update_meta)
                     pbar.set_postfix(pbar_postfix)
                     
                     # Save metrics.
                     if metric_manager is not None:
-                        metric_manager.save(t, {**loss_meta, **metric_meta})
+                        metric_manager.save(t, update_meta)
                     
                     # Checkpoint model.
                     if checkpoint_manager is not None:
@@ -342,7 +333,7 @@ def train(
                             args=ocp.args.Composite(
                                 state=ocp.args.StandardSave(state), 
                                 metrics=ocp.args.JsonSave(dict(
-                                    loss=float(loss_meta[meta_prefix_fn('loss')].item()) if meta_prefix_fn('loss') in loss_meta else None,
+                                    loss=float(update_meta[meta_prefix_fn('loss')].item()) if meta_prefix_fn('loss') in update_meta else None,
                                     episode_reward=float(episode_meta[meta_prefix_fn('episode_reward')]) if meta_prefix_fn('episode_reward') in episode_meta else None,
                                     **{k: float(v) for k,v in metrics.items()},
                                 )),
