@@ -26,6 +26,8 @@ class Algorithm(DataClassDictMixin):
     seed: int = 0 # Random seed.
     metric_manager: MetricManager | None = None # Metric management configuration.
     checkpoint: CheckpointConfig | None = None  # Checkpoint configuration. If this option is not specified, then checkpointing will be disabled.
+    train_meta_prefix_key: str = "train/"
+    eval_meta_prefix_key: str = "eval/"
     
     def train(self, *args, **kwargs) -> list:
         raise NotImplementedError
