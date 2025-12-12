@@ -957,7 +957,6 @@ class Train(DataClassDictMixin):
         cfg_hash, _ = hash_serializable_object(self.config)
         
         
-        env_id = algo_config.env.make().spec.id
         metric_manager = WandBMetricManager(
             login=True, # Already logged in at beginning of notebook.
             name=f"{cfg_hash}",
