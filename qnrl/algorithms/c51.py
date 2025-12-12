@@ -35,6 +35,12 @@ from ..tools import get_model_total_parameter_count, restore_model_from_checkpoi
 # https://github.com/archsyscall/DistRL-TensorFlow2/blob/master/C51/C51.py
 
 
+def meta_prefix_fn_factory(meta_prefix_key: str):
+    """Helper that prefixes string keys by a given prefix."""
+    def wrapped(s: str):
+        return f"{meta_prefix_key}{s}"
+    return wrapped
+
 @nnx.jit
 def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
     """Linear epsilon decay schedule."""
@@ -208,7 +214,7 @@ def train(
     Distributional reinforcement learning variant of DQN.
     """
     # Function to streamline creating metric keys from base strings.
-    meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
     
     # Training history.
     history: list[dict[str, Any]] = []
@@ -392,7 +398,7 @@ def eval(
     ) -> tuple[pd.DataFrame, dict]:
     
     # Function to streamline creating metric keys from base strings.
-    meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
 
     # Apply several additional wrappers on the environment to ensure functionality.
     env = gym.wrappers.RecordEpisodeStatistics(env) # Track statistics for every episode.
