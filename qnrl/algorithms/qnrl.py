@@ -12,6 +12,7 @@ import jax
 import jax.numpy as jnp
 from tqdm import tqdm
 import datetime
+import pandas as pd
 
 
 from qnrl.algorithms.algorithm import Algorithm
@@ -19,7 +20,7 @@ from qnrl.checkpoint import CheckpointConfig
 from qnrl.optimizer import OptimizerTransform
 from qnrl.buffers import PmfReplayBuffer
 from qnrl.metric import MetricManager
-from qnrl.tools import restore_model_from_checkpointmanager
+from qnrl.tools import get_model_total_parameter_count, restore_model_from_checkpointmanager
 from qnrl.modules import QuantumNativeQNetwork
 
 
@@ -237,9 +238,8 @@ def train(
     eps_exploration: float,
     checkpoint_manager: ocp.CheckpointManager | None = None,
     metric_manager: MetricManager | None = None,
-    return_buffer: bool = False,
     meta_prefix_key: str = "train/",
-    ):
+    ) -> tuple[pd.DataFrame, dict]:
     """Quantum-native reinforcement learning (QnRL).
     
     A variant of distributional reinforcement learning (DRL) algorithm C51 leveraging quantum superposition as the distributional generator.
@@ -252,7 +252,7 @@ def train(
     
     # Track latest episode and loss metadata bundles.
     episode_meta = dict()
-    loss_meta = dict()
+    update_meta = dict()
     
     # Create a buffer for environment interactions.
     buffer = PmfReplayBuffer(buffer_size=buffer_size, env=env)
@@ -308,14 +308,24 @@ def train(
             # Override current observation to be the next observation for subsequent loop iteration.
             observation = next_observation.copy()
             
+            # Log the policy epsilon.
+            epsilon_meta = {
+                meta_prefix_fn("step"): t,
+                meta_prefix_fn("epsilon"): eps,
+                meta_prefix_fn("epsilon_greedy_threshold"): greedy_threshold,
+            }
+            history.append(epsilon_meta)
+            if metric_manager is not None:
+                metric_manager.save(t, epsilon_meta)
+            
             # Record episode statistics.
             if "episode" in info:
                 episode_meta = {
-                    meta_prefix_fn("episode_step"): t,
+                    meta_prefix_fn("step"): t,
                     meta_prefix_fn("episode_reward"): info['episode']['r'],
                     meta_prefix_fn("episode_length"): info['episode']['l'],
                     meta_prefix_fn("episode_time"): info['episode']['t'],
-                    meta_prefix_fn("episode_utcisotime"): datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
+                    # meta_prefix_fn("episode_utcisotime"): datetime.datetime.now(datetime.timezone.utc).isoformat(), # Preserve the episode finish time in UTC as ISO string.
                 }
                 history.append(episode_meta)
                 pbar_postfix.update(**episode_meta)
@@ -347,27 +357,18 @@ def train(
                     )
                     
                     # Update the history and progress bar with loss information.
-                    loss_meta = {
-                        meta_prefix_fn("loss_step"): t,
-                        meta_prefix_fn("loss"): loss,
+                    update_meta = {
+                        meta_prefix_fn("step"): t,
+                        meta_prefix_fn("loss"): loss.item(),
+                        **{meta_prefix_fn(k): v.item() for k,v in metrics.items()}, # Prefix "train/" to key.
                     }
-                    history.append(loss_meta)
-                    pbar_postfix.update(**loss_meta)
-                    pbar.set_postfix(pbar_postfix)
-                    
-                    # Update the history and progress bar with metric information.
-                    # This is separate from loss so that it can be correlated with a different time step variable.
-                    metric_meta = {
-                        meta_prefix_fn("metric_step"): t,
-                        **{meta_prefix_fn(k): v for k,v in metrics.items()}, # Prefix "train/" to key.
-                    }
-                    history.append(metric_meta)
-                    pbar_postfix.update(**metric_meta)
+                    history.append(update_meta)
+                    pbar_postfix.update(**update_meta)
                     pbar.set_postfix(pbar_postfix)
                     
                     # Save metrics.
                     if metric_manager is not None:
-                        metric_manager.save(t, {**loss_meta, **metric_meta})
+                        metric_manager.save(t, update_meta)
                     
                     # Checkpoint model.
                     if checkpoint_manager is not None:
@@ -376,11 +377,11 @@ def train(
                             step=t,
                             args=ocp.args.Composite(
                                 state=ocp.args.StandardSave(state), 
-                                metrics=ocp.args.JsonSave(dict(
-                                    loss=float(loss_meta[meta_prefix_fn('loss')].item()) if meta_prefix_fn('loss') in loss_meta else None,
-                                    episode_reward=float(episode_meta[meta_prefix_fn('episode_reward')]) if meta_prefix_fn('episode_reward') in episode_meta else None,
-                                    **{k: float(v) for k,v in metrics.items()},
-                                )),
+                                metrics=ocp.args.JsonSave({
+                                    meta_prefix_fn('loss'): float(update_meta[meta_prefix_fn('loss')].item()) if meta_prefix_fn('loss') in update_meta else None,
+                                    meta_prefix_fn('episode_reward'): float(episode_meta[meta_prefix_fn('episode_reward')]) if meta_prefix_fn('episode_reward') in episode_meta else None,
+                                    **{meta_prefix_fn(k): float(v.item()) for k,v in metrics.items()},
+                                }),
                             ),
                             force=True,
                         ) # Preserve state via checkpoint.
@@ -405,10 +406,24 @@ def train(
         checkpoint_manager.wait_until_finished()
         checkpoint_manager.close()
 
-    if return_buffer:
-        return history, buffer
-    else:
-        return history
+    # Convert history into a DataFrame.
+    history_df = pd.DataFrame(history)
+    # Correlate all history entries by the step key.
+    # This is helpful because multiple history entries might have been recorded separately, but have the same time step value.
+    # This also is helpful because it removes duplicate step entries.
+    history_df = history_df.groupby(meta_prefix_fn("step"), as_index=False).first()
+    
+    # Generate a training report.
+    report = {
+        meta_prefix_fn("seed"): seed,
+        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
+    }
+    # Populate history statistics.
+    for k,info in history_df.describe().loc[['mean', 'std', 'min', 'max']].items():
+        for m,v in info.items():
+            report[f"{k}.{m}"] = v
+
+    return history_df, report
 
 
 def eval(
@@ -418,7 +433,7 @@ def eval(
     total_timesteps: int, # Max number of training steps.
     env_wrappers: list[Callable[[gym.Env], gym.Env]] = [],
     meta_prefix_key: str = "eval/",
-    ) -> list:
+    ) -> tuple[pd.DataFrame, dict]:
     
     # Function to streamline creating metric keys from base strings.
     meta_prefix_fn = lambda s: f"{meta_prefix_key}{s}"
@@ -438,6 +453,8 @@ def eval(
 
     observation, _ = env.reset(seed=seed) # Reset the environment.
     
+    episode_meta = {}
+    
     # Iteratively step through environment.
     pbar = tqdm(range(total_timesteps), unit='step', leave=True)
     pbar_postfix = dict() # Current progress bar postfix content.
@@ -446,26 +463,26 @@ def eval(
         next_observation, reward, terminated, truncated, info = env.step(action)
         
         meta = {
-            'pmfs': action_pmf,
-            'action': action,
-            'reward': reward,
-            'observation': observation,
-            'next_observation': next_observation,
-            'terminated': terminated,
-            'truncated': truncated,
+            meta_prefix_fn('pmfs'): action_pmf,
+            meta_prefix_fn('action'): action,
+            meta_prefix_fn('reward'): reward,
+            meta_prefix_fn('observation'): observation,
+            meta_prefix_fn('next_observation'): next_observation,
+            meta_prefix_fn('terminated'): terminated,
+            meta_prefix_fn('truncated'): truncated,
         }
         history.append(meta)
         
         # Record episode statistics.
         if "episode" in info:
-            meta = {
+            episode_meta = {
                 meta_prefix_fn("episode_step"): t,
                 meta_prefix_fn("episode_reward"): info['episode']['r'],
                 meta_prefix_fn("episode_length"): info['episode']['l'],
                 meta_prefix_fn("episode_time"): info['episode']['t'],
             }
-            history.append(meta)
-            pbar_postfix.update(meta)
+            # history.append(episode_meta)
+            pbar_postfix.update(episode_meta)
             pbar.set_postfix(pbar_postfix)
         
         # Update current observation with next observation.
@@ -478,7 +495,21 @@ def eval(
     # This is necessary if there are wrappers that operate once the environment is closed.
     env.close()
     
-    return history
+    # Convert history into a DataFrame.
+    history_df = pd.DataFrame(history)
+    # Correlate all history entries by the step key.
+    # This is helpful because multiple history entries might have been recorded separately, but have the same time step value.
+    # This also is helpful because it removes duplicate step entries.
+    history_df = history_df.groupby(meta_prefix_fn("step"), as_index=False).first()
+    
+    # Generate an evaluation report.
+    report = {
+        meta_prefix_fn("seed"): seed,
+        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
+    }
+    report.update(episode_meta)
+    
+    return history_df, report
 
 
 @dataclass(kw_only=True)
@@ -511,7 +542,7 @@ class QnRL(Algorithm):
         if self.reseed_model_on_init:
             self.model.reseed(dict(default=self.seed))
     
-    def train(self, **kwargs) -> list | tuple[list, PmfReplayBuffer]:
+    def train(self, **kwargs) -> tuple[pd.DataFrame, dict]:
         
         # Create the environment.
         env = self.env.make()
@@ -553,7 +584,7 @@ class QnRL(Algorithm):
         )
         return train(**{**kwargs_default, **kwargs})
     
-    def eval(self, **kwargs) -> list:
+    def eval(self, **kwargs) -> tuple[pd.DataFrame, dict]:
         
         # Create the environment.
         env = self.env.make()
@@ -573,6 +604,4 @@ class QnRL(Algorithm):
             model_policy=model_policy,
             total_timesteps=self.total_timesteps,
         )
-        history_list = eval(**{**kwargs_default, **kwargs})
-        
-        return history_list
+        return eval(**{**kwargs_default, **kwargs})
