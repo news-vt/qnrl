@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 import enum
 from typing import Any, Annotated, Union
 
+import pandas as pd
+
 from mashumaro.mixins.dict import DataClassDictMixin
 from mashumaro.config import BaseConfig
 from mashumaro.types import Discriminator
@@ -29,10 +31,10 @@ class Algorithm(DataClassDictMixin):
     train_meta_prefix_key: str = "train/"
     eval_meta_prefix_key: str = "eval/"
     
-    def train(self, *args, **kwargs) -> list:
+    def train(self, *args, **kwargs) -> tuple[pd.DataFrame, dict]:
         raise NotImplementedError
 
-    def eval(self, *args, **kwargs) -> list:
+    def eval(self, *args, **kwargs) -> tuple[pd.DataFrame, dict]:
         raise NotImplementedError
     
     class Config(BaseConfig):
