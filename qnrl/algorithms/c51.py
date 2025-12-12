@@ -560,34 +560,6 @@ class C51(Algorithm):
             meta_prefix_key=self.train_meta_prefix_key,
         )
         return train(**{**kwargs_default, **kwargs})
-        
-        # # Run the training algorithm.
-        # history_list = train(
-        #     seed=self.seed,
-        #     env=env,
-        #     atoms=atoms,
-        #     num_atoms=self.num_atoms,
-        #     z_min=self.z_min,
-        #     z_max=self.z_max,
-        #     model_policy=model_policy,
-        #     model_target=model_target,
-        #     optimizer=optimizer,
-        #     buffer_size=self.buffer_size,
-        #     batch_size=self.batch_size,
-        #     total_timesteps=self.total_timesteps,
-        #     learning_starts=self.learning_starts,
-        #     policy_update_frequency=self.policy_update_frequency,
-        #     target_update_frequency=self.target_update_frequency,
-        #     gamma=self.gamma,
-        #     tau=self.tau,
-        #     eps_start=self.eps_start,
-        #     eps_end=self.eps_end,
-        #     eps_exploration=self.eps_exploration,
-        #     checkpoint_manager=checkpoint_manager,
-        #     metric_manager=self.metric_manager,
-        # )
-
-        return history_list
 
     def eval(self, **kwargs) -> tuple[pd.DataFrame, dict]:
         
@@ -614,6 +586,4 @@ class C51(Algorithm):
             total_timesteps=self.total_timesteps,
             meta_prefix_key=self.eval_meta_prefix_key,
         )
-        history_list = eval(**{**kwargs_default, **kwargs})
-        
-        return history_list
+        return eval(**{**kwargs_default, **kwargs})
