@@ -76,3 +76,10 @@ class SerializableModule(nnx.Module, DataClassDictMixin):
             **d,
         }
         return d
+    
+    def reseed(self, rngs_kwargs: dict[str, int]):
+        """Re-create model parameters using a dictionary of `nnx.Rngs` keyword arguments.
+        
+        By default this method does nothing. You must re-implement this method in subclasses if seeds can be overridden in your model.
+        """
+        pass
