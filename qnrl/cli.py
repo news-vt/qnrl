@@ -993,7 +993,7 @@ class Train(DataClassDictMixin):
         
         # Create an evaluation summary table.
         eval_summary_df = pd.DataFrame(eval_reports)
-        table = wandb.Table(eval_summary_df)
+        table = wandb.Table(dataframe=eval_summary_df)
         metric_manager.run.log({"eval/summary": table})
         
         # Finalize the logging session.
