@@ -239,11 +239,11 @@ class WandBMetricManager(DataClassDictMixin):
     """Weights and Biases plugin for managing metrics."""
     
     login: bool
-    project: str
-    name: str
-    config: dict
-    monitor_gym: bool
-    save_code: bool
+    project: str | None = None
+    name: str | None = None
+    config: dict | None = None
+    monitor_gym: bool = False
+    save_code: bool = False
     entity: str | None = None
     terminate_on_wait_until_finished: bool = True
     """Automatically call `wandb.run.finish()` when `wait_until_finished()` is called. Set to `False` if you want to use this metric manager for any other operations after `wait_until_finished()` is called once training ends."""
@@ -280,9 +280,9 @@ class WandBMetricManager(DataClassDictMixin):
         return run, api
     
     def get_dataframe(self) -> pd.DataFrame:
-        path = f"{self.project}/{self._run.id}"
+        path = f"{self._run.project}/{self._run.id}"
         if self.entity is not None:
-            path = f"{self.entity}/{path}"
+            path = f"{self._run.entity}/{path}"
         run = self._api.run(path)
         full_history = list(run.scan_history())
         return pd.DataFrame(full_history) # Pandas DataFrame.
