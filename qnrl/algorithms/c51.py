@@ -332,12 +332,13 @@ def train(
                             step=t,
                             args=ocp.args.Composite(
                                 state=ocp.args.StandardSave(state), 
-                                metrics=ocp.args.JsonSave(dict(
-                                    loss=float(update_meta[meta_prefix_fn('loss')].item()) if meta_prefix_fn('loss') in update_meta else None,
-                                    episode_reward=float(episode_meta[meta_prefix_fn('episode_reward')]) if meta_prefix_fn('episode_reward') in episode_meta else None,
-                                    **{k: float(v) for k,v in metrics.items()},
-                                )),
+                                metrics=ocp.args.JsonSave({
+                                    meta_prefix_fn('loss'): float(update_meta[meta_prefix_fn('loss')].item()) if meta_prefix_fn('loss') in update_meta else None,
+                                    meta_prefix_fn('episode_reward'): float(episode_meta[meta_prefix_fn('episode_reward')]) if meta_prefix_fn('episode_reward') in episode_meta else None,
+                                    **{meta_prefix_fn(k): float(v.item()) for k,v in metrics.items()},
+                                }),
                             ),
+                            force=True,
                         ) # Preserve state via checkpoint.
                 
                 # Update the target model by replacing its parameters with those of the policy model.
