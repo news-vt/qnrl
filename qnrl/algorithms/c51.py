@@ -41,6 +41,13 @@ def meta_prefix_fn_factory(meta_prefix_key: str):
         return f"{meta_prefix_key}{s}"
     return wrapped
 
+def get_action_from_policy(model: nnx.Module, atoms: jax.Array, observation: jax.Array):
+    pmfs = model(observation)
+    q_vals = jnp.sum(pmfs * atoms, axis=-1)
+    action = jnp.argmax(q_vals, axis=-1).item()
+    return action, pmfs, q_vals
+
+
 @nnx.jit
 def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
     """Linear epsilon decay schedule."""
@@ -67,9 +74,11 @@ def epsilon_greedy_policy(
     if jax.random.uniform(key=key) < eps: # Explore via random action selection.
         action = env.action_space.sample()
     else:
-        pmfs = model_policy(observation)
-        q_vals = jnp.sum(pmfs * atoms, axis=-1)
-        action = jnp.argmax(q_vals, axis=-1).item()
+        action, _, _ = get_action_from_policy(
+            model=model_policy,
+            atoms=atoms,
+            observation=observation,
+        )
     return action
 
 
