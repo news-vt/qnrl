@@ -945,15 +945,15 @@ class Train(DataClassDictMixin):
     
     
     
-    dir_checkpoints: pathlib.Path = pathlib.Path("./checkpoints") # Path to directory where to store model checkpoints. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
-    dir_metrics: pathlib.Path = pathlib.Path("./metrics") # Path to directory where to store model performance metrics. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
-    history_file_type: Literal['.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'] = '.json'
-    # seed: int | None = None # Override the config seed for training.
-    save_interval_steps: int = 1 # Save model checkpoints every N steps (exact frequency determined by when the training algorithm calls `checkpoint_manager.save()``).
-    max_to_keep: int = 1 # Maximum number of checkpoints to keep.
+    # dir_checkpoints: pathlib.Path = pathlib.Path("./checkpoints") # Path to directory where to store model checkpoints. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
+    # dir_metrics: pathlib.Path = pathlib.Path("./metrics") # Path to directory where to store model performance metrics. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
+    # history_file_type: Literal['.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'] = '.json'
+    # # seed: int | None = None # Override the config seed for training.
+    # save_interval_steps: int = 1 # Save model checkpoints every N steps (exact frequency determined by when the training algorithm calls `checkpoint_manager.save()``).
+    # max_to_keep: int = 1 # Maximum number of checkpoints to keep.
     
     def main(self):
-        assert self.history_file_type in ('.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'), "unsupported history file type"
+        # assert self.history_file_type in ('.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'), "unsupported history file type"
         
         # Deserialize algorithm config.
         algo_config = qnrl.Algorithm.from_dict(self.config)
