@@ -19,6 +19,8 @@ metric:
 parameters:
   num_eval:
     value: 10
+  eval_seed:
+    value: 0
   config:
     parameters:
       seed:
