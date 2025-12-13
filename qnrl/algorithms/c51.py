@@ -18,8 +18,14 @@ import numpy as np
 from typing import Any, Callable
 import orbax.checkpoint as ocp
 import datetime
+import sys
 
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.animation import FuncAnimation
+import matplotlib.cm
 import pandas as pd
+import moviepy
 
 from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
@@ -40,6 +46,289 @@ def meta_prefix_fn_factory(meta_prefix_key: str):
     def wrapped(s: str):
         return f"{meta_prefix_key}{s}"
     return wrapped
+
+
+def generate_video_frame(
+    step: int,
+    env_render_frame,
+    pmfs: jax.Array,
+    q_vals: jax.Array,
+    ):
+    
+    # Collect action and return-atom shapes.
+    n_actions, n_returns = pmfs.shape
+    
+    # Generate unique color for each action.
+    cmap = matplotlib.cm.get_cmap("viridis")
+    # cmap = matplotlib.cm.get_cmap("plasma")
+    # cmap = matplotlib.cm.get_cmap("jet")
+    # cmap = matplotlib.cm.get_cmap()
+    action_colors = [cmap(a/n_actions) for a in range(n_actions)]
+    
+    mosaic = """
+    EP
+    EQ
+    """
+    fig, axd = plt.subplot_mosaic(
+        mosaic=mosaic,
+        # width_ratios=[3, 1],
+        constrained_layout=True,
+        # gridspec_kw={
+        #     "wspace": 0.2,  # Set horizontal spacing to zero
+        #     "hspace": 0.5  # Set vertical spacing to zero
+        # }
+    )
+    fig.set_size_inches((10,5))
+    
+    # Environment frame.
+    axd['E'].imshow(env_render_frame)
+    axd['E'].set_title(f"Step: {step}")
+    axd['E'].axis("off")
+    
+    # Return-atom PMF.
+    x = jnp.arange(n_returns)
+    bars = []
+    for a in range(n_actions):
+        bar = axd['P'].bar(jnp.arange(n_returns), pmfs[a], color=action_colors[a], label=f"$a_{{{a}}}$ ($Q={{{q_vals[a]:.4e}}}$)")
+        bars.append(bar)
+    # Sort bars so that they can all be seen while overlapping.
+    for bar_at_x_pos in zip(*bars):
+        sorted_bars = sorted(bar_at_x_pos, key=lambda bar: bar.get_height(), reverse=True)
+        for i, bar in enumerate(sorted_bars):
+            bar.set_zorder(i)
+    axd['P'].set_xticks(x, [f"$z_{{{i}}}$" for i in range(len(x))], rotation=90)
+    axd['P'].set_ylabel("Probability")
+    axd['P'].set_xlabel("Return atom")
+    axd['P'].set_title("Return-atom PMF for each action $a_i$")
+    # fig.tight_layout()
+    # axd['P'].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    
+    # Q-values.
+    x = jnp.arange(n_actions)
+    axd['Q'].bar(x, q_vals, color=action_colors)
+    axd['Q'].set_xticks(x, [f"$a_{{{i}}}$" for i in range(len(x))], rotation=90)
+    axd['Q'].set_xlabel("Action")
+    axd['Q'].set_ylabel("Q-value")
+    axd['Q'].set_title("Q-value for each action $a_i$")
+    
+    # fig.tight_layout()
+    plt.close(fig)
+    return fig
+
+
+
+def generate_video_from_history_OLD(
+    eval_history_df: pd.DataFrame,
+    meta_prefix_key: str,
+    fps: int,
+    ) -> moviepy.ImageSequenceClip:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
+    
+    
+    num_frames = len(eval_history_df)
+    frames = []
+    for i in range(num_frames):
+        # Get data for frame.
+        data = eval_history_df.iloc[i]
+        step=data[meta_prefix_fn("step")]
+        env_render_frame=data[meta_prefix_fn("frame")]
+        pmfs=data[meta_prefix_fn("pmfs")]
+        q_vals=data[meta_prefix_fn("q_vals")]
+        fig = generate_video_frame(
+            step=step,
+            env_render_frame=env_render_frame,
+            pmfs=pmfs,
+            q_vals=q_vals,
+        )
+        # fig.canvas.draw() # Ensure figure is drawn at least once.
+        # frames.append(np.asarray(fig.canvas.buffer_rgba())) # Append the numpy RGBA buffer.
+        canvas = FigureCanvasAgg(fig)
+        canvas.draw() # Draw elements of figure.
+        image = np.asarray(canvas.buffer_rgba()) # Convert RGBA buffer to numpy array image.
+        frames.append(image) # Append the numpy array image as the next frame.
+    
+    # Create movie from frames.
+    clip = moviepy.ImageSequenceClip(frames, fps=fps)
+    return clip
+
+
+def generate_video_from_history(
+    eval_history_df: pd.DataFrame,
+    meta_prefix_key: str,
+    fps: int,
+    ) -> FuncAnimation:
+    # from matplotlib.backends.backend_agg import FigureCanvasAgg
+    
+    
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
+    
+    ###
+    # Collect data for plotting.
+    ###
+    data = eval_history_df
+    step = np.stack(data[meta_prefix_fn("step")])
+    env_render_frame = np.stack(data[meta_prefix_fn("frame")])
+    pmfs = np.stack(data[meta_prefix_fn("pmfs")])
+    q_vals = np.stack(data[meta_prefix_fn("q_vals")])
+    
+    # Collect frame count, action, and return-atom shapes.
+    num_frames, n_actions, n_returns = pmfs.shape
+    
+    # Generate unique color for each action.
+    cmap = matplotlib.cm.get_cmap("viridis")
+    # cmap = matplotlib.cm.get_cmap("plasma")
+    # cmap = matplotlib.cm.get_cmap("jet")
+    # cmap = matplotlib.cm.get_cmap()
+    action_colors = [cmap(a/n_actions) for a in range(n_actions)]
+    
+    mosaic = """
+    EP
+    EQ
+    """
+    fig, axd = plt.subplot_mosaic(
+        mosaic=mosaic,
+        # width_ratios=[3, 1],
+        constrained_layout=True,
+        # gridspec_kw={
+        #     "wspace": 0.2,  # Set horizontal spacing to zero
+        #     "hspace": 0.5  # Set vertical spacing to zero
+        # }
+    )
+    fig.set_size_inches((10,5))
+    
+    # Configure artists indexed by mosaic key.
+    artist = {}
+    
+    # Time step of initial frame.
+    idx = 0
+    
+    # Configure environment render display.
+    artist['E'] = axd['E'].imshow(env_render_frame[idx])
+    axd['E'].set_title(f"Step: 0")
+    axd['E'].axis("off")
+    
+    # Configure return-atom PMF plot.
+    x = jnp.arange(n_returns)
+    artist['P'] = []
+    for a in range(n_actions):
+        bar = axd['P'].bar(jnp.arange(n_returns), pmfs[idx][a], color=action_colors[a], label=f"$a_{{{a}}}$ ($Q={{{q_vals[idx][a]:.4e}}}$)")
+        artist['P'].append(bar)
+    # Sort bars so that they can all be seen while overlapping.
+    for bar_at_x_pos in zip(*artist['P']):
+        sorted_bars = sorted(bar_at_x_pos, key=lambda bar: bar.get_height(), reverse=True)
+        for i, bar in enumerate(sorted_bars):
+            bar.set_zorder(i)
+    axd['P'].set_xticks(x, [f"$z_{{{i}}}$" for i in range(len(x))], rotation=90)
+    axd['P'].set_ylabel("Probability")
+    axd['P'].set_xlabel("Return atom")
+    axd['P'].set_title("Return-atom PMF for each action $a_i$")
+    axd['P'].set_ylim(0, pmfs.max())
+    
+    # Configure Q-value plot.
+    x = jnp.arange(n_actions)
+    artist['Q'] = axd['Q'].bar(x, q_vals[idx], color=action_colors)
+    axd['Q'].set_ylim(q_vals.min(), q_vals.max())
+    axd['Q'].set_xticks(x, [f"$a_{{{i}}}$" for i in range(len(x))], rotation=90)
+    axd['Q'].set_xlabel("Action")
+    axd['Q'].set_ylabel("Q-value")
+    axd['Q'].set_title("Q-value for each action $a_i$")
+    
+    def frame_update(i: int):
+        # Update the environment render frame and time step.
+        artist['E'].set_array(env_render_frame[i])
+        axd['E'].set_title(f"Step: {step[i]}")
+        
+        # Update the Q-value bar heights.
+        for bar, y in zip(artist['Q'], q_vals[i]):
+            bar.set_height(y)
+        
+        # Update the return-atom PMF bar heights.
+        for a in range(n_actions):
+            for bar, y in zip(artist['P'][a], pmfs[i][a]):
+                bar.set_height(y)
+
+        # Sort bars so that they can all be seen while overlapping.
+        for bar_at_x_pos in zip(*artist['P']):
+            sorted_bars = sorted(bar_at_x_pos, key=lambda bar: bar.get_height(), reverse=True)
+            for i, bar in enumerate(sorted_bars):
+                bar.set_zorder(i)
+
+        # Unpack all artists and return as tuple.
+        return tuple([
+            artist['E'],
+            *np.asarray(artist['Q']).flatten().tolist(),
+            *np.asarray(artist['P']).flatten().tolist(),
+        ])
+    
+    
+    # Create animation object.
+    ani = FuncAnimation(
+        fig=fig,
+        func=frame_update,
+        frames=num_frames,
+        blit=True,
+        interval=(1./fps) * 1000.,
+    )
+    
+    # Close the figure so that it does not display.
+    plt.close(fig)
+    
+    # Return the animation object.
+    return ani
+
+
+
+def generate_train_report(
+    history_df: pd.DataFrame,
+    meta_prefix_key: str,
+    model_policy: nnx.Module,
+    atoms: jax.Array,
+    seed: int,
+    env: gym.Env,
+    ) -> dict:
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
+    
+    # Generate a training report.
+    report = {
+        meta_prefix_fn("seed"): seed,
+        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
+    }
+    # Populate history statistics.
+    for k,info in history_df.describe().loc[['mean', 'std', 'min', 'max']].items():
+        for m,v in info.items():
+            report[f"{k}.{m}"] = v
+    
+    return report
+
+
+def generate_eval_report(
+    history_df: pd.DataFrame,
+    episode_meta: dict,
+    meta_prefix_key: str,
+    model_policy: nnx.Module,
+    atoms: jax.Array,
+    seed: int,
+    ) -> dict:
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
+    
+    # Generate a training report.
+    report = {
+        meta_prefix_fn("seed"): seed,
+        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
+    }
+    report.update(episode_meta)
+    # Create a video of the evaluation if frames exist in the history.
+    if meta_prefix_fn("frame") in history_df.columns:
+        report[meta_prefix_fn("video")] = generate_video_from_history(history_df, meta_prefix_key=meta_prefix_key, fps=15)
+    
+    return report
+
 
 def get_action_from_policy(model: nnx.Module, atoms: jax.Array, observation: jax.Array):
     pmfs = model(observation)
@@ -384,14 +673,14 @@ def train(
     history_df = history_df.groupby(meta_prefix_fn("step"), as_index=False).first()
     
     # Generate a training report.
-    report = {
-        meta_prefix_fn("seed"): seed,
-        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
-    }
-    # Populate history statistics.
-    for k,info in history_df.describe().loc[['mean', 'std', 'min', 'max']].items():
-        for m,v in info.items():
-            report[f"{k}.{m}"] = v
+    report = generate_train_report(
+        history_df=history_df,
+        meta_prefix_key=meta_prefix_key,
+        model_policy=model_policy,
+        atoms=atoms,
+        seed=seed,
+        env=env,
+    )
 
     return history_df, report
 
@@ -430,15 +719,20 @@ def eval(
     pbar = tqdm(range(total_timesteps), unit='step', leave=True)
     pbar_postfix = dict() # Current progress bar postfix content.
     for t in pbar:
-        pmfs = model_policy(observation)
-        q_vals = jnp.sum(pmfs * atoms, axis=-1)
-        action = jnp.argmax(q_vals, axis=-1).item()
-        # 
+        action, pmfs, q_vals = get_action_from_policy(
+            model=model_policy,
+            atoms=atoms,
+            observation=observation,
+        )
+        pmfs = pmfs.squeeze()
+        q_vals = q_vals.squeeze()
+
         next_observation, reward, terminated, truncated, info = env.step(action)
         
         meta = {
             meta_prefix_fn('step'): t,
             meta_prefix_fn('pmfs'): pmfs,
+            meta_prefix_fn('q_vals'): q_vals,
             meta_prefix_fn('action'): action,
             meta_prefix_fn('reward'): reward,
             meta_prefix_fn('observation'): observation,
@@ -446,6 +740,8 @@ def eval(
             meta_prefix_fn('terminated'): terminated,
             meta_prefix_fn('truncated'): truncated,
         }
+        if env.render_mode == "rgb_array":
+            meta[meta_prefix_fn('frame')] = env.render()
         history.append(meta)
         
         # Record episode statistics.
@@ -456,7 +752,6 @@ def eval(
                 meta_prefix_fn("episode_length"): info['episode']['l'],
                 meta_prefix_fn("episode_time"): info['episode']['t'],
             }
-            # history.append(meta)
             pbar_postfix.update(episode_meta)
             pbar.set_postfix(pbar_postfix)
         
@@ -478,11 +773,14 @@ def eval(
     history_df = history_df.groupby(meta_prefix_fn("step"), as_index=False).first()
     
     # Generate an evaluation report.
-    report = {
-        meta_prefix_fn("seed"): seed,
-        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
-    }
-    report.update(episode_meta)
+    report = generate_eval_report(
+        history_df=history_df,
+        episode_meta=episode_meta,
+        meta_prefix_key=meta_prefix_key,
+        model_policy=model_policy,
+        atoms=atoms,
+        seed=seed,
+        )
     
     return history_df, report
 
@@ -571,7 +869,7 @@ class C51(Algorithm):
     def eval(self, **kwargs) -> tuple[pd.DataFrame, dict]:
         
         # Create the environment.
-        env = self.env.make()
+        env = self.env.make(render_mode="rgb_array")
         
         # Create models.
         model_policy = self.model
