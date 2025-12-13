@@ -8,6 +8,7 @@ import os
 import time
 import sys
 import datetime
+import tempfile
 
 import tyro
 from mashumaro.mixins.dict import DataClassDictMixin
@@ -16,9 +17,11 @@ import rich.pretty
 import numpy as np
 import jax.numpy as jnp
 from matplotlib.figure import Figure as MatplotlibFigure
+from matplotlib.animation import FuncAnimation as MatplotlibFuncAnimation
 from plotext._figure import default_figure_class as PlotextFigure
 import wandb
 import pandas as pd
+import moviepy
 
 from . import tools
 from .store import HashStore
@@ -936,7 +939,9 @@ from qnrl.serialization import SerialType, hash_serializable_object
 class Train(DataClassDictMixin):
     """Run training algorithm using the given config."""
     config: dict[str, int | float | str | bool | list | tuple | dict | None]
-    num_eval: int = 100 # Number of evaluation runs after training.
+    num_eval: int = 10 # Number of evaluation runs after training.
+    eval_seed: int | None = None # Override evaluation seed. Defaults to using configuration seed.
+    video_fps: int | None = None # Override video FPS. Defaults to using FPS set by algorithm report.
     
     
     
@@ -953,10 +958,12 @@ class Train(DataClassDictMixin):
         # Deserialize algorithm config.
         algo_config = qnrl.Algorithm.from_dict(self.config)
         
-        
+        # Generate hash for configuration object.
         cfg_hash, _ = hash_serializable_object(self.config)
+        print(f"Config: {self.config}")
+        print(f"Hash: {cfg_hash}")
         
-        
+        # Create a manager for interfacing with wandb.
         metric_manager = WandBMetricManager(
             login=True, # Already logged in at beginning of notebook.
             name=f"{cfg_hash}",
@@ -977,25 +984,41 @@ class Train(DataClassDictMixin):
         metric_manager.run.summary.update(train_report)
         
         # Evaluate multiple times and preserve results.
-        # eval_reports = []
-        key = jax.random.PRNGKey(seed=algo_config.seed)
-        for _ in range(self.num_eval):
-            
-            # Generate a new random key.
-            key, subkey = jax.random.split(key=key)
-            
-            # Evaluate the model using a different random seed.
-            seed_eval = int(subkey[0])
-            _, eval_report = algo_config.eval(seed=seed_eval)
-            # eval_reports.append(eval_report)
-            
-            # Log evaluation results.
-            metric_manager.run.log(eval_report)
+        eval_reports = []
+        eval_seed = self.eval_seed if self.eval_seed is not None else algo_config.seed
+        key = jax.random.PRNGKey(seed=eval_seed)
+        with tempfile.TemporaryDirectory(delete=True) as tmp_dir:
+            for eval_idx in range(self.num_eval):
+                
+                # Generate a new random key.
+                key, subkey = jax.random.split(key=key)
+                
+                # Evaluate the model using a different random seed.
+                seed_eval = int(subkey[0])
+                _, eval_report = algo_config.eval(seed=seed_eval)
+                for i, (k,v) in enumerate(eval_report.items()):
+                    if isinstance(v, moviepy.VideoClip):
+                        video_filepath = pathlib.Path(tmp_dir) / f"{cfg_hash}_eval_{eval_idx}_item_{i}.mp4"
+                        v.write_videofile(video_filepath, codec="libx264")
+                        fps = self.video_fps if self.video_fps is not None else v.fps
+                        eval_report[k] = wandb.Video(video_filepath, fps=fps, format="mp4")
+                    elif isinstance(v, MatplotlibFuncAnimation):
+                        video_filepath = pathlib.Path(tmp_dir) / f"{cfg_hash}_eval_{eval_idx}_item_{i}.mp4"
+                        v.save(video_filepath, extra_args=['-vcodec', 'libx264'])
+                        eval_report[k] = wandb.Video(video_filepath, fps=self.video_fps, format="mp4")
+                
+                # Preserve the evaluation report.
+                eval_reports.append(eval_report)
+                
+                # Log evaluation results.
+                metric_manager.run.log(eval_report)
         
-        # # Create an evaluation summary table.
-        # eval_summary_df = pd.DataFrame(eval_reports)
-        # table = wandb.Table(dataframe=eval_summary_df)
-        # metric_manager.run.log({"eval/summary": table})
+            # # Create an evaluation summary table.
+            # eval_reports_d = tools.listofdict_to_dictoflist(eval_reports)
+            # columns = list(eval_reports_d.keys())
+            # data = [[row[c] for c in columns] for row in eval_reports]
+            # table = wandb.Table(columns=columns, data=data)
+            # metric_manager.run.log({"eval/summary": table})
         
         # Finalize the logging session.
         metric_manager.run.finish()
