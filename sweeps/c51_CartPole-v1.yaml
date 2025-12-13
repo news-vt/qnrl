@@ -18,7 +18,7 @@ metric:
 # Parameters for `qnrl.cli.Train`
 parameters:
   num_eval:
-    value: 100
+    value: 10
   config:
     parameters:
       seed:
