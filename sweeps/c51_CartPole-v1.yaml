@@ -20,7 +20,7 @@ parameters:
   num_eval:
     value: 10
   eval_seed:
-    value: 0
+    value: 1024
   config:
     parameters:
       seed:
