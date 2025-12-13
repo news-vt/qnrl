@@ -978,12 +978,14 @@ class Train(DataClassDictMixin):
         )
         
         # Run training algorithm.
+        print("Train:")
         _, train_report = algo_config.train(metric_manager=metric_manager)
         
         # Add training report to run summary.
         metric_manager.run.summary.update(train_report)
         
         # Evaluate multiple times and preserve results.
+        print("Eval:")
         eval_reports = []
         eval_seed = self.eval_seed if self.eval_seed is not None else algo_config.seed
         key = jax.random.PRNGKey(seed=eval_seed)
