@@ -111,7 +111,9 @@ parameters:
           pauli_var:
             value: ["RZ","RY","RZ"]
           imprimitive:
-            value: "offset-CZ"
+            values:
+              - "offset-CZ"
+              - "circ-CZ"
           input_multiplex_activation:
             value: "tanh"
           input_preprocess:
