@@ -1,9 +1,7 @@
 project: qnrl
 name: c51/CliffWalking-v1
 command:
-  - uv
-  - run
-  - python 
+  - ${envvar:WANDB_AGENT_INTERPRETER}
   - -m
   - qnrl.cli
   - train
