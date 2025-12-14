@@ -84,9 +84,7 @@ parameters:
           m_moment:
             value: 1
           n_reuploads:
-            values:
-              - 1
-              - 2 # n_actions
+            value: 1
           n_layers:
             values:
               - 3
