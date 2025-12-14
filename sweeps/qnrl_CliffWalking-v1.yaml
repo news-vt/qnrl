@@ -1,8 +1,6 @@
 project: qnrl
 name: qnrl/CliffWalking-v1
 command:
-  - uv
-  - run
   - python 
   - -m
   - qnrl.cli
