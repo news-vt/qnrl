@@ -62,9 +62,6 @@ def generate_video_from_history(
     
     # Generate unique color for each action.
     cmap = matplotlib.cm.get_cmap("viridis")
-    # cmap = matplotlib.cm.get_cmap("plasma")
-    # cmap = matplotlib.cm.get_cmap("jet")
-    # cmap = matplotlib.cm.get_cmap()
     action_colors = [cmap(a/n_actions) for a in range(n_actions)]
     
     # Video panels:
@@ -112,7 +109,6 @@ def generate_video_from_history(
         sorted_bars = sorted(bar_at_x_pos, key=lambda bar: bar.get_height(), reverse=True)
         for i, bar in enumerate(sorted_bars):
             bar.set_zorder(i)
-    # axd["return_pmfs"].set_xticks(x, [f"$z_{{{i}}}$" for i in range(len(x))], rotation=90)
     axd["return_pmfs"].set_ylabel("Probability")
     axd["return_pmfs"].set_xlabel("Return atom")
     axd["return_pmfs"].set_title("Return PMF")
@@ -122,75 +118,41 @@ def generate_video_from_history(
     x = jnp.arange(n_actions)
     artist["action_pmf"] = axd["action_pmf"].bar(x, action_pmf[idx], color=action_colors)
     axd["action_pmf"].set_ylim(0, action_pmf.max())
-    # axd["action_pmf"].set_xticks(x, [f"$a_{{{i}}}$" for i in range(len(x))], rotation=90)
     axd["action_pmf"].set_xlabel("Action atom")
     axd["action_pmf"].set_ylabel("Probability")
     axd["action_pmf"].set_title("Action PMF")
     
     # Configure density matrix plots.
-    rho_min = min(rho_return_abs.min(), rho_return_real.min(), rho_return_imag.min())
-    rho_max = max(rho_return_abs.max(), rho_return_real.max(), rho_return_imag.max())
     ### Magnitude
     artist["rho_return_abs"] = axd["rho_return_abs"].matshow(
         rho_return_abs[idx],
         cmap='RdBu_r',
-        # cmap='Blues',
-        # vmin=rho_min,
-        # vmax=rho_max,
         vmin=rho_return_abs.min(),
         vmax=rho_return_abs.max(),
         )
     axd["rho_return_abs"].set_title(r"$|\rho|$", y=-0.2)
-    # axd["rho_return_abs"].set_ylabel(f"axis 0: {rho_return.shape[-2]}")
-    # axd["rho_return_abs"].set_xlabel(f"axis 1: {rho_return.shape[-1]}")
-    # axd["rho_return_abs"].xaxis.set_label_position('top')
     axd["rho_return_abs"].tick_params(axis='x', top=True, labeltop=True, bottom=False, labelbottom=False)
-    # fig.colorbar(artist["rho_return_abs"], ax=axd["rho_return_abs"], orientation='vertical')
     fig.colorbar(artist["rho_return_abs"], ax=axd["rho_return_abs"], orientation='vertical', location='right', shrink=0.68)
     ### Real
     artist["rho_return_real"] = axd["rho_return_real"].matshow(
         rho_return_real[idx],
         cmap='RdBu_r',
-        # cmap='Blues',
-        # vmin=rho_min,
-        # vmax=rho_max,
         vmin=rho_return_real.min(),
         vmax=rho_return_real.max(),
         )
     axd["rho_return_real"].set_title(r"$\text{Re}(\rho)$", y=-0.2)
-    # axd["rho_return_real"].set_ylabel(f"axis 0: {rho_return.shape[-2]}")
-    # axd["rho_return_real"].set_xlabel(f"axis 1: {rho_return.shape[-1]}")
-    # axd["rho_return_real"].xaxis.set_label_position('top')
     axd["rho_return_real"].tick_params(axis='x', top=True, labeltop=True, bottom=False, labelbottom=False)
-    # axd["rho_return_real"].tick_params(labelleft=False)
     fig.colorbar(artist["rho_return_real"], ax=axd["rho_return_real"], orientation='vertical', location='right', shrink=0.68)
     ### Imaginary
     artist["rho_return_imag"] = axd["rho_return_imag"].matshow(
         rho_return_imag[idx],
         cmap='RdBu_r',
-        # cmap='Blues',
-        # vmin=rho_min,
-        # vmax=rho_max,
         vmin=rho_return_imag.min(),
         vmax=rho_return_imag.max(),
         )
     axd["rho_return_imag"].set_title(r"$\text{Im}(\rho)$", y=-0.2)
-    # axd["rho_return_imag"].set_ylabel(f"axis 0: {rho_return.shape[-2]}")
-    # axd["rho_return_imag"].set_xlabel(f"axis 1: {rho_return.shape[-1]}")
-    # axd["rho_return_imag"].xaxis.set_label_position('top')
     axd["rho_return_imag"].tick_params(axis='x', top=True, labeltop=True, bottom=False, labelbottom=False)
-    # axd["rho_return_imag"].tick_params(labelleft=False)
-    ### Colorbar
-    # fig.colorbar(artist["rho_return_abs"], ax=axd["rho_return_imag"], orientation='vertical', location='right')
-    # fig.colorbar(artist["rho_return_imag"], ax=axd["rho_return_imag"], orientation='vertical', location='right')
-    # from mpl_toolkits.axes_grid1 import make_axes_locatable
-    # div = make_axes_locatable(axd["rho_return_imag"])
-    # cax = div.append_axes("right", size="5%", pad=0.05, orientation='vertical')
-    # fig.colorbar(artist["rho_return_imag"], cax=cax)
     fig.colorbar(artist["rho_return_imag"], ax=axd["rho_return_imag"], orientation='vertical', location='right', shrink=0.68)
-    ### Share axes.
-    # axd["rho_return_real"].sharey(axd["rho_return_abs"])
-    # axd["rho_return_imag"].sharey(axd["rho_return_abs"])
     
     
     def frame_update(i: int):
