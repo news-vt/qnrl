@@ -27,7 +27,7 @@
 #SBATCH --ntasks-per-node=1
 ### Number of cpus/cores is the number of cores needed
 ### to run each task (e.g., for parallelism).
-#SBATCH --cpus-per-task=24
+#SBATCH --cpus-per-task=2
 
 # Reset modules.
 module reset
