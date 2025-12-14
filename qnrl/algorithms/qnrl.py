@@ -14,6 +14,10 @@ from tqdm import tqdm
 import datetime
 import pandas as pd
 
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import matplotlib.cm
+
 
 from qnrl.algorithms.algorithm import Algorithm
 from qnrl.checkpoint import CheckpointConfig
@@ -29,6 +33,260 @@ def meta_prefix_fn_factory(meta_prefix_key: str):
     def wrapped(s: str):
         return f"{meta_prefix_key}{s}"
     return wrapped
+
+
+def generate_video_from_history(
+    eval_history_df: pd.DataFrame,
+    meta_prefix_key: str,
+    fps: int,
+    ) -> FuncAnimation:
+    
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
+    
+    ###
+    # Collect data for plotting.
+    ###
+    data = eval_history_df
+    step = np.stack(data[meta_prefix_fn("step")])
+    env_render_frame = np.stack(data[meta_prefix_fn("frame")])
+    action_pmf = np.stack(data[meta_prefix_fn("action_pmf")])
+    return_pmfs = np.stack(data[meta_prefix_fn("return_pmfs")])
+    rho_return = np.stack(data[meta_prefix_fn("rho_return")])
+    rho_return_abs = jnp.abs(rho_return)
+    rho_return_real = jnp.real(rho_return)
+    rho_return_imag = jnp.imag(rho_return)
+    
+    # Collect frame count, action, and return-atom shapes.
+    num_frames, n_actions, n_returns = return_pmfs.shape
+    
+    # Generate unique color for each action.
+    cmap = matplotlib.cm.get_cmap("viridis")
+    # cmap = matplotlib.cm.get_cmap("plasma")
+    # cmap = matplotlib.cm.get_cmap("jet")
+    # cmap = matplotlib.cm.get_cmap()
+    action_colors = [cmap(a/n_actions) for a in range(n_actions)]
+    
+    # Video panels:
+    # - Environment render frame
+    # - Action PMF based on return-atom amplitude kickback
+    # - Return-atom PMF for each action
+    # - Return atom density matrix |rho|
+    # - Return atom density matrix Re(rho)
+    # - Return atom density matrix Im(rho)
+    mosaic = [
+        ["env", [["action_pmf", "return_pmfs"]]],
+        ["env", [["rho_return_abs", "rho_return_real", "rho_return_imag"]]],
+    ]
+    fig, axd = plt.subplot_mosaic(
+        mosaic=mosaic,
+        width_ratios=[1, 3],
+        constrained_layout=True,
+        # gridspec_kw={
+        #     "wspace": 0.2,  # Set horizontal spacing to zero
+        #     "hspace": 0.5  # Set vertical spacing to zero
+        # }
+    )
+    fig.set_size_inches((10,5))
+    # fig.set_size_inches((14,8))
+    
+    # Configure artists indexed by mosaic key.
+    artist = {}
+    
+    # Time step of initial frame.
+    idx = 0
+    
+    # Configure environment render display.
+    artist["env"] = axd["env"].imshow(env_render_frame[idx])
+    axd["env"].set_title(f"Step: 0")
+    axd["env"].axis("off")
+    
+    # Configure return-atom PMF plot.
+    x = jnp.arange(n_returns)
+    artist["return_pmfs"] = []
+    for a in range(n_actions):
+        bar = axd["return_pmfs"].bar(jnp.arange(n_returns), return_pmfs[idx][a], color=action_colors[a])
+        artist["return_pmfs"].append(bar)
+    # Sort bars so that they can all be seen while overlapping.
+    for bar_at_x_pos in zip(*artist["return_pmfs"]):
+        sorted_bars = sorted(bar_at_x_pos, key=lambda bar: bar.get_height(), reverse=True)
+        for i, bar in enumerate(sorted_bars):
+            bar.set_zorder(i)
+    # axd["return_pmfs"].set_xticks(x, [f"$z_{{{i}}}$" for i in range(len(x))], rotation=90)
+    axd["return_pmfs"].set_ylabel("Probability")
+    axd["return_pmfs"].set_xlabel("Return atom")
+    axd["return_pmfs"].set_title("Return PMF")
+    axd["return_pmfs"].set_ylim(0, return_pmfs.max())
+    
+    # Configure action PMF plot.
+    x = jnp.arange(n_actions)
+    artist["action_pmf"] = axd["action_pmf"].bar(x, action_pmf[idx], color=action_colors)
+    axd["action_pmf"].set_ylim(0, action_pmf.max())
+    # axd["action_pmf"].set_xticks(x, [f"$a_{{{i}}}$" for i in range(len(x))], rotation=90)
+    axd["action_pmf"].set_xlabel("Action atom")
+    axd["action_pmf"].set_ylabel("Probability")
+    axd["action_pmf"].set_title("Action PMF")
+    
+    # Configure density matrix plots.
+    rho_min = min(rho_return_abs.min(), rho_return_real.min(), rho_return_imag.min())
+    rho_max = max(rho_return_abs.max(), rho_return_real.max(), rho_return_imag.max())
+    ### Magnitude
+    artist["rho_return_abs"] = axd["rho_return_abs"].matshow(
+        rho_return_abs[idx],
+        cmap='RdBu_r',
+        # cmap='Blues',
+        # vmin=rho_min,
+        # vmax=rho_max,
+        vmin=rho_return_abs.min(),
+        vmax=rho_return_abs.max(),
+        )
+    axd["rho_return_abs"].set_title(r"$|\rho|$", y=-0.2)
+    # axd["rho_return_abs"].set_ylabel(f"axis 0: {rho_return.shape[-2]}")
+    # axd["rho_return_abs"].set_xlabel(f"axis 1: {rho_return.shape[-1]}")
+    # axd["rho_return_abs"].xaxis.set_label_position('top')
+    axd["rho_return_abs"].tick_params(axis='x', top=True, labeltop=True, bottom=False, labelbottom=False)
+    # fig.colorbar(artist["rho_return_abs"], ax=axd["rho_return_abs"], orientation='vertical')
+    fig.colorbar(artist["rho_return_abs"], ax=axd["rho_return_abs"], orientation='vertical', location='right', shrink=0.68)
+    ### Real
+    artist["rho_return_real"] = axd["rho_return_real"].matshow(
+        rho_return_real[idx],
+        cmap='RdBu_r',
+        # cmap='Blues',
+        # vmin=rho_min,
+        # vmax=rho_max,
+        vmin=rho_return_real.min(),
+        vmax=rho_return_real.max(),
+        )
+    axd["rho_return_real"].set_title(r"$\text{Re}(\rho)$", y=-0.2)
+    # axd["rho_return_real"].set_ylabel(f"axis 0: {rho_return.shape[-2]}")
+    # axd["rho_return_real"].set_xlabel(f"axis 1: {rho_return.shape[-1]}")
+    # axd["rho_return_real"].xaxis.set_label_position('top')
+    axd["rho_return_real"].tick_params(axis='x', top=True, labeltop=True, bottom=False, labelbottom=False)
+    # axd["rho_return_real"].tick_params(labelleft=False)
+    fig.colorbar(artist["rho_return_real"], ax=axd["rho_return_real"], orientation='vertical', location='right', shrink=0.68)
+    ### Imaginary
+    artist["rho_return_imag"] = axd["rho_return_imag"].matshow(
+        rho_return_imag[idx],
+        cmap='RdBu_r',
+        # cmap='Blues',
+        # vmin=rho_min,
+        # vmax=rho_max,
+        vmin=rho_return_imag.min(),
+        vmax=rho_return_imag.max(),
+        )
+    axd["rho_return_imag"].set_title(r"$\text{Im}(\rho)$", y=-0.2)
+    # axd["rho_return_imag"].set_ylabel(f"axis 0: {rho_return.shape[-2]}")
+    # axd["rho_return_imag"].set_xlabel(f"axis 1: {rho_return.shape[-1]}")
+    # axd["rho_return_imag"].xaxis.set_label_position('top')
+    axd["rho_return_imag"].tick_params(axis='x', top=True, labeltop=True, bottom=False, labelbottom=False)
+    # axd["rho_return_imag"].tick_params(labelleft=False)
+    ### Colorbar
+    # fig.colorbar(artist["rho_return_abs"], ax=axd["rho_return_imag"], orientation='vertical', location='right')
+    # fig.colorbar(artist["rho_return_imag"], ax=axd["rho_return_imag"], orientation='vertical', location='right')
+    # from mpl_toolkits.axes_grid1 import make_axes_locatable
+    # div = make_axes_locatable(axd["rho_return_imag"])
+    # cax = div.append_axes("right", size="5%", pad=0.05, orientation='vertical')
+    # fig.colorbar(artist["rho_return_imag"], cax=cax)
+    fig.colorbar(artist["rho_return_imag"], ax=axd["rho_return_imag"], orientation='vertical', location='right', shrink=0.68)
+    ### Share axes.
+    # axd["rho_return_real"].sharey(axd["rho_return_abs"])
+    # axd["rho_return_imag"].sharey(axd["rho_return_abs"])
+    
+    
+    def frame_update(i: int):
+        # Update the environment render frame and time step.
+        artist["env"].set_data(env_render_frame[i])
+        axd["env"].set_title(f"Step: {step[i]}")
+        
+        # Update the action PMF bar heights.
+        for bar, y in zip(artist["action_pmf"], action_pmf[i]):
+            bar.set_height(y)
+        
+        # Update the return-atom PMF bar heights.
+        for a in range(n_actions):
+            for bar, y in zip(artist["return_pmfs"][a], return_pmfs[i][a]):
+                bar.set_height(y)
+
+        # Sort bars so that they can all be seen while overlapping.
+        for bar_at_x_pos in zip(*artist["return_pmfs"]):
+            sorted_bars = sorted(bar_at_x_pos, key=lambda bar: bar.get_height(), reverse=True)
+            for bar_idx, bar in enumerate(sorted_bars):
+                bar.set_zorder(bar_idx)
+        
+        # Update the density matrix plots.
+        artist["rho_return_abs"].set_data(rho_return_abs[i])
+        artist["rho_return_real"].set_data(rho_return_real[i])
+        artist["rho_return_imag"].set_data(rho_return_imag[i])
+
+        # Unpack all artists and return as tuple.
+        return tuple([
+            artist["env"],
+            artist["rho_return_abs"],
+            artist["rho_return_real"],
+            artist["rho_return_imag"],
+            *np.asarray(artist["action_pmf"]).flatten().tolist(),
+            *np.asarray(artist["return_pmfs"]).flatten().tolist(),
+        ])
+    
+    # Create animation object.
+    ani = FuncAnimation(
+        fig=fig,
+        func=frame_update,
+        frames=num_frames,
+        blit=True,
+        interval=(1./fps) * 1000.,
+    )
+    
+    # Close the figure so that it does not display.
+    plt.close(fig)
+    
+    # Return the animation object.
+    return ani
+
+
+def generate_train_report(
+    history_df: pd.DataFrame,
+    meta_prefix_key: str,
+    model_policy: QuantumNativeQNetwork,
+    seed: int,
+    ) -> dict:
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
+    
+    # Generate a training report.
+    report = {
+        meta_prefix_fn("seed"): seed,
+        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
+    }
+    # Populate history statistics.
+    for k,info in history_df.describe().loc[['mean', 'std', 'min', 'max']].items():
+        for m,v in info.items():
+            report[f"{k}.{m}"] = v
+    
+    return report
+
+
+def generate_eval_report(
+    history_df: pd.DataFrame,
+    episode_meta: dict,
+    meta_prefix_key: str,
+    model_policy: nnx.Module,
+    seed: int,
+    ) -> dict:
+    # Function to streamline creating metric keys from base strings.
+    meta_prefix_fn = meta_prefix_fn_factory(meta_prefix_key)
+    
+    # Generate a training report.
+    report = {
+        meta_prefix_fn("seed"): seed,
+        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
+    }
+    report.update(episode_meta)
+    # Create a video of the evaluation if frames exist in the history.
+    if meta_prefix_fn("frame") in history_df.columns:
+        report[meta_prefix_fn("video")] = generate_video_from_history(history_df, meta_prefix_key=meta_prefix_key, fps=15)
+    
+    return report
 
 
 def get_action_from_policy(model: QuantumNativeQNetwork, observation: jax.Array):
@@ -421,14 +679,12 @@ def train(
     history_df = history_df.groupby(meta_prefix_fn("step"), as_index=False).first()
     
     # Generate a training report.
-    report = {
-        meta_prefix_fn("seed"): seed,
-        meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
-    }
-    # Populate history statistics.
-    for k,info in history_df.describe().loc[['mean', 'std', 'min', 'max']].items():
-        for m,v in info.items():
-            report[f"{k}.{m}"] = v
+    report = generate_train_report(
+        history_df=history_df,
+        meta_prefix_key=meta_prefix_key,
+        model_policy=model_policy,
+        seed=seed,
+    )
 
     return history_df, report
 
@@ -469,21 +725,44 @@ def eval(
         action, action_pmf = get_action_from_policy(model=model_policy, observation=observation)
         next_observation, reward, terminated, truncated, info = env.step(action)
         
+        # Generate return-atom density matrix and add to history for tracking.
+        rho_return = model_policy.call_return_density_matrix(
+            jnp.array([observation]),
+            jnp.array([action_pmf]),
+        ) # (1, n_return_atoms, n_return_atoms)
+        rho_return = jax.device_get(rho_return)
+        rho_return = rho_return.squeeze()
+        
+        # Generate the return-atom PMF for every action.
+        n_actions = len(action_pmf)
+        return_pmfs = model_policy.call_gen_return_dist(
+            jnp.repeat(jnp.array([observation]), repeats=n_actions, axis=0),
+            jnp.eye(n_actions), # One-hot actions.
+        ) # (n_actions, n_return_atoms)
+        return_pmfs = jax.device_get(return_pmfs)
+        return_pmfs = return_pmfs.squeeze()
+        
         meta = {
-            meta_prefix_fn('pmfs'): action_pmf,
+            meta_prefix_fn('step'): t,
+            meta_prefix_fn('action_pmf'): action_pmf,
             meta_prefix_fn('action'): action,
             meta_prefix_fn('reward'): reward,
             meta_prefix_fn('observation'): observation,
             meta_prefix_fn('next_observation'): next_observation,
             meta_prefix_fn('terminated'): terminated,
             meta_prefix_fn('truncated'): truncated,
+            #
+            meta_prefix_fn('rho_return'): rho_return,
+            meta_prefix_fn('return_pmfs'): return_pmfs,
         }
+        if env.render_mode == "rgb_array":
+            meta[meta_prefix_fn('frame')] = env.render()
         history.append(meta)
         
         # Record episode statistics.
         if "episode" in info:
             episode_meta = {
-                meta_prefix_fn("episode_step"): t,
+                meta_prefix_fn("step"): t,
                 meta_prefix_fn("episode_reward"): info['episode']['r'],
                 meta_prefix_fn("episode_length"): info['episode']['l'],
                 meta_prefix_fn("episode_time"): info['episode']['t'],
@@ -515,6 +794,15 @@ def eval(
         meta_prefix_fn("total_model_parameter_count"): get_model_total_parameter_count(model_policy),
     }
     report.update(episode_meta)
+    
+    # Generate an evaluation report.
+    report = generate_eval_report(
+        history_df=history_df,
+        episode_meta=episode_meta,
+        meta_prefix_key=meta_prefix_key,
+        model_policy=model_policy,
+        seed=seed,
+    )
     
     return history_df, report
 
@@ -594,7 +882,7 @@ class QnRL(Algorithm):
     def eval(self, **kwargs) -> tuple[pd.DataFrame, dict]:
         
         # Create the environment.
-        env = self.env.make()
+        env = self.env.make(render_mode="rgb_array")
         
         # Create models.
         model_policy = self.model
