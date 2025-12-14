@@ -41,6 +41,10 @@ eval "$(conda shell.bash hook)"
 # Source any virtual environments.
 conda activate qnrl
 
+# Load environment file (if one exists).
+[[ -f .env ]] && source .env
+
+
 echo "Job $SLURM_JOB_ID has started on node"
 echo "Job args: $@"
 echo "Job specs:"
