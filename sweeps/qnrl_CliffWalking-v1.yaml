@@ -68,6 +68,8 @@ parameters:
                 value: EnvConfig
               env_id:
                 value: CliffWalking-v1
+              max_episode_steps:
+                value: 99
       num_atoms:
         value: 32 # 2^5
       ###
