@@ -34,6 +34,7 @@ module reset
 
 # Load particular modules.
 module load Miniconda3
+module load FFmpeg
 
 # Initialize the shell to use Anaconda.
 eval "$(conda shell.bash hook)"
