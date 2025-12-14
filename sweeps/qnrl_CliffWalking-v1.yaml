@@ -88,9 +88,13 @@ parameters:
           z_max:
             value: 100
           m_moment:
-            value: 1
+            values: 
+              - 1
+              - 2 # second moment (mean)
           n_reuploads:
-            value: 1
+            values: 
+              - 1
+              - 4 # n_actions
           n_layers:
             values:
               - 3
