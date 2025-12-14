@@ -59,9 +59,7 @@ parameters:
       env:
         parameters:
           type:
-            value: ObservationDiscreteUnravel
-          shape:
-            value: [4, 12] # grid bounds
+            value: ObservationDiscreteOneHot
           env:
             parameters:
               type:
@@ -80,7 +78,7 @@ parameters:
           type:
             value: QuantumNativeQNetwork
           din:
-            value: 2
+            value: 48 # grid bounds
           n_actions:
             value: 4
           n_returns:
@@ -109,11 +107,7 @@ parameters:
           input_multiplex_activation:
             value: "tanh"
           input_preprocess:
-            parameters:
-              type:
-                value: RescaleInput
-              scale:
-                value: [4., 12.] # grid bounds
+            value: null
           rngs_kwargs:
             parameters:
               default:
