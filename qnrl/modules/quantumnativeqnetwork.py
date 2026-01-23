@@ -192,9 +192,9 @@ def get_ops_for_returns_distribution(
     Generates a return distribuion encoded on the given wires.
     
     The schema of this operation is:
-        - `n_layers+1` Variational layers
-        - `n_layers` Circular-entanglement layers
-        - `n_layers` Input encoding layers
+        - Encoding layer
+        - Entanglement layer
+        - Variational layer
     """
     
     imprimitive_offset_by_layer = tuple((l % (len(wires) - 1)) + 1 for l in range(n_layers))
