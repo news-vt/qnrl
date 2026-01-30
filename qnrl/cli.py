@@ -1010,6 +1010,8 @@ class Train(DataClassDictMixin):
         eval_seed = self.eval_seed if self.eval_seed is not None else algo_config.seed
         key = jax.random.PRNGKey(seed=eval_seed)
         with tempfile.TemporaryDirectory(delete=True) as tmp_dir:
+            tmp_dir = pathlib.Path(tmp_dir)
+            
             for eval_idx in range(self.num_eval):
                 
                 # Generate a new random key.
@@ -1020,12 +1022,12 @@ class Train(DataClassDictMixin):
                 _, eval_report = algo_config.eval(seed=seed_eval)
                 for i, (k,v) in enumerate(eval_report.items()):
                     if isinstance(v, moviepy.VideoClip):
-                        video_filepath = pathlib.Path(tmp_dir) / f"{cfg_hash}_eval_{eval_idx}_item_{i}.mp4"
+                        video_filepath = tmp_dir / f"{cfg_hash}_eval_{eval_idx}_item_{i}.mp4"
                         v.write_videofile(video_filepath, codec="libx264")
                         fps = self.video_fps if self.video_fps is not None else v.fps
                         eval_report[k] = wandb.Video(video_filepath, fps=fps, format="mp4")
                     elif isinstance(v, MatplotlibFuncAnimation):
-                        video_filepath = pathlib.Path(tmp_dir) / f"{cfg_hash}_eval_{eval_idx}_item_{i}.mp4"
+                        video_filepath = tmp_dir / f"{cfg_hash}_eval_{eval_idx}_item_{i}.mp4"
                         v.save(video_filepath, extra_args=['-vcodec', 'libx264'])
                         eval_report[k] = wandb.Video(video_filepath, fps=self.video_fps, format="mp4")
                 
