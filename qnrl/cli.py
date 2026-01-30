@@ -1018,6 +1018,7 @@ class Train(DataClassDictMixin):
                 seed_eval = int(subkey[0])
                 _, eval_report = algo_config.eval(seed=seed_eval)
                 for i, (k,v) in enumerate(eval_report.items()):
+                    # Generate videos compatible with WandB.
                     if isinstance(v, moviepy.VideoClip):
                         unique_video_key = f"{cfg_hash}_eval={eval_idx}_seed={seed_eval}_item={i}"
                         video_filepath = eval_dir / f"{unique_video_key}.mp4"
@@ -1029,6 +1030,9 @@ class Train(DataClassDictMixin):
                         video_filepath = eval_dir / f"{unique_video_key}.mp4"
                         v.save(video_filepath, extra_args=['-vcodec', 'libx264'])
                         eval_report[k] = wandb.Video(video_filepath, fps=self.video_fps, format="mp4", caption=unique_video_key)
+                
+                # Add an index counter for the evaluation report.
+                eval_report['eval/index'] = eval_idx
                 
                 # Preserve the evaluation report.
                 eval_reports.append(eval_report)
