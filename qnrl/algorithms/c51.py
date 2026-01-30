@@ -7,6 +7,7 @@ Reference:
 """
 from dataclasses import dataclass
 import os
+from pathlib import Path
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
@@ -32,7 +33,7 @@ from ..modules import SerializableModule
 from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer
 from ..metric import MetricManager
-from ..tools import get_model_total_parameter_count, restore_model_from_checkpointmanager
+from ..tools import get_model_total_parameter_count, restore_model_from_checkpointmanager, save_model
 
 # https://docs.cleanrl.dev/rl-algorithms/c51/#implemented-variants
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/c51_jax.py
@@ -781,3 +782,10 @@ class C51(Algorithm):
             meta_prefix_key=self.eval_meta_prefix_key,
         )
         return eval(**{**kwargs_default, **kwargs})
+    
+    def save(self, root: Path = Path('./')) -> dict[str, Path]:
+        """Save state of model(s) to root path. Returns a dictionary of model key names and their path locations."""
+        key = "model" # Unique name for model of this algorithm.
+        path = root / key # Path within root where to store the model state.
+        save_model(path, self.model) # Save model at path location.
+        return { key: path } # Return unique model key and path location.

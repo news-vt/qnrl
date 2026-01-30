@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import enum
 from typing import Any, Annotated, Union
+from pathlib import Path
 
 import pandas as pd
 
@@ -35,6 +36,10 @@ class Algorithm(DataClassDictMixin):
         raise NotImplementedError
 
     def eval(self, *args, **kwargs) -> tuple[pd.DataFrame, dict]:
+        raise NotImplementedError
+    
+    def save(self, root: Path = Path('./')) -> dict[str, Path]:
+        """Save state of model(s) to root path. Returns a dictionary of model key names and their path locations."""
         raise NotImplementedError
     
     class Config(BaseConfig):

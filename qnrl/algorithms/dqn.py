@@ -9,6 +9,7 @@ Reference:
 """
 from dataclasses import dataclass
 import os
+from pathlib import Path
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
@@ -20,7 +21,7 @@ import optax
 import numpy as np
 from typing import Any, Callable
 
-from qnrl.tools import restore_model_from_checkpointmanager
+from qnrl.tools import restore_model_from_checkpointmanager, save_model
 
 from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
@@ -413,3 +414,10 @@ class DQN(Algorithm):
         history_list = eval(**{**kwargs_default, **kwargs})
         
         return history_list
+    
+    def save(self, root: Path = Path('./')) -> dict[str, Path]:
+        """Save state of model(s) to root path. Returns a dictionary of model key names and their path locations."""
+        key = "model" # Unique name for model of this algorithm.
+        path = root / key # Path within root where to store the model state.
+        save_model(path, self.model) # Save model at path location.
+        return { key: path } # Return unique model key and path location.

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 from typing import Any, Literal, Callable
 
 from flax import nnx
@@ -24,7 +25,7 @@ from qnrl.checkpoint import CheckpointConfig
 from qnrl.optimizer import OptimizerTransform
 from qnrl.buffers import PmfReplayBuffer
 from qnrl.metric import MetricManager
-from qnrl.tools import get_model_total_parameter_count, restore_model_from_checkpointmanager
+from qnrl.tools import get_model_total_parameter_count, restore_model_from_checkpointmanager, save_model
 from qnrl.modules import QuantumNativeQNetwork
 
 
@@ -862,3 +863,10 @@ class QnRL(Algorithm):
             total_timesteps=self.total_timesteps,
         )
         return eval(**{**kwargs_default, **kwargs})
+    
+    def save(self, root: Path = Path('./')) -> dict[str, Path]:
+        """Save state of model(s) to root path. Returns a dictionary of model key names and their path locations."""
+        key = "model" # Unique name for model of this algorithm.
+        path = root / key # Path within root where to store the model state.
+        save_model(path, self.model) # Save model at path location.
+        return { key: path } # Return unique model key and path location.
