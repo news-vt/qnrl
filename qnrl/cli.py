@@ -1020,14 +1020,16 @@ class Train(DataClassDictMixin):
                 _, eval_report = algo_config.eval(seed=seed_eval)
                 for i, (k,v) in enumerate(eval_report.items()):
                     if isinstance(v, moviepy.VideoClip):
-                        video_filepath = tmp_dir / f"{cfg_hash}_eval_{eval_idx}_item_{i}.mp4"
+                        unique_video_key = f"{cfg_hash}_eval={eval_idx}_seed={seed_eval}_item={i}"
+                        video_filepath = tmp_dir / f"{unique_video_key}.mp4"
                         v.write_videofile(video_filepath, codec="libx264")
                         fps = self.video_fps if self.video_fps is not None else v.fps
-                        eval_report[k] = wandb.Video(video_filepath, fps=fps, format="mp4")
+                        eval_report[k] = wandb.Video(video_filepath, fps=fps, format="mp4", caption=unique_video_key)
                     elif isinstance(v, MatplotlibFuncAnimation):
-                        video_filepath = tmp_dir / f"{cfg_hash}_eval_{eval_idx}_item_{i}.mp4"
+                        unique_video_key = f"{cfg_hash}_eval={eval_idx}_seed={seed_eval}_item={i}"
+                        video_filepath = tmp_dir / f"{unique_video_key}.mp4"
                         v.save(video_filepath, extra_args=['-vcodec', 'libx264'])
-                        eval_report[k] = wandb.Video(video_filepath, fps=self.video_fps, format="mp4")
+                        eval_report[k] = wandb.Video(video_filepath, fps=self.video_fps, format="mp4", caption=unique_video_key)
                 
                 # Preserve the evaluation report.
                 eval_reports.append(eval_report)
