@@ -33,7 +33,7 @@ from ..modules import SerializableModule
 from ..optimizer import OptimizerTransform
 from ..buffers import ReplayBuffer
 from ..metric import MetricManager
-from ..tools import get_model_total_parameter_count, restore_model_from_checkpointmanager, save_model
+from ..tools import get_model_total_parameter_count, restore_model_from_checkpointmanager, save_model, restore_model_from_path
 
 # https://docs.cleanrl.dev/rl-algorithms/c51/#implemented-variants
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/c51_jax.py
@@ -789,3 +789,9 @@ class C51(Algorithm):
         path = root / key # Path within root where to store the model state.
         save_model(path, self.model) # Save model at path location.
         return { key: path } # Return unique model key and path location.
+    
+    def load(self, model_path: dict[str, Path]):
+        """Load state of model(s) using dictionary of model keys and paths."""
+        key = "model" # Unique name for model of this algorithm.
+        assert key in model_path, f"No model key '{key}'"
+        self.model = restore_model_from_path(model_path[key], self.model)

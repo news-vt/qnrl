@@ -21,7 +21,7 @@ import optax
 import numpy as np
 from typing import Any, Callable
 
-from qnrl.tools import restore_model_from_checkpointmanager, save_model
+from qnrl.tools import restore_model_from_checkpointmanager, save_model, restore_model_from_path
 
 from .algorithm import Algorithm
 from ..checkpoint import CheckpointConfig
@@ -421,3 +421,9 @@ class DQN(Algorithm):
         path = root / key # Path within root where to store the model state.
         save_model(path, self.model) # Save model at path location.
         return { key: path } # Return unique model key and path location.
+
+    def load(self, model_path: dict[str, Path]):
+        """Load state of model(s) using dictionary of model keys and paths."""
+        key = "model" # Unique name for model of this algorithm.
+        assert key in model_path, f"No model key '{key}'"
+        self.model = restore_model_from_path(model_path[key], self.model)

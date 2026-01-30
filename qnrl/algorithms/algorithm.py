@@ -42,6 +42,10 @@ class Algorithm(DataClassDictMixin):
         """Save state of model(s) to root path. Returns a dictionary of model key names and their path locations."""
         raise NotImplementedError
     
+    def load(self, model_path: dict[str, Path]):
+        """Load state of model(s) using dictionary of model keys and paths."""
+        raise NotImplementedError
+    
     class Config(BaseConfig):
         discriminator = Discriminator(
             field="type",
