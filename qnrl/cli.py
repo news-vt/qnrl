@@ -996,7 +996,7 @@ class Train(DataClassDictMixin):
             _ = algo_config.save(models_save_root)
             artifact = wandb.Artifact(name=f"run-{metric_manager.run.id}-models", type="model")
             artifact.add_dir(str(models_save_root))
-            metric_manager.run.log_artifact(artifact)
+            metric_manager.run.log_artifact(artifact).wait() # Ensure models are logged.
             
             # Evaluate multiple times and preserve results.
             print("Eval:")
