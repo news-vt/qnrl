@@ -949,8 +949,9 @@ class Train(DataClassDictMixin):
         algo_config = qnrl.Algorithm.from_dict(self.config)
         
         # Generate hash for configuration object.
-        cfg_hash, _ = hash_serializable_object(self.config)
-        print(f"Config: {self.config}")
+        cfg_hash, cfg_str = hash_serializable_object(self.config)
+        print(f"Config dictionary: {self.config}")
+        print(f"Config string: {cfg_str}")
         print(f"Hash: {cfg_hash}")
         
         # Create a manager for interfacing with wandb.
@@ -967,11 +968,14 @@ class Train(DataClassDictMixin):
             ],
         )
         
+        # Log the original configuration string.
+        metric_manager.run.config.update({"config_hash": cfg_hash, "config_string": cfg_str})
+        
         # Generate hash for config WITHOUT seed key.
         cfg_without_seed = self.config.copy()
         cfg_without_seed.pop("seed", None)
-        cfg_hash_without_seed, _ = hash_serializable_object(cfg_without_seed)
-        metric_manager.run.config.update({"seed_group_hash": cfg_hash_without_seed})
+        cfg_hash_without_seed, cfg_str_without_seed = hash_serializable_object(cfg_without_seed)
+        metric_manager.run.config.update({"seed_group_hash": cfg_hash_without_seed, "seed_group_str": cfg_str_without_seed})
         print(f"Seed Group Hash: {cfg_hash_without_seed}")
         
         # Train and evaluate within a temporary directory.
