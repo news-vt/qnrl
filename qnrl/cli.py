@@ -977,6 +977,13 @@ class Train(DataClassDictMixin):
             ],
         )
         
+        
+        # Generate hash for config WITHOUT seed key.
+        cfg_without_seed = self.config.copy()
+        cfg_without_seed.pop("seed", None)
+        cfg_hash_without_seed, _ = hash_serializable_object(cfg_without_seed)
+        metric_manager.run.config.update({"seed_group_hash": cfg_hash_without_seed})
+        
         # Run training algorithm.
         print("Train:")
         with tempfile.TemporaryDirectory(delete=True) as tmp_dir:
