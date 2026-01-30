@@ -972,6 +972,7 @@ class Train(DataClassDictMixin):
         cfg_without_seed.pop("seed", None)
         cfg_hash_without_seed, _ = hash_serializable_object(cfg_without_seed)
         metric_manager.run.config.update({"seed_group_hash": cfg_hash_without_seed})
+        print(f"Seed Group Hash: {cfg_hash_without_seed}")
         
         # Train and evaluate within a temporary directory.
         with tempfile.TemporaryDirectory(delete=True) as tmp_dir:
