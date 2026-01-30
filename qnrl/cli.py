@@ -996,12 +996,10 @@ class Train(DataClassDictMixin):
             metric_manager.run.summary.update(train_report)
             
             # Save model(s).
-            
-            save_key_path_map = algo_config.save(tmp_dir)
+            models_save_root = tmp_dir / 'models'
+            _ = algo_config.save(models_save_root)
             artifact = wandb.Artifact(name=f"run-{metric_manager.run.id}-models", type="model")
-            for model_key, model_path in save_key_path_map.items():
-                print(f"Save model: {model_key} at {model_path} to {artifact.name/model_path.relative_to(tmp_dir)}")
-                artifact.add_dir(str(model_path))
+            artifact.add_dir(str(models_save_root))
             metric_manager.run.log_artifact(artifact)
         
         # Evaluate multiple times and preserve results.
