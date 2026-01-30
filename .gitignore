@@ -3,6 +3,7 @@
 checkpoints/
 metrics/
 wandb/
+wandb-sweep-data/
 
 # Ignore macOS specific files.
 .DS_Store
