@@ -943,17 +943,7 @@ class Train(DataClassDictMixin):
     eval_seed: int | None = None # Override evaluation seed. Defaults to using configuration seed.
     video_fps: int | None = None # Override video FPS. Defaults to using FPS set by algorithm report.
     
-    
-    
-    # dir_checkpoints: pathlib.Path = pathlib.Path("./checkpoints") # Path to directory where to store model checkpoints. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
-    # dir_metrics: pathlib.Path = pathlib.Path("./metrics") # Path to directory where to store model performance metrics. Note that the configuration may also specify a metric manager that can also store training results, but those will not be related to the unique hash of the configuration.
-    # history_file_type: Literal['.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'] = '.json'
-    # # seed: int | None = None # Override the config seed for training.
-    # save_interval_steps: int = 1 # Save model checkpoints every N steps (exact frequency determined by when the training algorithm calls `checkpoint_manager.save()``).
-    # max_to_keep: int = 1 # Maximum number of checkpoints to keep.
-    
     def main(self):
-        # assert self.history_file_type in ('.json', '.json.gz', '.yaml', '.yaml.gz', '.npy', '.npz'), "unsupported history file type"
         
         # Deserialize algorithm config.
         algo_config = qnrl.Algorithm.from_dict(self.config)
@@ -976,7 +966,6 @@ class Train(DataClassDictMixin):
                 {"name": "*", "summary": "last"},
             ],
         )
-        
         
         # Generate hash for config WITHOUT seed key.
         cfg_without_seed = self.config.copy()
@@ -1036,88 +1025,9 @@ class Train(DataClassDictMixin):
                 
                 # Log evaluation results.
                 metric_manager.run.log(eval_report)
-        
-            # # Create an evaluation summary table.
-            # eval_reports_d = tools.listofdict_to_dictoflist(eval_reports)
-            # columns = list(eval_reports_d.keys())
-            # data = [[row[c] for c in columns] for row in eval_reports]
-            # table = wandb.Table(columns=columns, data=data)
-            # metric_manager.run.log({"eval/summary": table})
-        
+
         # Finalize the logging session.
         metric_manager.run.finish()
-        
-        ##############
-        
-        # print(f"{self.config = }")
-        # print()
-        # print(f"{algo_config = }")
-        # print(f"{cfg_hash = }")
-        # print()
-        # print(f"{algo_config.to_dict() = }")
-        
-        # # # Load config.
-        # # # Forcefully override the seed if one was provided.
-        # # # We do this here because the config object's hash will change once we override the seed.
-        # # load_kwargs = dict(
-        # #     path=self.config, key=self.key, store=self.store
-        # # )
-        # # if self.seed is not None:
-        # #     load_kwargs['overrides'] = dict(seed=self.seed)
-        # # config = load_algo_config(**load_kwargs)
-        
-        # # Create output directory if it does not exist.
-        # self.dir_checkpoints.mkdir(parents=True, exist_ok=True)
-        # self.dir_metrics.mkdir(parents=True, exist_ok=True)
-        
-        # # Store the configuration and get it's unique hash.
-        # cfg_hash, _ = hash_serializable_object(self.config)
-        # # Inform user of store and hash for the config.
-        # print(f"Hash: {cfg_hash}")
-        
-        # # Override checkpoint manager using the hash ID as filename if none was provided.
-        # if self.config.checkpoint is None:
-        #     checkpoint_dir = (self.dir_checkpoints / f"{cfg_hash}").resolve()
-        #     if checkpoint_dir.exists():
-        #         ocp.test_utils.erase_and_create_empty(checkpoint_dir)
-        #     self.config.checkpoint = CheckpointConfig(
-        #         checkpoint_dir=checkpoint_dir,
-        #         checkpoint_options=CheckpointOptions(
-        #             save_interval_steps=self.save_interval_steps,
-        #             max_to_keep=self.max_to_keep,
-        #             enable_async_checkpointing=True,
-        #         ),
-        #     )
-        
-        # if self.config.metric_manager is None:
-        #     env_id = self.config.env.make().spec.id
-        #     self.config.metric_manager = WandBMetricManager(
-        #         login=False, # Already logged in at beginning of notebook.
-        #         project="qnrl",
-        #         name=f"qnrl/{env_id}/{cfg_hash}",
-        #         config=self.config.to_dict(),
-        #         monitor_gym=False, # Causes error: "'RecordVideo' object has no attribute 'enabled'"
-        #         save_code=True, # Preserve notebook.
-        #         terminate_on_wait_until_finished=False,
-        #         define_metrics=[
-        #             {"name": "*", "summary": "min"},
-        #             {"name": "*", "summary": "max"},
-        #             {"name": "*", "summary": "mean"},
-        #             {"name": "*", "summary": "first"},
-        #             {"name": "*", "summary": "last"},
-        #         ],
-        #     )
-        
-        # # Run training algorithm.
-        # history_list = self.config.train()
-        
-        # # Save train results based on hash.
-        # history_filepath = self.dir_metrics / f"{cfg_hash}{self.history_file_type}"
-        # tools.save_train_results(history_filepath, history_list)
-        
-        # # Inform the user about the history file location.
-        # print(f"History: {history_filepath}")
-
 
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
