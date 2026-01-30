@@ -973,10 +973,15 @@ class Train(DataClassDictMixin):
         cfg_hash_without_seed, _ = hash_serializable_object(cfg_without_seed)
         metric_manager.run.config.update({"seed_group_hash": cfg_hash_without_seed})
         
-        # Run training algorithm.
-        print("Train:")
+        # Train and evaluate within a temporary directory.
         with tempfile.TemporaryDirectory(delete=True) as tmp_dir:
-            tmp_dir = pathlib.Path(tmp_dir)
+            root_dir = pathlib.Path(tmp_dir)
+            print(f"Root path: {root_dir}")
+            
+            # Run training algorithm.
+            print("Train:")
+            train_dir = root_dir / 'train' # Root directory for training files.
+            train_dir.mkdir(parents=True, exist_ok=True)
 
             # Train the model(s).
             _, train_report = algo_config.train(metric_manager=metric_manager)
@@ -985,20 +990,20 @@ class Train(DataClassDictMixin):
             metric_manager.run.summary.update(train_report)
             
             # Save model(s).
-            models_save_root = tmp_dir / 'models'
+            models_save_root = train_dir / 'models'
+            models_save_root.mkdir(parents=True, exist_ok=True)
             _ = algo_config.save(models_save_root)
             artifact = wandb.Artifact(name=f"run-{metric_manager.run.id}-models", type="model")
             artifact.add_dir(str(models_save_root))
             metric_manager.run.log_artifact(artifact)
-        
-        # Evaluate multiple times and preserve results.
-        print("Eval:")
-        eval_reports = []
-        eval_seed = self.eval_seed if self.eval_seed is not None else algo_config.seed
-        key = jax.random.PRNGKey(seed=eval_seed)
-        with tempfile.TemporaryDirectory(delete=True) as tmp_dir:
-            tmp_dir = pathlib.Path(tmp_dir)
             
+            # Evaluate multiple times and preserve results.
+            print("Eval:")
+            eval_dir = root_dir / 'eval' # Root directory for training files.
+            eval_dir.mkdir(parents=True, exist_ok=True)
+            eval_reports = []
+            eval_seed = self.eval_seed if self.eval_seed is not None else algo_config.seed
+            key = jax.random.PRNGKey(seed=eval_seed)    
             for eval_idx in range(self.num_eval):
                 
                 # Generate a new random key.
@@ -1010,13 +1015,13 @@ class Train(DataClassDictMixin):
                 for i, (k,v) in enumerate(eval_report.items()):
                     if isinstance(v, moviepy.VideoClip):
                         unique_video_key = f"{cfg_hash}_eval={eval_idx}_seed={seed_eval}_item={i}"
-                        video_filepath = tmp_dir / f"{unique_video_key}.mp4"
+                        video_filepath = eval_dir / f"{unique_video_key}.mp4"
                         v.write_videofile(video_filepath, codec="libx264")
                         fps = self.video_fps if self.video_fps is not None else v.fps
                         eval_report[k] = wandb.Video(video_filepath, fps=fps, format="mp4", caption=unique_video_key)
                     elif isinstance(v, MatplotlibFuncAnimation):
                         unique_video_key = f"{cfg_hash}_eval={eval_idx}_seed={seed_eval}_item={i}"
-                        video_filepath = tmp_dir / f"{unique_video_key}.mp4"
+                        video_filepath = eval_dir / f"{unique_video_key}.mp4"
                         v.save(video_filepath, extra_args=['-vcodec', 'libx264'])
                         eval_report[k] = wandb.Video(video_filepath, fps=self.video_fps, format="mp4", caption=unique_video_key)
                 
@@ -1026,8 +1031,8 @@ class Train(DataClassDictMixin):
                 # Log evaluation results.
                 metric_manager.run.log(eval_report)
 
-        # Finalize the logging session.
-        metric_manager.run.finish()
+            # Finalize the logging session.
+            metric_manager.run.finish()
 
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
