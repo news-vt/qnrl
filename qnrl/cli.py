@@ -987,6 +987,8 @@ class Train(DataClassDictMixin):
         # Run training algorithm.
         print("Train:")
         with tempfile.TemporaryDirectory(delete=True) as tmp_dir:
+            tmp_dir = pathlib.Path(tmp_dir)
+
             # Train the model(s).
             _, train_report = algo_config.train(metric_manager=metric_manager)
             
@@ -994,12 +996,13 @@ class Train(DataClassDictMixin):
             metric_manager.run.summary.update(train_report)
             
             # Save model(s).
-            save_key_path_map = algo_config.save(pathlib.Path(tmp_dir))
+            
+            save_key_path_map = algo_config.save(tmp_dir)
+            artifact = wandb.Artifact(name=f"run-{metric_manager.run.id}-models", type="model")
             for model_key, model_path in save_key_path_map.items():
-                print(f"Save model: {model_key} at {model_path}")
-                artifact = wandb.Artifact(name=model_key, type="model")
+                print(f"Save model: {model_key} at {model_path} to {artifact.name/model_path.relative_to(tmp_dir)}")
                 artifact.add_dir(str(model_path))
-                metric_manager.run.log_artifact(artifact)
+            metric_manager.run.log_artifact(artifact)
         
         # Evaluate multiple times and preserve results.
         print("Eval:")
