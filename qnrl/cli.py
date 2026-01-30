@@ -990,7 +990,7 @@ class Train(DataClassDictMixin):
             save_key_path_map = algo_config.save(pathlib.Path(tmp_dir))
             for model_key, model_path in save_key_path_map.items():
                 print(f"Save model: {model_key}")
-                metric_manager.run.save(model_path)
+                metric_manager.run.save(model_path, base_path=model_path)
         
         # Evaluate multiple times and preserve results.
         print("Eval:")
