@@ -218,7 +218,7 @@ def save_model(path: str | pathlib.Path, model: nnx.Module):
     """Save Flax NNX model."""
     state = nnx.state(model)
     checkpointer = ocp.StandardCheckpointer()
-    checkpointer.save(f"{path}/state", state)
+    checkpointer.save((pathlib.Path(path)/"state").absolute(), state)
     checkpointer.wait_until_finished()
 
 
@@ -227,7 +227,7 @@ def restore_model_from_path(path: str | pathlib.Path, model: M) -> M:
     state = nnx.state(model) # Get the state of the abstract model.
     # Load state from the saved model.
     checkpointer = ocp.StandardCheckpointer()
-    state = checkpointer.restore(f"{path}/state", state)
+    state = checkpointer.restore((pathlib.Path(path)/"state").absolute(), state)
     checkpointer.wait_until_finished()
     # Update the abstract model with the loaded state.
     nnx.update(model, state)
