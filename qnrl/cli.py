@@ -1008,7 +1008,7 @@ class Train(DataClassDictMixin):
             eval_dir.mkdir(parents=True, exist_ok=True)
             eval_reports = []
             eval_seed = self.eval_seed if self.eval_seed is not None else algo_config.seed
-            key = jax.random.PRNGKey(seed=eval_seed)    
+            key = jax.random.PRNGKey(seed=eval_seed)
             for eval_idx in range(self.num_eval):
                 
                 # Generate a new random key.
