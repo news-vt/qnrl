@@ -24,7 +24,7 @@
 #SBATCH --nodes=1
 ### Number of tasks can be thought of as number of processes
 ### as in the case of MPI.
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=2
 ### Number of cpus/cores is the number of cores needed
 ### to run each task (e.g., for parallelism).
 #SBATCH --cpus-per-task=2
