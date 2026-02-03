@@ -243,6 +243,7 @@ def prepare_returns_probability_distribution(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Prepare return probability distribuion for every action."""
     ###
@@ -266,7 +267,8 @@ def prepare_returns_probability_distribution(
     # Apply operations on all action-return distributions.
     ###
     # Quantum Fourier Transform.
-    qml.QFT(wires=wires_returns)
+    if use_qft:
+        qml.QFT(wires=wires_returns)
 
 def circuit_action_dist(
     inputs: jax.Array, # (n_actions, n_layers, d_returns, num_enc_features,)
@@ -281,6 +283,7 @@ def circuit_action_dist(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Quantum circuit for estimating the action distribution via m-th moment of return distribuion followed by amplitude kickback trick with respect to an input observation."""
     
@@ -307,6 +310,7 @@ def circuit_action_dist(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
     # Prepare the m-th moment of the returns distribution.
     prepare_m_moment(
@@ -331,6 +335,7 @@ def circuit_return_dist(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
     
@@ -357,6 +362,7 @@ def circuit_return_dist(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
     
     # Generate weighted return distribuion via measurements across the return wires.
@@ -374,6 +380,7 @@ def circuit_return_dist_shifted(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
     
@@ -400,6 +407,7 @@ def circuit_return_dist_shifted(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
     
     # Redistribute shifted return-atoms to align with original PMF atoms.
@@ -421,6 +429,7 @@ def circuit_hermitian_loss(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
     
@@ -447,6 +456,7 @@ def circuit_hermitian_loss(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
     
     # Measure the expectation of the return-atom wires w.r.t. a given Hermitian operator.
@@ -465,6 +475,7 @@ def circuit_return_density_matrix(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
     
@@ -493,6 +504,7 @@ def circuit_return_density_matrix(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
     
     qml.Snapshot('after_return_prep', measurement=qml.density_matrix(wires=wirelist))
@@ -514,6 +526,7 @@ def circuit_return_density_matrix_shifted(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Quantum circuit for generating the return distribution that is weighted via the probability amplitudes of the action space with respect to an input observation."""
     
@@ -540,6 +553,7 @@ def circuit_return_density_matrix_shifted(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
     
     # Redistribute shifted return-atoms to align with original PMF atoms.
@@ -565,6 +579,7 @@ def circuit_return_density_matrix_shifted(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def run_circuit_action_dist(
     # All device and QNode parameters.
@@ -585,6 +600,7 @@ def run_circuit_action_dist(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_action_dist` on a single input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -602,6 +618,7 @@ def run_circuit_action_dist(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -617,6 +634,7 @@ def run_circuit_action_dist(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def batched_run_circuit_action_dist(
     # All device and QNode parameters.
@@ -637,6 +655,7 @@ def batched_run_circuit_action_dist(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_action_dist` on a batch of input instances."""
     # Create vmap of core function.
@@ -659,6 +678,7 @@ def batched_run_circuit_action_dist(
             None, # pauli_enc
             None, # pauli_var
             None, # imprimitive
+            None, # use_qft
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -679,6 +699,7 @@ def batched_run_circuit_action_dist(
         pauli_enc,
         pauli_var,
         imprimitive,
+        use_qft,
     )
 
 
@@ -693,6 +714,7 @@ def batched_run_circuit_action_dist(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def run_circuit_return_dist(
     # All device and QNode parameters.
@@ -711,6 +733,7 @@ def run_circuit_return_dist(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_return_dist` on a single input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -726,6 +749,7 @@ def run_circuit_return_dist(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -739,6 +763,7 @@ def run_circuit_return_dist(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def batched_run_circuit_return_dist(
     # All device and QNode parameters.
@@ -757,6 +782,7 @@ def batched_run_circuit_return_dist(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_return_dist` on a batch of input instances."""
     # Create vmap of core function.
@@ -777,6 +803,7 @@ def batched_run_circuit_return_dist(
             None, # pauli_enc
             None, # pauli_var
             None, # imprimitive
+            None, # use_qft
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -795,6 +822,7 @@ def batched_run_circuit_return_dist(
         pauli_enc,
         pauli_var,
         imprimitive,
+        use_qft,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -808,6 +836,7 @@ def batched_run_circuit_return_dist(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def run_circuit_return_dist_shifted(
     # All device and QNode parameters.
@@ -827,6 +856,7 @@ def run_circuit_return_dist_shifted(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_return_dist` on a single input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -843,6 +873,7 @@ def run_circuit_return_dist_shifted(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -856,6 +887,7 @@ def run_circuit_return_dist_shifted(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def batched_run_circuit_return_dist_shifted(
     # All device and QNode parameters.
@@ -875,6 +907,7 @@ def batched_run_circuit_return_dist_shifted(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_return_dist` on a batch of input instances."""
     # Create vmap of core function.
@@ -896,6 +929,7 @@ def batched_run_circuit_return_dist_shifted(
             None, # pauli_enc
             None, # pauli_var
             None, # imprimitive
+            None, # use_qft
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -915,6 +949,7 @@ def batched_run_circuit_return_dist_shifted(
         pauli_enc,
         pauli_var,
         imprimitive,
+        use_qft,
     )
 
 
@@ -929,6 +964,7 @@ def batched_run_circuit_return_dist_shifted(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def run_circuit_hermitian_loss(
     # All device and QNode parameters.
@@ -948,6 +984,7 @@ def run_circuit_hermitian_loss(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_hermitian_loss` on a single input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -964,6 +1001,7 @@ def run_circuit_hermitian_loss(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -977,6 +1015,7 @@ def run_circuit_hermitian_loss(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def batched_run_circuit_hermitian_loss(
     # All device and QNode parameters.
@@ -996,6 +1035,7 @@ def batched_run_circuit_hermitian_loss(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_hermitian_loss` on a batch of input instances."""
     # Create vmap of core function.
@@ -1017,6 +1057,7 @@ def batched_run_circuit_hermitian_loss(
             None, # pauli_enc
             None, # pauli_var
             None, # imprimitive
+            None, # use_qft
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -1036,6 +1077,7 @@ def batched_run_circuit_hermitian_loss(
         pauli_enc,
         pauli_var,
         imprimitive,
+        use_qft,
     )
 
 
@@ -1050,6 +1092,7 @@ def batched_run_circuit_hermitian_loss(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def run_circuit_return_density_matrix(
     # All device and QNode parameters.
@@ -1068,6 +1111,7 @@ def run_circuit_return_density_matrix(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_return_density_matrix` on a single of input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -1083,6 +1127,7 @@ def run_circuit_return_density_matrix(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -1096,6 +1141,7 @@ def run_circuit_return_density_matrix(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def batched_run_circuit_return_density_matrix(
     # All device and QNode parameters.
@@ -1114,6 +1160,7 @@ def batched_run_circuit_return_density_matrix(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_return_density_matrix` on a batch of input instances."""
     # Create vmap of core function.
@@ -1134,6 +1181,7 @@ def batched_run_circuit_return_density_matrix(
             None, # pauli_enc
             None, # pauli_var
             None, # imprimitive
+            None, # use_qft
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -1152,6 +1200,7 @@ def batched_run_circuit_return_density_matrix(
         pauli_enc,
         pauli_var,
         imprimitive,
+        use_qft,
     )
 
 
@@ -1166,6 +1215,7 @@ def batched_run_circuit_return_density_matrix(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def run_circuit_return_density_matrix_shifted(
     # All device and QNode parameters.
@@ -1185,6 +1235,7 @@ def run_circuit_return_density_matrix_shifted(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_return_density_matrix_shifted` on a single of input instance."""
     device = qml.device(name=device_name, shots=shots, seed=key)
@@ -1201,6 +1252,7 @@ def run_circuit_return_density_matrix_shifted(
         pauli_enc=pauli_enc,
         pauli_var=pauli_var,
         imprimitive=imprimitive,
+        use_qft=use_qft,
     )
 
 @partial(nnx.jit, static_argnames=[
@@ -1214,6 +1266,7 @@ def run_circuit_return_density_matrix_shifted(
     'pauli_enc',
     'pauli_var',
     'imprimitive',
+    'use_qft',
 ])
 def batched_run_circuit_return_density_matrix_shifted(
     # All device and QNode parameters.
@@ -1233,6 +1286,7 @@ def batched_run_circuit_return_density_matrix_shifted(
     pauli_enc: tuple[str, ...],
     pauli_var: tuple[str, ...],
     imprimitive: str | None, # Entanglement gate string.
+    use_qft: bool,
     ):
     """Run `circuit_return_density_matrix_shifted` on a batch of input instances."""
     # Create vmap of core function.
@@ -1254,6 +1308,7 @@ def batched_run_circuit_return_density_matrix_shifted(
             None, # pauli_enc
             None, # pauli_var
             None, # imprimitive
+            None, # use_qft
             ),
         )
     # Call mapped function with manually assigned positional arguments.
@@ -1273,6 +1328,7 @@ def batched_run_circuit_return_density_matrix_shifted(
         pauli_enc,
         pauli_var,
         imprimitive,
+        use_qft,
     )
 
 
@@ -1303,7 +1359,8 @@ class QuantumNativeQNetwork(SerializableModule):
     """List of Pauli operator strings for variational layer (e.g., 'X', 'Y', 'Z', 'RX', 'RY', 'RZ')."""
     imprimitive: str | None
     """Entanglement gate string (e.g., 'CNOT', 'CX', 'CZ')."""
-    """Number of circuit shots used to compute action probability distribution."""
+    use_qft: bool = True # Default to True to uphold previous behavior.
+    """Use a quantum Fourier transform (QFT) at the end of the return distribution gates."""
     input_preprocess: SerializableModule | None = None
     """Nested module for input preprocessing (can be trainable). We need this because the `QuantumNativeQNetworkSplit` class has methods required by the QnRL training algorithm, hence it cannot be wrapped inside another module. To support customizing input preprocessing on a per-environment basis we allow a nested input preprocessing layer to be a member of the `QuantumNativeQNetworkSplit` module."""
     input_multiplex_activation: str = 'linear'
@@ -1433,6 +1490,7 @@ class QuantumNativeQNetwork(SerializableModule):
                 pauli_enc=self.pauli_enc,
                 pauli_var=self.pauli_var,
                 imprimitive=self.imprimitive,
+                use_qft=self.use_qft,
             )
             # Filter circuit output based on number of "active" actions.
             # If desired number of actions is not a multiple of 2, then filter out the excess actions on the qubit register (i.e., more actions can be represented on the register and we don't care about them).
@@ -1476,6 +1534,7 @@ class QuantumNativeQNetwork(SerializableModule):
             pauli_enc=self.pauli_enc,
             pauli_var=self.pauli_var,
             imprimitive=self.imprimitive,
+            use_qft=self.use_qft,
         )
         # Filter circuit output based on number of "active" returns.
         # If desired number of returns is not a multiple of 2, then filter out the excess returns on the qubit register (i.e., more returns can be represented on the register and we don't care about them).
@@ -1520,6 +1579,7 @@ class QuantumNativeQNetwork(SerializableModule):
             pauli_enc=self.pauli_enc,
             pauli_var=self.pauli_var,
             imprimitive=self.imprimitive,
+            use_qft=self.use_qft,
         )
         # Filter circuit output based on number of "active" returns.
         # If desired number of returns is not a multiple of 2, then filter out the excess returns on the qubit register (i.e., more returns can be represented on the register and we don't care about them).
@@ -1564,6 +1624,7 @@ class QuantumNativeQNetwork(SerializableModule):
             pauli_enc=self.pauli_enc,
             pauli_var=self.pauli_var,
             imprimitive=self.imprimitive,
+            use_qft=self.use_qft,
         )
         return loss
     
@@ -1601,6 +1662,7 @@ class QuantumNativeQNetwork(SerializableModule):
             pauli_enc=self.pauli_enc,
             pauli_var=self.pauli_var,
             imprimitive=self.imprimitive,
+            use_qft=self.use_qft,
         )
         return rho
     
@@ -1639,5 +1701,6 @@ class QuantumNativeQNetwork(SerializableModule):
             pauli_enc=self.pauli_enc,
             pauli_var=self.pauli_var,
             imprimitive=self.imprimitive,
+            use_qft=self.use_qft,
         )
         return rho
