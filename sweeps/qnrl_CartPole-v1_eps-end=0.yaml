@@ -82,17 +82,26 @@ parameters:
           z_max:
             value: 100
           m_moment:
-            value: 1
+            values: 
+              - 1
+              - 2 # second moment (variance)
           n_reuploads:
-            value: 1
+            values: 
+              - 1
+              - 2 # n_actions
           n_layers:
-            value: 7
+            values:
+              - 3
+              - 5
+              - 7
           pauli_enc:
             value: ["RX"]
           pauli_var:
             value: ["RZ","RY","RZ"]
           imprimitive:
-            value: "offset-CZ"
+            values: 
+              - "offset-CZ"
+              - "circ-CZ"
           input_multiplex_activation:
             value: "tanh"
           input_preprocess:
