@@ -536,16 +536,6 @@ def train(
             # Override current observation to be the next observation for subsequent loop iteration.
             observation = next_observation.copy()
             
-            # Log the policy epsilon.
-            epsilon_meta = {
-                meta_prefix_fn("step"): t,
-                meta_prefix_fn("epsilon"): eps,
-                meta_prefix_fn("epsilon_greedy_threshold"): greedy_threshold,
-            }
-            history.append(epsilon_meta)
-            if metric_manager is not None:
-                metric_manager.save(t, epsilon_meta)
-            
             # Record episode statistics.
             if "episode" in info:
                 episode_meta = {
