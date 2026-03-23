@@ -1,5 +1,5 @@
 project: qnrl
-name: qnrl/FrozenLake-v1
+name: qnrl/FrozenLake-v1_eps-end=0
 command:
   - ${envvar:WANDB_AGENT_INTERPRETER}
   - -m

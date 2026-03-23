@@ -1,5 +1,5 @@
 project: qnrl
-name: c51/CartPole-v1
+name: c51/CartPole-v1_eps-end=0
 command:
   - ${envvar:WANDB_AGENT_INTERPRETER}
   - -m

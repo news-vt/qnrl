@@ -1,5 +1,5 @@
 project: qnrl
-name: qnrl/Acrobot-v1
+name: qnrl/Acrobot-v1_eps-end=0
 command:
   - ${envvar:WANDB_AGENT_INTERPRETER}
   - -m
