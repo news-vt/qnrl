@@ -103,7 +103,11 @@ parameters:
           num_atoms:
             value: 32 # 2^5
           douts:
-            value: [16,8]
+            values:
+              - [4,2]
+              - [7,5]
+              - [16,8]
+              - [30,21]
           rngs_kwargs:
             parameters:
               default:
