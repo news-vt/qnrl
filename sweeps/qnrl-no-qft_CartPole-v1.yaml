@@ -84,7 +84,7 @@ parameters:
           m_moment:
             values: 
               - 1
-              - 2 # second moment (mean)
+              - 2 # second moment (variance)
           n_reuploads:
             values: 
               - 1
