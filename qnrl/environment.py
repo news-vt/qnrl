@@ -141,3 +141,95 @@ class ObservationDiscreteUnravel(EnvWrapperConfig):
             observation_space=observation_space,
             )
         return env
+
+@dataclass(kw_only=True)
+class FrameStackObservation(EnvWrapperConfig):
+    """Wrapper for `gymnasium.wrappers.FrameStackObservation`."""
+    stack_size: int
+    
+    def make(self, **kwargs) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = super().make(**kwargs)
+        env = gym.wrappers.FrameStackObservation(env=env, stack_size=self.stack_size)
+        return env
+
+@dataclass(kw_only=True)
+class GrayscaleObservation(EnvWrapperConfig):
+    """Wrapper for `gymnasium.wrappers.GrayscaleObservation`."""
+    keep_dim: bool = False
+    
+    def make(self, **kwargs) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = super().make(**kwargs)
+        env = gym.wrappers.GrayscaleObservation(env=env, keep_dim=self.keep_dim)
+        return env
+
+@dataclass(kw_only=True)
+class ResizeObservation(EnvWrapperConfig):
+    """Wrapper for `gymnasium.wrappers.ResizeObservation`."""
+    shape: tuple[int, int]
+    
+    def make(self, **kwargs) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = super().make(**kwargs)
+        env = gym.wrappers.ResizeObservation(env=env, shape=self.shape)
+        return env
+
+
+
+@dataclass(kw_only=True)
+class AtariPreprocessing(EnvWrapperConfig):
+    """Wrapper for `gymnasium.wrappers.AtariPreprocessing`."""
+    noop_max: int = 30
+    frame_skip: int = 4
+    screen_size: int | tuple[int, int] = 84
+    terminal_on_life_loss: bool = False
+    grayscale_obs: bool = True
+    grayscale_newaxis: bool = False
+    scale_obs: bool = False
+    
+    def make(self, **kwargs) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = super().make(**kwargs)
+        env = gym.wrappers.AtariPreprocessing(
+            env=env,
+            noop_max=self.noop_max,
+            frame_skip=self.frame_skip,
+            screen_size=self.screen_size,
+            terminal_on_life_loss=self.terminal_on_life_loss,
+            grayscale_obs=self.grayscale_obs,
+            grayscale_newaxis=self.grayscale_newaxis,
+            scale_obs=self.scale_obs,
+        )
+        return env
+
+
+class FireResetEnv(gym.Wrapper):
+    """Based on `cleanrl.cleanrl_utils.atari_wrappers.FireResetEnv`.
+    
+    See: https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl_utils/atari_wrappers.py#L94
+    """
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        assert env.unwrapped.get_action_meanings()[1] == "FIRE"
+        assert len(env.unwrapped.get_action_meanings()) >= 3
+    
+    def reset(self, **kwargs):
+        self.env.reset(**kwargs)
+        obs, _, terminated, truncated, _ = self.env.step(1)
+        if terminated or truncated:
+            self.env.reset(**kwargs)
+        obs, _, terminated, truncated, _ = self.env.step(2)
+        if terminated or truncated:
+            self.env.reset(**kwargs)
+        return obs, {}
+
+@dataclass(kw_only=True)
+class FireResetEnvWrapper(EnvWrapperConfig):
+    """Config wrapper for `FireResetEnv`."""
+    
+    def make(self, **kwargs) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = super().make(**kwargs)
+        env = FireResetEnv(env=env)
+        return env
