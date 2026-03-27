@@ -527,6 +527,9 @@ wheels = [
 ]
 
 [package.optional-dependencies]
+atari = [
+    { name = "ale-py" },
+]
 classic-control = [
     { name = "pygame" },
 ]
@@ -1502,7 +1505,7 @@ dependencies = [
     { name = "deepdiff" },
     { name = "filelock" },
     { name = "flax" },
-    { name = "gymnasium", extra = ["classic-control", "other"] },
+    { name = "gymnasium", extra = ["atari", "classic-control", "other"] },
     { name = "ipykernel" },
     { name = "jax" },
     { name = "jaxlib" },
@@ -1536,7 +1539,7 @@ requires-dist = [
     { name = "deepdiff", specifier = ">=8.6.1" },
     { name = "filelock", specifier = ">=3.19.1" },
     { name = "flax", specifier = ">=0.11.2" },
-    { name = "gymnasium", extras = ["classic-control", "other"], specifier = ">=1.2.1" },
+    { name = "gymnasium", extras = ["atari", "classic-control", "other"], specifier = ">=1.2.1" },
     { name = "ipykernel", specifier = ">=6.30.1" },
     { name = "jax", specifier = "~=0.6.0" },
     { name = "jaxlib", specifier = "~=0.6.0" },
