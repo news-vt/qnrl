@@ -233,3 +233,14 @@ class FireResetEnvWrapper(EnvWrapperConfig):
         env = super().make(**kwargs)
         env = FireResetEnv(env=env)
         return env
+
+
+@dataclass(kw_only=True)
+class FlattenObservation(EnvWrapperConfig):
+    """Config wrapper for `gymnasium.wrappers.FlattenObservation`."""
+    
+    def make(self, **kwargs) -> gym.Env:
+        """Wrapper for `gymnasium.make` using config arguments."""
+        env = super().make(**kwargs)
+        env = gym.wrappers.FlattenObservation(env=env)
+        return env
