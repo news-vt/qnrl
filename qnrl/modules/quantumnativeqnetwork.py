@@ -1423,7 +1423,7 @@ class QuantumNativeQNetwork(SerializableModule):
         # self.circ_weights_enc_obs_bias = nnx.Param(nnx.initializers.zeros_init()(key=self.rngs.params(), shape=self.circ_weights_enc_obs_shape)) # b
         
         # Projects input dimension to dimension supported by quantum circuit.
-        self.linear_input_projection = nnx.Linear(in_features=self.din, out_features=reduce(lambda x,y: x*y, self.circ_observation_shape_out), rngs=self.rngs, param_dtype='float64')
+        self.linear_input_projection = nnx.Linear(in_features=self.circ_observation_shape_in, out_features=reduce(lambda x,y: x*y, self.circ_observation_shape_out), rngs=self.rngs, param_dtype='float64')
     
     @nnx.jit
     def __call__(self, x): # (batch,din,)
