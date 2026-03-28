@@ -1395,6 +1395,13 @@ class QuantumNativeQNetwork(SerializableModule):
         # Create quantum operator from the atom values.
         self.U_atoms = jnp.diag(atoms_values)
         
+        # Ensure input multiplex activation string key is valid.
+        assert self.input_multiplex_activation in activation_function_dispatcher, f"Invalid activation function key {self.input_multiplex_activation}"
+        
+        # Create parameters that depend on random seed.
+        self.reseed(self.rngs_kwargs)
+    
+    def pre_reseed(self, rngs_kwargs: dict[str, int]):
         # Weights for return-atom distribution generation.
         # Every action gets their own return-atom distribution unitary.
         num_var_params = get_ops_num_params(ops=self.pauli_var)
@@ -1405,18 +1412,8 @@ class QuantumNativeQNetwork(SerializableModule):
         self.circ_weights_enc_obs_shape = (self.n_actions,self.n_layers,self.d_returns,num_enc_params,)
         self.circ_observation_shape_in = self.din # Dimension of the input data.
         self.circ_observation_shape_out = (self.n_actions,self.d_returns,num_enc_params,)
-        
-        # Ensure input multiplex activation string key is valid.
-        assert self.input_multiplex_activation in activation_function_dispatcher, f"Invalid activation function key {self.input_multiplex_activation}"
-        
-        # Create parameters that depend on random seed.
-        self.reseed(self.rngs_kwargs)
     
-    def reseed(self, rngs_kwargs: dict[str, int]):
-        self.rngs_kwargs = rngs_kwargs
-        """Re-create model parameters using a dictionary of `nnx.Rngs` keyword arguments."""
-        self.rngs: nnx.Rngs = nnx.Rngs(**self.rngs_kwargs)
-        
+    def post_reseed(self, rngs_kwargs: dict[str, int]):
         self.circ_weights_var = nnx.Param(jax.random.uniform(self.rngs.params(), shape=self.circ_weights_var_shape, minval=0., maxval=jnp.pi))
         
         self.circ_weights_enc_obs_kernel = nnx.Param(nnx.initializers.ones_init()(key=self.rngs.params(), shape=self.circ_weights_enc_obs_shape)) # w
@@ -1425,18 +1422,28 @@ class QuantumNativeQNetwork(SerializableModule):
         # Projects input dimension to dimension supported by quantum circuit.
         self.linear_input_projection = nnx.Linear(in_features=self.circ_observation_shape_in, out_features=reduce(lambda x,y: x*y, self.circ_observation_shape_out), rngs=self.rngs, param_dtype='float64')
     
+    def reseed(self, rngs_kwargs: dict[str, int]):
+        """Re-create model parameters using a dictionary of `nnx.Rngs` keyword arguments."""
+        self.pre_reseed(rngs_kwargs=rngs_kwargs)
+        self.rngs_kwargs = rngs_kwargs
+        self.rngs: nnx.Rngs = nnx.Rngs(**self.rngs_kwargs)
+        self.post_reseed(rngs_kwargs=rngs_kwargs)
+    
     @nnx.jit
     def __call__(self, x): # (batch,din,)
         return self.call_gen_action_dist(x) # Generation action distribution.
     
     @nnx.jit
-    def project_observations(self, observations: jax.Array): # (batch,din,)
-        x = observations
+    def pre_project_observations(self, x: jax.Array): # (batch,din,)
+        """Handle all preprocessing of input observations prior to projection into quantum circuit."""
         # Preprocess input data.
         if self.input_preprocess is not None:
             x = self.input_preprocess(x)
-        # Project input data into dimension required for quantum circuit.
-        x = self.linear_input_projection(x)
+        return x
+
+    @nnx.jit
+    def post_project_observations(self, x: jax.Array): # (batch,action,qubit,feat,)
+        """Handle multiplexing the projected input observations into the quantum circuit."""
         x = jnp.reshape(x, (-1, *self.circ_observation_shape_out,))
         # Multiplex the encoded observations across the layers of each action operator.
         # Einsum dimension labels:
@@ -1449,15 +1456,24 @@ class QuantumNativeQNetwork(SerializableModule):
         x = activation_function_dispatcher[self.input_multiplex_activation](x)
         return x
     
+    @nnx.jit
+    def project_observations(self, x: jax.Array): # (batch,din,)
+        x = self.pre_project_observations(x) # Preprocess input observations.
+        ###
+        x = self.linear_input_projection(x) # Project input data into dimension required for quantum circuit.
+        ###
+        x = self.post_project_observations(x) # Multiplex projected observations into quantum circuit.
+        return x
+    
     @nnx.jit(static_argnames=['n_reuploads'])
     def call_gen_action_dist(self, x, n_reuploads: int | None = None): # (batch,din,)
         """Generate action distribuion from input observation."""
         
-        # Track the batch size.
-        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
-        
         # Project input observation into shape that is compatible with the quantum circuit.
-        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        x = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Track the batch size.
+        batch_size = x.shape[0]
         
         # Prepare the n-th power of the m-th moment of the returns distribution.
         key = self.rngs.default() # Generate new random key for circuit measurement.
@@ -1478,7 +1494,7 @@ class QuantumNativeQNetwork(SerializableModule):
                 shots=None,
                 diff_method=None,
                 # Circuit arguments.
-                inputs=observation_proj_batched,
+                inputs=x,
                 probs_actions=probs_actions,
                 weights=self.circ_weights_var,
                 n_actions=self.n_actions,
@@ -1503,11 +1519,11 @@ class QuantumNativeQNetwork(SerializableModule):
     def call_gen_return_dist(self, x, probs_actions): # (batch,din,)
         """Generate return distribuion from input observation."""
         
-        # Track the batch size.
-        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
-        
         # Project input observation into shape that is compatible with the quantum circuit.
-        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        x = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Track the batch size.
+        batch_size = x.shape[0]
         
         # Generate new random key for circuit measurement.
         key = self.rngs.default()
@@ -1524,7 +1540,7 @@ class QuantumNativeQNetwork(SerializableModule):
             diff_method='backprop',
             #
             # Circuit arguments.
-            inputs=observation_proj_batched,
+            inputs=x,
             probs_actions=probs_actions,
             weights=self.circ_weights_var,
             n_actions=self.n_actions,
@@ -1547,11 +1563,11 @@ class QuantumNativeQNetwork(SerializableModule):
     def call_gen_return_dist_shifted(self, x, probs_actions, U_shift): # (batch,din,)
         """Generate shifted return distribuion from input observation and action probability distribution."""
         
-        # Track the batch size.
-        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
-        
         # Project input observation into shape that is compatible with the quantum circuit.
-        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        x = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Track the batch size.
+        batch_size = x.shape[0]
         
         # Generate new random key for circuit measurement.
         key = self.rngs.default()
@@ -1568,7 +1584,7 @@ class QuantumNativeQNetwork(SerializableModule):
             diff_method='backprop',
             #
             # Circuit arguments.
-            inputs=observation_proj_batched,
+            inputs=x,
             probs_actions=probs_actions,
             U_shift=U_shift,
             weights=self.circ_weights_var,
@@ -1593,11 +1609,11 @@ class QuantumNativeQNetwork(SerializableModule):
     def call_hermitian_loss(self, x, probs_actions, rho): # (batch,din,)
         """Compute Hermitian loss across the return-atom qubits with respect to an input density matrix rho."""
         
-        # Track the batch size.
-        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
-        
         # Project input observation into shape that is compatible with the quantum circuit.
-        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        x = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Track the batch size.
+        batch_size = x.shape[0]
         
         # Generate new random key for circuit measurement.
         key = self.rngs.default()
@@ -1613,7 +1629,7 @@ class QuantumNativeQNetwork(SerializableModule):
             shots=None,
             diff_method='backprop',
             # Circuit arguments.
-            inputs=observation_proj_batched,
+            inputs=x,
             probs_actions=probs_actions,
             weights=self.circ_weights_var,
             n_actions=self.n_actions,
@@ -1632,11 +1648,11 @@ class QuantumNativeQNetwork(SerializableModule):
     def call_return_density_matrix(self, x, probs_actions): # (batch,din,)
         """Generate the density matrix across the return-atom qubits according to an input observation and action probability distribution."""
         
-        # Track the batch size.
-        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
-        
         # Project input observation into shape that is compatible with the quantum circuit.
-        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        x = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Track the batch size.
+        batch_size = x.shape[0]
         
         # Generate new random key for circuit measurement.
         key = self.rngs.default()
@@ -1652,7 +1668,7 @@ class QuantumNativeQNetwork(SerializableModule):
             shots=None,
             diff_method='backprop',
             # Circuit arguments.
-            inputs=observation_proj_batched,
+            inputs=x,
             probs_actions=probs_actions,
             weights=self.circ_weights_var,
             n_actions=self.n_actions,
@@ -1670,11 +1686,11 @@ class QuantumNativeQNetwork(SerializableModule):
     def call_return_density_matrix_shifted(self, x, probs_actions, U_shift): # (batch,din,)
         """Generate the shifted density matrix across the return-atom qubits according to an input observation and action probability distribution."""
         
-        # Track the batch size.
-        batch_size = x.shape[0] if len(x.shape) > 1 else 1 if len(x.shape) > 1 else 1
-        
         # Project input observation into shape that is compatible with the quantum circuit.
-        observation_proj_batched = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        x = self.project_observations(x) # (batch, n_layers, d_returns, 1,)
+        
+        # Track the batch size.
+        batch_size = x.shape[0]
         
         # Generate new random key for circuit measurement.
         key = self.rngs.default()
@@ -1690,7 +1706,7 @@ class QuantumNativeQNetwork(SerializableModule):
             shots=None,
             diff_method='backprop',
             # Circuit arguments.
-            inputs=observation_proj_batched,
+            inputs=x,
             probs_actions=probs_actions,
             U_shift=U_shift,
             weights=self.circ_weights_var,
