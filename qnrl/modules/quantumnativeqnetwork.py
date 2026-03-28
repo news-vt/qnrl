@@ -1403,7 +1403,7 @@ class QuantumNativeQNetwork(SerializableModule):
         # Inputs to circuit will be encoded onto the return-atom wires.
         num_enc_params = get_ops_num_params(ops=self.pauli_enc)
         self.circ_weights_enc_obs_shape = (self.n_actions,self.n_layers,self.d_returns,num_enc_params,)
-        self.circ_observation_shape_in = self.din # Input dimension of the 
+        self.circ_observation_shape_in = self.din # Dimension of the input data.
         self.circ_observation_shape_out = (self.n_actions,self.d_returns,num_enc_params,)
         
         # Ensure input multiplex activation string key is valid.
