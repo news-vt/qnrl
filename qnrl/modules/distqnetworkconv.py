@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from flax import nnx
 import jax.numpy as jnp
 
-from . import SerializableModule
+from .serializable import SerializableModule
 
 @dataclass(kw_only=True)
 class DistQNetworkConv(SerializableModule):
