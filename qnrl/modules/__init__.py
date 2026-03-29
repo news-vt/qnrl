@@ -5,4 +5,5 @@ from .rescaleinput import RescaleInput
 from .sequential import Sequential
 from .serializable import SerializableModule, activation_function_dispatcher
 from .quantumnativeqnetwork import QuantumNativeQNetwork
+from .quantumnativeqnetworkconv import QuantumNativeQNetworkConv
 from .quantumqnetworklinear import QuantumQNetworkLinear
