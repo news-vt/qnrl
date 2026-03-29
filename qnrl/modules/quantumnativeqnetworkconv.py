@@ -51,10 +51,10 @@ class QuantumNativeQNetworkConv(QuantumNativeQNetwork):
         # Convolutions.
         dims = [self.din*self.frame_stack, *self.conv_douts]
         din_dout = list(zip(dims[:-1], dims[1:])) # (din, dout)
-        self.convs = [
-            nnx.Conv(in_features=in_features, out_features=out_features, kernel_size=self.conv_kernel_size[i], strides=self.conv_strides[i], padding="VALID", rngs=self.rngs)
+        self.convs = {
+            f"convs_{i}": nnx.Conv(in_features=in_features, out_features=out_features, kernel_size=self.conv_kernel_size[i], strides=self.conv_strides[i], padding="VALID", rngs=self.rngs)
             for i, (in_features, out_features) in enumerate(din_dout)
-        ]
+        }
 
     @nnx.jit
     def pre_project_observations(self, x: jax.Array): # (batch,din,)
@@ -68,7 +68,7 @@ class QuantumNativeQNetworkConv(QuantumNativeQNetwork):
         x = x.reshape(*x.shape[:-2], -1)
         
         # Apply Conv+ReLU to all convolutions.
-        for layer in self.convs:
+        for key, layer in self.convs.items():
             x = layer(x)
             x = nnx.relu(x)
         

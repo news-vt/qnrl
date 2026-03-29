@@ -196,21 +196,23 @@ parameters:
               # Optimizers for convolution layers.
               # Each layer "i" has key "convs_<i>".
               # The number of optimizers here must match the number of convolutional layers.
-              convs_0:
+              convs:
                 parameters:
-                  bias:
-                    value: trainable_classical
-                  kernel:
-                    value: trainable_classical
-              convs_1:
-                parameters:
-                  bias:
-                    value: trainable_classical
-                  kernel:
-                    value: trainable_classical
-              convs_2:
-                parameters:
-                  bias:
-                    value: trainable_classical
-                  kernel:
-                    value: trainable_classical
+                  convs_0:
+                    parameters:
+                      bias:
+                        value: trainable_classical
+                      kernel:
+                        value: trainable_classical
+                  convs_1:
+                    parameters:
+                      bias:
+                        value: trainable_classical
+                      kernel:
+                        value: trainable_classical
+                  convs_2:
+                    parameters:
+                      bias:
+                        value: trainable_classical
+                      kernel:
+                        value: trainable_classical
