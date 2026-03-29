@@ -26,7 +26,7 @@ from qnrl.optimizer import OptimizerTransform
 from qnrl.buffers import PmfReplayBuffer
 from qnrl.metric import MetricManager
 from qnrl.tools import get_model_total_parameter_count, restore_model_from_checkpointmanager, save_model, restore_model_from_path
-from qnrl.modules import QuantumNativeQNetwork
+from qnrl.modules import QuantumNativeQNetwork, QuantumNativeQNetworkConv
 
 
 def meta_prefix_fn_factory(meta_prefix_key: str):
@@ -769,7 +769,7 @@ class QnRL(Algorithm):
     Reference:
         M. G. Bellemare, W. Dabney, and R. Munos, “A distributional perspective on reinforcement learning,” in Proceedings of the 34th international conference on machine learning, D. Precup and Y. W. Teh, Eds., in Proceedings of machine learning research, vol. 70. PMLR, Aug. 2017, pp. 449–458. doi: 10.48550/arXiv.1707.06887.
     """
-    model: QuantumNativeQNetwork
+    model: QuantumNativeQNetworkConv | QuantumNativeQNetwork # Add union of subtypes here for proper deserialization via mashumaro; note that `QuantumNativeQNetwork` must appear last in the union for any children classes to be deserialized.
     optimizer: OptimizerTransform
     buffer_size: int = 10_000
     batch_size: int = 128
