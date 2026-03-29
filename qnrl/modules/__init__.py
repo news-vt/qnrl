@@ -1,4 +1,5 @@
 from .distqnetworklinear import DistQNetworkLinear
+from .distqnetworkconv import DistQNetworkConv
 from .linear import Linear
 from .linearcascade import LinearCascade
 from .rescaleinput import RescaleInput
