@@ -942,6 +942,7 @@ class Train(DataClassDictMixin):
     num_eval: int = 10 # Number of evaluation runs after training.
     eval_seed: int | None = None # Override evaluation seed. Defaults to using configuration seed.
     video_fps: int | None = None # Override video FPS. Defaults to using FPS set by algorithm report.
+    eval_total_timesteps: int | None = None # Override total number of timesteps for evaluation (this helps limit length of video generation).
     
     def main(self):
         
@@ -1016,7 +1017,10 @@ class Train(DataClassDictMixin):
                 
                 # Evaluate the model using a different random seed.
                 seed_eval = int(subkey[0])
-                _, eval_report = algo_config.eval(seed=seed_eval)
+                eval_kwargs = {}
+                if self.eval_total_timesteps is not None:
+                    eval_kwargs['total_timesteps'] = self.eval_total_timesteps
+                _, eval_report = algo_config.eval(seed=seed_eval, **eval_kwargs)
                 for i, (k,v) in enumerate(eval_report.items()):
                     # Generate videos compatible with WandB.
                     if isinstance(v, moviepy.VideoClip):
