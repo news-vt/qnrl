@@ -33,6 +33,12 @@ from .modules import SerializableModule
 from .metric import MetricManager, LocalFileMetricManager, WandBMetricManager
 from .serialization import hash_serializable_object
 
+# Register gymnasium environments.
+import gymnasium as gym
+# Register ALE environments.
+import ale_py
+gym.register_envs(ale_py)
+
 
 import jax
 jax.config.update("jax_enable_x64", True) # Enable double-precision for quantum models (default is single-precision).
