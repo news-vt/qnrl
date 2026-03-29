@@ -115,6 +115,8 @@ parameters:
             value: 84 # Image width.
           h:
             value: 84 # Image height.
+          frame_stack:
+            value: 4
           conv_douts:
             value: [32, 64, 64]
           conv_kernel_size:
