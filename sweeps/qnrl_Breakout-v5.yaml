@@ -140,6 +140,9 @@ parameters:
               - 3
               - 5
               - 7
+              - 9
+              - 11
+              - 13
           pauli_enc:
             value: ["RX"]
           pauli_var:
@@ -149,7 +152,9 @@ parameters:
               - "offset-CZ"
               - "circ-CZ"
           input_multiplex_activation:
-            value: "tanh"
+            values: 
+              - "tanh"
+              - "arctan"
           input_preprocess:
             value: null
           rngs_kwargs:
@@ -170,7 +175,9 @@ parameters:
                   type:
                     value: AdamW
                   learning_rate:
-                    value: 1.0e-2
+                    values: 
+                      - 1.0e-1
+                      - 1.0e-2
                   b1:
                     value: 0.7
                   b2:
