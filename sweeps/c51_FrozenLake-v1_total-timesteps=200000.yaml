@@ -1,0 +1,114 @@
+project: qnrl
+name: c51/FrozenLake-v1_total-timesteps=200000
+command:
+  - ${envvar:WANDB_AGENT_INTERPRETER}
+  - -m
+  - qnrl.cli
+  - train
+  - ${args}
+
+# Hyperparameter search style.
+method: grid
+metric:
+  goal: maximize
+  name: eval/episode_reward.mean
+
+# Parameters for `qnrl.cli.Train`
+parameters:
+  num_eval:
+    value: 10
+  eval_seed:
+    value: 1024
+  config:
+    parameters:
+      seed:
+        values:
+          - 0
+          - 21
+          - 42
+          - 84
+      type:
+        value: C51
+      buffer_size:
+        value: 10_000
+      batch_size:
+        value: 128
+      total_timesteps:
+        value: 200_000
+      learning_starts:
+        value: 10_000
+      policy_update_frequency:
+        value: 10
+      target_update_frequency:
+        value: 500
+      gamma:
+        value: 0.99
+      tau:
+        value: 1.0
+      eps_start:
+        value: 1
+      eps_end:
+        value: 5.0e-2
+      eps_exploration:
+        value: 0.25 # Epsilon greedy until time step 50_000.
+      reseed_model_on_init:
+        value: True
+      ###
+      # Environment
+      ###
+      env:
+        parameters:
+          type: 
+            value: ObservationDiscreteOneHot
+          env:
+            parameters:
+              type:
+                value: EnvConfig
+              env_id:
+                value: FrozenLake-v1
+              max_episode_steps:
+                value: 100
+              extra_args:
+                parameters:
+                  reward_schedule:
+                    value: [1.0,-0.2,-0.01]
+                  map_name:
+                    value: 4x4
+      num_atoms:
+        value: 32 # 2^5
+      z_min:
+        value: -2
+      z_max:
+        value: 2
+      ###
+      # Optimizer
+      ###
+      optimizer:
+        parameters:
+          type:
+            value: Adam
+          learning_rate:
+            value: 1.0e-3
+      ###
+      # Model
+      ###
+      model:
+        parameters:
+          type:
+            value: DistQNetworkLinear
+          din:
+            value: 16
+          num_actions:
+            value: 4
+          num_atoms:
+            value: 32 # 2^5
+          douts:
+            values:
+              - [4,2]
+              - [7,5]
+              - [16,8]
+              - [30,21]
+          rngs_kwargs:
+            parameters:
+              default:
+                value: 0
