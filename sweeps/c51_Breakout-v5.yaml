@@ -122,7 +122,12 @@ parameters:
           frame_stack:
             value: 4
           conv_douts:
-            value: [32, 64, 64]
+            # value: [32, 64, 64]
+            values: 
+              - [8, 16, 16]
+              - [16, 32, 32]
+              - [32, 64, 64]
+              - [64, 128, 128]
           conv_kernel_size:
             value: [[8,8], [4,4], [3,3]]
           conv_strides:
