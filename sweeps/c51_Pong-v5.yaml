@@ -1,0 +1,151 @@
+project: qnrl
+name: c51/Pong-v5
+command:
+  - ${envvar:WANDB_AGENT_INTERPRETER}
+  - -m
+  - qnrl.cli
+  - train
+  - ${args}
+
+# Hyperparameter search style.
+method: grid
+metric:
+  goal: maximize
+  name: eval/episode_reward.mean
+
+# Parameters for `qnrl.cli.Train`
+parameters:
+  num_eval:
+    value: 10
+  eval_seed:
+    value: 1024
+  eval_total_timesteps: # Limit the number of timesteps in the evaluation report video.
+    value: 1_000
+  config:
+    parameters:
+      seed:
+        values:
+          - 0
+          - 21
+          - 42
+          - 84
+      type:
+        value: C51
+      buffer_size:
+        value: 10_000
+      batch_size:
+        value: 32
+      total_timesteps:
+        value: 200_000
+      learning_starts:
+        value: 800
+      policy_update_frequency:
+        value: 4
+      target_update_frequency:
+        value: 100
+      gamma:
+        value: 0.99
+      tau:
+        value: 1.0
+      eps_start:
+        value: 1
+      eps_end:
+        value: 0.01
+      eps_exploration:
+        value: 0.5
+      reseed_model_on_init:
+        value: True
+      ###
+      # Environment
+      ###
+      env:
+        parameters:
+          type:
+            value: FireResetEnvWrapper
+          env:
+            parameters:
+              type:
+                value: FrameStackObservation
+              stack_size:
+                value: 4
+              env:
+                parameters:
+                  type:
+                    value: AtariPreprocessing
+                  noop_max:
+                    value: 30
+                  frame_skip:
+                    value: 4
+                  screen_size:
+                    value: 84
+                  terminal_on_life_loss:
+                    value: True
+                  grayscale_obs:
+                    value: True
+                  grayscale_newaxis:
+                    value: False
+                  scale_obs:
+                    value: True
+                  env:
+                    parameters:
+                      type:
+                        value: EnvConfig
+                      env_id:
+                        value: ALE/Pong-v5
+                      extra_args:
+                        parameters:
+                          frameskip:
+                            value: 1
+                          repeat_action_probability:
+                            value: 0.0
+                      max_episode_steps:
+                        value: 10_000
+      num_atoms:
+        value: 32 # 2^5
+      z_min:
+        value: -10
+      z_max:
+        value: 10
+      ###
+      # Model
+      ###
+      model:
+        parameters:
+          type:
+            value: DistQNetworkConv
+          din:
+            value: 1 # Greyscale image.
+          w:
+            value: 84 # Image width.
+          h:
+            value: 84 # Image height.
+          frame_stack:
+            value: 4
+          conv_douts:
+            # value: [32, 64, 64]
+            values: 
+              - [8, 16, 16]
+              - [16, 32, 32]
+              - [32, 64, 64]
+              - [64, 128, 128]
+          conv_kernel_size:
+            value: [[8,8], [4,4], [3,3]]
+          conv_strides:
+            value: [[4,4], [2,2], [1,1]]
+          num_actions:
+            value: 6
+          num_atoms:
+            value: 32 # 2^5
+          rngs_kwargs:
+            parameters:
+              default:
+                value: 0
+      ###
+      # Optimizer
+      ###
+      optimizer:
+        parameters:
+          type:
+            value: Adam
+          learning_rate:
+            value: 2.5e-4
