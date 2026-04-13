@@ -1053,6 +1053,22 @@ class Train(DataClassDictMixin):
             # Finalize the logging session.
             metric_manager.run.finish()
 
+
+@dataclass(kw_only=True)
+class ModelSize(DataClassDictMixin):
+    """Report model size(s) for training configuration."""
+    config: dict[str, int | float | str | bool | list | tuple | dict | None]
+    model_key: str = 'model'
+    
+    def main(self):
+        
+        # Deserialize algorithm config.
+        algo_config = qnrl.Algorithm.from_dict(self.config)
+        
+        model = algo_config.__getattribute__(self.model_key)
+        print(qnrl.get_model_total_parameter_count(model))
+
+
 @dataclass(kw_only=True)
 class Args(DataClassDictMixin):
     """Algorithm CLI."""
@@ -1067,6 +1083,7 @@ class Args(DataClassDictMixin):
         PlotMatplotlib,
         PlotPlotext,
         PlotLive,
+        ModelSize,
     ]
 
 
