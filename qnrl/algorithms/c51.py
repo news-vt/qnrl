@@ -227,28 +227,16 @@ def get_action_from_policy(model: nnx.Module, atoms: jax.Array, observation: jax
     return action, pmfs, q_vals
 
 
-@nnx.jit
-def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
-    """Linear epsilon decay schedule."""
-    slope = (eps_end - eps_start) / duration
-    return jnp.max(jnp.array([slope * t + eps_start, eps_end]))
-
-
 def epsilon_greedy_policy(
     env: gym.Env,
     atoms: jax.Array,
     model_policy: nnx.Module,
     observation: jax.Array,
-    t: int, # Current time step.
-    duration: int, # Total number of time steps for epsilon decay.
-    eps_start: float,
-    eps_end: float,
+    eps: float,
     key: jax.Array,
     ) -> Any:
     """Epsilon-greedy action selection.
     """
-    # Decay epsilon based on current time step.
-    eps = epsilon_schedule_linear(eps_start=eps_start, eps_end=eps_end, duration=duration, t=t)
     # Action selection.
     if jax.random.uniform(key=key) < eps: # Explore via random action selection.
         action = env.action_space.sample()
@@ -259,6 +247,39 @@ def epsilon_greedy_policy(
             observation=observation,
         )
     return action
+
+
+@nnx.jit
+def epsilon_schedule_linear(eps_start: float, eps_end: float, duration: int, t: int):
+    """Linear epsilon decay schedule."""
+    slope = (eps_end - eps_start) / duration
+    return jnp.max(jnp.array([slope * t + eps_start, eps_end]))
+
+
+def epsilon_greedy_policy_from_schedule_linear(
+    env: gym.Env,
+    atoms: jax.Array,
+    model_policy: nnx.Module,
+    observation: jax.Array,
+    t: int, # Current time step.
+    duration: int, # Total number of time steps for epsilon decay.
+    eps_start: float,
+    eps_end: float,
+    key: jax.Array,
+    ) -> Any:
+    """Epsilon-greedy action selection where epsilon is computed from linear schedule.
+    """
+    # Decay epsilon based on current time step.
+    eps = epsilon_schedule_linear(eps_start=eps_start, eps_end=eps_end, duration=duration, t=t)
+    # Action selection.
+    return epsilon_greedy_policy(
+        env=env,
+        atoms=atoms,
+        model_policy=model_policy,
+        observation=observation,
+        eps=eps,
+        key=key,
+    )
 
 
 @nnx.jit
@@ -436,7 +457,7 @@ def train(
             
             # Action selection.
             key, subkey = jax.random.split(key)
-            action = epsilon_greedy_policy(
+            action = epsilon_greedy_policy_from_schedule_linear(
                 env=env,
                 atoms=atoms,
                 model_policy=model_policy,
