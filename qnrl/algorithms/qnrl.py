@@ -670,6 +670,7 @@ def eval(
     total_timesteps: int, # Max number of training steps.
     env_wrappers: list[Callable[[gym.Env], gym.Env]] = [],
     meta_prefix_key: str = "eval/",
+    eps: float = 0.0,
     ) -> tuple[pd.DataFrame, dict]:
     
     # Function to streamline creating metric keys from base strings.
@@ -685,6 +686,7 @@ def eval(
     env.action_space.seed(seed)
     key = jax.random.PRNGKey(seed)
     key, subkey = jax.random.split(key)
+    eps_key, eps_subkey = jax.random.split(key) # Separate key splitting for epsilon-greedy.
     
     history = []
 
@@ -696,7 +698,14 @@ def eval(
     pbar = tqdm(range(total_timesteps), unit='step', leave=True)
     pbar_postfix = dict() # Current progress bar postfix content.
     for t in pbar:
-        action, action_pmf = get_action_from_policy(model=model_policy, observation=observation)
+        eps_key, eps_subkey = jax.random.split(eps_key)
+        action, action_pmf, _, _ = epsilon_greedy_policy(
+            env=env,
+            model_policy=model_policy,
+            observation=observation,
+            eps=eps,
+            key=eps_subkey,
+        )
         next_observation, reward, terminated, truncated, info = env.step(action)
         
         # Generate return-atom density matrix and add to history for tracking.
@@ -804,6 +813,7 @@ class QnRL(Algorithm):
     eps_end: float = 5e-2
     eps_exploration: float = 0.5
     reseed_model_on_init: bool = False # Overwrite model seed after algorithm config initialization. Set this to `False` if you want to set the seed manually or use an existing model seed. Set this to `True` if you want any existing model seed to be overridden to the algorithm config seed.
+    eps_eval: float = 0.0 # Constant epsilon-greedy rate to use for evaluation. Keep as 0.0 for always greedy (non-random).
     
     def __post_init__(self):
         # Manually reset the the seed of the model.
@@ -872,6 +882,7 @@ class QnRL(Algorithm):
             env=env,
             model_policy=model_policy,
             total_timesteps=self.total_timesteps,
+            eps=self.eps_eval,
         )
         return eval(**{**kwargs_default, **kwargs})
     
