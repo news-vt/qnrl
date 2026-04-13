@@ -240,14 +240,15 @@ def epsilon_greedy_policy(
     # Action selection.
     if jax.random.uniform(key=key) < eps: # Explore via random action selection.
         action = env.action_space.sample()
-        return action, None, None
+        pmfs = jnp.array([1./atoms.size] * atoms.size * env.action_space.n).reshape((env.action_space.n, atoms.size))
+        q_vals = jnp.array([0.0] * env.action_space.n)
     else:
         action, pmfs, q_vals = get_action_from_policy(
             model=model_policy,
             atoms=atoms,
             observation=observation,
         )
-        return action, pmfs, q_vals
+    return action, pmfs, q_vals
 
 
 @nnx.jit
