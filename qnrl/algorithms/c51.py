@@ -240,13 +240,14 @@ def epsilon_greedy_policy(
     # Action selection.
     if jax.random.uniform(key=key) < eps: # Explore via random action selection.
         action = env.action_space.sample()
+        return action, None, None
     else:
-        action, _, _ = get_action_from_policy(
+        action, pmfs, q_vals = get_action_from_policy(
             model=model_policy,
             atoms=atoms,
             observation=observation,
         )
-    return action
+        return action, pmfs, q_vals
 
 
 @nnx.jit
@@ -457,7 +458,7 @@ def train(
             
             # Action selection.
             key, subkey = jax.random.split(key)
-            action = epsilon_greedy_policy_from_schedule_linear(
+            action, _, _ = epsilon_greedy_policy_from_schedule_linear(
                 env=env,
                 atoms=atoms,
                 model_policy=model_policy,
