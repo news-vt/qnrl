@@ -17,7 +17,7 @@
 #SBATCH --qos=owl_normal_base
 
 ## Time limit for the job. The job will be cancelled if the runtime exceeds this.
-#SBATCH --time=48:00:00
+#SBATCH --time=120:00:00
 
 ## Compute resources.
 ### Number of compute nodes.
