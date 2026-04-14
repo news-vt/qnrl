@@ -1,5 +1,28 @@
 # QnRL: Quantum-native Reinforcement Learning
 
+## Installation
+
+The codebase is provided as an installable Python package called `qnrl`. To install the package via `pip`, you can run:
+
+```bash
+# Navigate to `qnrl` source folder.
+$ cd path/to/qnrl/
+
+# Install `qnrl` package.
+$ python -m pip install .
+```
+
+You can verify the package was successfully install by running:
+
+```bash
+$ python -c "import importlib.metadata; version=importlib.metadata.version('qnrl'); print(version)"
+1.0.0
+```
+
+### Requirements
+
+See [`pyproject.toml`](./pyproject.toml) for package requirements. Package management can be done via `pip` or `uv` (see [`uv.lock`](./uv.lock)).
+
 ## Training sweeps using WandB
 
 For all training you should create a `.env` file with key `WANDB_API_KEY`.
