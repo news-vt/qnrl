@@ -43,3 +43,8 @@ wandb: Run sweep agent with: wandb agent zanderman-virginia-tech/qnrl/4ykq4hvw
 # Start 100 agents, max of 10 running at a time, that each perform 1 run of the sweep.
 $ sbatch --array=1-100%10 scripts/slurm-wandb.sh agent --count 1 zanderman-virginia-tech/qnrl/4ykq4hvw
 ```
+
+## Authors
+
+- [zanderman](https://github.com/zanderman) [![zanderman github](https://img.shields.io/badge/GitHub-zanderman-181717.svg?style=flat&logo=github)](https://github.com/zanderman)
+- [saadwalid](https://github.com/saadwalid) [![saadwalid github](https://img.shields.io/badge/GitHub-saadwalid-181717.svg?style=flat&logo=github)](https://github.com/saadwalid)
