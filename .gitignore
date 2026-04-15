@@ -4,6 +4,10 @@ checkpoints/
 metrics/
 wandb/
 wandb-sweep-data/
+*.pdf
+
+# Custom inclusions.
+!figures/**/*.pdf
 
 # Ignore macOS specific files.
 .DS_Store
@@ -235,7 +239,7 @@ cython_debug/
 *.nlo
 *.nls
 *.out
-*.pdf
+# *.pdf
 *.pyg
 *.run.xml
 *.snm
