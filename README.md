@@ -34,7 +34,7 @@ $ uv run python -m qnrl.cli --help
 
 ## Training 
 
-> [!IMPORTANT] API Keys
+> [!IMPORTANT]
 > For all training you should create a `.env` file with key `WANDB_API_KEY`.
 
 ### Sweeps using WandB
