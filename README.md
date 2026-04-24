@@ -23,11 +23,25 @@ $ python -c "import importlib.metadata; version=importlib.metadata.version('qnrl
 
 See [`pyproject.toml`](./pyproject.toml) for package requirements. Package management can be done via `pip` or `uv` (see [`uv.lock`](./uv.lock)).
 
-## Training sweeps using WandB
+## CLI
 
-For all training you should create a `.env` file with key `WANDB_API_KEY`.
+We have developed a lightweight command-line interface (CLI) that can be invoked via the Python interpreter like so:
 
-### Local computer
+```bash
+# Open the help dialog of the CLI tool.
+$ uv run python -m qnrl.cli --help
+```
+
+## Training 
+
+> [!IMPORTANT] API Keys
+> For all training you should create a `.env` file with key `WANDB_API_KEY`.
+
+### Sweeps using WandB
+
+WandB makes it very easy to run hyperparameter sweeps to compare the performance of multiple configurations. The following sections detail how you can run our preconfigured sweeps using the `wandb` API.
+
+#### Local computer
 
 On your personal computer, start a new sweep:
 
@@ -44,7 +58,7 @@ wandb: Run sweep agent with: wandb agent zanderman-virginia-tech/qnrl/4ykq4hvw
 $ uv run --env-file .env wandb agent --count 1 zanderman-virginia-tech/qnrl/4ykq4hvw
 ```
 
-### SLURM
+#### SLURM
 
 Source `.env`:
 
@@ -65,6 +79,15 @@ wandb: Run sweep agent with: wandb agent zanderman-virginia-tech/qnrl/4ykq4hvw
 # Paste the agent ID string into the following command:
 # Start 100 agents, max of 10 running at a time, that each perform 1 run of the sweep.
 $ sbatch --array=1-100%10 scripts/slurm-wandb.sh agent --count 1 zanderman-virginia-tech/qnrl/4ykq4hvw
+```
+
+### Single-run Training
+
+You can also train single hyperparameter configuration instances using our CLI via the command `python -m qnrl.cli train`. This commands takes a `--config="{...}"` argument that is **a Python dictionary formatted as a string**. The training CLI requires this type of configuration formatting to be seamlessly compatible with the WandB sweep API. As such, these are the same training commands that a WandB agent runs under the hood.
+
+```bash
+# Train a configuration of QnRL for the CartPole environment.
+$ uv run --env-file .env python -m qnrl.cli train --config="{'batch_size': 128, 'buffer_size': 10000, 'env': {'env_id': 'CartPole-v1', 'type': 'EnvConfig'}, 'eps_end': 0.05, 'eps_exploration': 0.5, 'eps_start': 1, 'gamma': 0.99, 'learning_starts': 10000, 'model': {'din': 4, 'imprimitive': 'offset-CZ', 'input_multiplex_activation': 'tanh', 'input_preprocess': {'scale': [2.4, 2.5, 0.21, 2.5], 'type': 'RescaleInput'}, 'm_moment': 1, 'n_actions': 2, 'n_layers': 7, 'n_returns': 32, 'n_reuploads': 1, 'pauli_enc': ['RX'], 'pauli_var': ['RZ', 'RY', 'RZ'], 'rngs_kwargs': {'default': 0}, 'type': 'QuantumNativeQNetwork', 'z_max': 100, 'z_min': -100}, 'num_atoms': 32, 'optimizer': {'pytree': {'circ_weights_enc_obs_kernel': 'trainable_quantum', 'circ_weights_var': 'trainable_quantum', 'linear_input_projection': {'bias': 'trainable_classical', 'kernel': 'trainable_classical'}}, 'transforms': {'trainable_classical': {'b1': 0.7, 'b2': 0.999, 'learning_rate': 0.001, 'type': 'AdamW', 'weight_decay': 0.005}, 'trainable_quantum': {'b1': 0.7, 'b2': 0.999, 'learning_rate': 0.01, 'type': 'AdamW', 'weight_decay': 0.005}}, 'type': 'Partition'}, 'policy_update_frequency': 10, 'reseed_model_on_init': True, 'seed': 21, 'target_update_frequency': 500, 'tau': 1, 'total_timesteps': 100000, 'type': 'QnRL'}" --eval_seed=1024 --num_eval=10
 ```
 
 ## Authors
