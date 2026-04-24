@@ -1,4 +1,4 @@
-# QnRL: Quantum-native Reinforcement Learning
+# QnRL: Quantum-Native Reinforcement Learning
 
 ## Installation
 
