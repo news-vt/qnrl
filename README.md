@@ -1,5 +1,7 @@
 # QnRL: Quantum-Native Reinforcement Learning
 
+This repository is the official implementation of the paper "QnRL: Quantum-Native Reinforcement Learning".
+
 ## Installation
 
 The codebase is provided as an installable Python package called `qnrl`. To install the package via `pip`, you can run:
