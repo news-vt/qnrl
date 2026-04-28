@@ -307,7 +307,7 @@ type: QnRL
 We use [WandB](https://wandb.ai) to manage hyperparameter sweeps and track experiment results.
 
 > [!IMPORTANT]
-> For all training you should create a `.env` file with key `WANDB_API_KEY`.
+> For all training you should create an `.env` file with key `WANDB_API_KEY`.
 
 ### Experiment Configurations
 
