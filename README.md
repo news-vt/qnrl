@@ -39,6 +39,273 @@ $ uv run python -m qnrl.cli --help
 
 ### Experiments
 
+Experiments are defined as instances of the [`qnrl.algorithms.algorithm.Algorithm`](./qnrl/algorithms/algorithm.py) class, which contain the implementation for the algorithm's training and evaluation procedure. Variants of this class exist for each algorithm mentioned in the paper, which are:
+
+Algorithm | Class Module Reference
+--- | ---
+C51 | [`qnrl.algorithms.c51.C51`](./qnrl/algorithms/c51.py)
+QnRL | [`qnrl.algorithms.qnrl.QnRL`](./qnrl/algorithms/qnrl.py)
+
+To simplify interaction with experiment configurations, (nearly) all custom classes within the `qnrl` package inherit from [`mashumaro`](https://github.com/Fatal1ty/mashumaro) to facilitate serialization/deserialization between various formats. This also includes all JAX NNX modules, which can be serialized. As a result, it is very easy to create a configuration in Python using loops, functions, or editor reference tools, and then export to JSON, YAML, or simply Python dictionaries for use elsewhere.
+
+For example, to create a `QnRL` experiment instance in Python:
+
+```python
+from qnrl.optimizer import Partition, AdamW
+from qnrl.environment import EnvConfig
+from qnrl.modules import QuantumNativeQNetwork, RescaleInput
+from qnrl.algorithms.qnrl import QnRL
+
+# Experiment configuration.
+config = QnRL(
+    seed=0,
+    batch_size=128,
+    buffer_size=10_000,
+    total_timesteps=100_000,
+    learning_starts=10_000,
+    policy_update_frequency=10,
+    target_update_frequency=500,
+    gamma=0.99,
+    tau=1.0,
+    eps_start=1.0,
+    eps_end=5.0e-2,
+    eps_exploration=0.5,
+    reseed_model_on_init=True,
+    env=EnvConfig(env_id="CartPole-v1"),
+    model=QuantumNativeQNetwork(
+        din=4, # Feature dimension of CartPole observations.
+        n_actions=2, # Number of actions for CartPole.
+        n_returns=2**5, # 32
+        z_min=-100,
+        z_max=100,
+        m_moment=1,
+        n_reuploads=1,
+        n_layers=3,
+        rngs_kwargs=dict(default=0),
+        pauli_enc=('RX',),
+        pauli_var=('RZ','RY','RZ',),
+        imprimitive='offset-CZ',
+        input_preprocess=RescaleInput(scale=[2.4, 2.5, 0.21, 2.5]), # Divide by half the upper range to re-scale.
+        input_multiplex_activation='tanh',
+    ),
+    optimizer=Partition(
+        transforms={
+            'trainable_quantum': AdamW(learning_rate=1e-2, b1=0.7, b2=0.999, weight_decay=5e-3),
+            'trainable_classical': AdamW(learning_rate=1e-3, b1=0.7, b2=0.999, weight_decay=5e-3),
+        },
+        pytree={
+            'circ_weights_var': 'trainable_quantum',
+            'circ_weights_enc_obs_kernel': 'trainable_quantum',
+            'linear_input_projection': {
+                'bias': 'trainable_classical',
+                'kernel': 'trainable_classical',
+            }
+        },
+    ),
+)
+```
+
+And then dump to JSON:
+
+```python
+# Dump the configuration as JSON.
+import json
+print(json.dumps(config.to_dict(), indent=4))
+```
+```json
+{
+  "type": "QnRL",
+  "env": {
+    "type": "EnvConfig",
+    "env_id": "CartPole-v1",
+    "render_mode": null,
+    "max_episode_steps": null,
+    "extra_args": null
+  },
+  "seed": 0,
+  "metric_manager": null,
+  "checkpoint": null,
+  "train_meta_prefix_key": "train/",
+  "eval_meta_prefix_key": "eval/",
+  "model": {
+    "type": "QuantumNativeQNetwork",
+    "din": 4,
+    "n_actions": 2,
+    "n_returns": 32,
+    "z_min": -100,
+    "z_max": 100,
+    "m_moment": 1,
+    "n_reuploads": 1,
+    "n_layers": 3,
+    "rngs_kwargs": {
+      "default": 0
+    },
+    "pauli_enc": [
+      "RX"
+    ],
+    "pauli_var": [
+      "RZ",
+      "RY",
+      "RZ"
+    ],
+    "imprimitive": "offset-CZ",
+    "use_qft": true,
+    "input_preprocess": {
+      "type": "RescaleInput",
+      "scale": [
+        2.4,
+        2.5,
+        0.21,
+        2.5
+      ]
+    },
+    "input_multiplex_activation": "tanh"
+  },
+  "optimizer": {
+    "type": "Partition",
+    "transforms": {
+      "trainable_quantum": {
+        "type": "AdamW",
+        "learning_rate": 0.01,
+        "b1": 0.7,
+        "b2": 0.999,
+        "eps": 1e-08,
+        "eps_root": 0.0,
+        "mu_dtype": null,
+        "weight_decay": 0.005,
+        "nesterov": false
+      },
+      "trainable_classical": {
+        "type": "AdamW",
+        "learning_rate": 0.001,
+        "b1": 0.7,
+        "b2": 0.999,
+        "eps": 1e-08,
+        "eps_root": 0.0,
+        "mu_dtype": null,
+        "weight_decay": 0.005,
+        "nesterov": false
+      }
+    },
+    "pytree": {
+      "circ_weights_var": "trainable_quantum",
+      "circ_weights_enc_obs_kernel": "trainable_quantum",
+      "linear_input_projection": {
+        "bias": "trainable_classical",
+        "kernel": "trainable_classical"
+      }
+    }
+  },
+  "buffer_size": 10000,
+  "batch_size": 128,
+  "total_timesteps": 100000,
+  "learning_starts": 10000,
+  "policy_update_frequency": 10,
+  "target_update_frequency": 500,
+  "gamma": 0.99,
+  "tau": 1.0,
+  "eps_start": 1.0,
+  "eps_end": 0.05,
+  "eps_exploration": 0.5,
+  "reseed_model_on_init": true,
+  "eps_eval": 0.0
+}
+```
+
+Or dump as YAML:
+
+
+```python
+import yaml
+print(yaml.dump(config.to_dict()))
+```
+```yaml
+batch_size: 128
+buffer_size: 10000
+checkpoint: null
+env:
+  env_id: CartPole-v1
+  extra_args: null
+  max_episode_steps: null
+  render_mode: null
+  type: EnvConfig
+eps_end: 0.05
+eps_eval: 0.0
+eps_exploration: 0.5
+eps_start: 1.0
+eval_meta_prefix_key: eval/
+gamma: 0.99
+learning_starts: 10000
+metric_manager: null
+model:
+  din: 4
+  imprimitive: offset-CZ
+  input_multiplex_activation: tanh
+  input_preprocess:
+    scale:
+    - 2.4
+    - 2.5
+    - 0.21
+    - 2.5
+    type: RescaleInput
+  m_moment: 1
+  n_actions: 2
+  n_layers: 3
+  n_returns: 32
+  n_reuploads: 1
+  pauli_enc:
+  - RX
+  pauli_var:
+  - RZ
+  - RY
+  - RZ
+  rngs_kwargs:
+    default: 0
+  type: QuantumNativeQNetwork
+  use_qft: true
+  z_max: 100
+  z_min: -100
+optimizer:
+  pytree:
+    circ_weights_enc_obs_kernel: trainable_quantum
+    circ_weights_var: trainable_quantum
+    linear_input_projection:
+      bias: trainable_classical
+      kernel: trainable_classical
+  transforms:
+    trainable_classical:
+      b1: 0.7
+      b2: 0.999
+      eps: 1.0e-08
+      eps_root: 0.0
+      learning_rate: 0.001
+      mu_dtype: null
+      nesterov: false
+      type: AdamW
+      weight_decay: 0.005
+    trainable_quantum:
+      b1: 0.7
+      b2: 0.999
+      eps: 1.0e-08
+      eps_root: 0.0
+      learning_rate: 0.01
+      mu_dtype: null
+      nesterov: false
+      type: AdamW
+      weight_decay: 0.005
+  type: Partition
+policy_update_frequency: 10
+reseed_model_on_init: true
+seed: 0
+target_update_frequency: 500
+tau: 1.0
+total_timesteps: 100000
+train_meta_prefix_key: train/
+type: QnRL
+```
+
+#### Configurations
+
 The experiment configuration of each of the frameworks and environments discussed in the paper is described as a YAML file in the [`./sweeps`](./sweeps) folder.
 
 The full list of experiments is as follows:
