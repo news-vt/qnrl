@@ -410,7 +410,12 @@ QnRL | `SpaceInvaders-v5` | [`x8921x7e`](https://wandb.ai/zanderman-virginia-tec
 
 ### Figures
 
-All figures are generated from the WandB experiment results using the Jupyter notebook tool [`notebooks/wandb-vis.ipynb`](./notebooks/wandb-vis.ipynb).
+> [!IMPORTANT]
+> **TL;DR**: Steps to produce figures:
+> 1. Download experiment data using [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) (modify as needed).
+> 2. Generate figures using [`notebooks/wandb-vis.ipynb`](./notebooks/wandb-vis.ipynb) (modify as needed).
+
+All figures are generated from the WandB experiment results using the Jupyter notebook tool [`notebooks/wandb-vis.ipynb`](./notebooks/wandb-vis.ipynb). This tool notebook requires that the experiment results be downloaded onto your system prior to work properly. You can use the dedicated download tool notebook [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) to download the data for all the sweeps and runs desired. Both the download and visualization tool notebooks can be modified as needed to produce the desired figures.
 
 The figures that aggregate the metric performance for each of the experiments are given in the table below:
 
