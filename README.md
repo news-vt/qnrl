@@ -45,7 +45,7 @@ Algorithm | Class Module Reference
 C51 | [`qnrl.algorithms.c51.C51`](./qnrl/algorithms/c51.py)
 QnRL | [`qnrl.algorithms.qnrl.QnRL`](./qnrl/algorithms/qnrl.py)
 
-For example, to create a `QnRL` experiment instance in Python:
+For example, to create a `QnRL` experiment instance on the `CartPole-v1` environment in Python, you can do the following:
 
 ```python
 from qnrl.optimizer import Partition, AdamW
@@ -304,6 +304,8 @@ type: QnRL
 
 ## Training 
 
+We use [WandB](https://wandb.ai) to manage hyperparameter sweeps and track experiment results.
+
 > [!IMPORTANT]
 > For all training you should create a `.env` file with key `WANDB_API_KEY`.
 
@@ -330,7 +332,7 @@ Experiment YAML File | Description
 
 ### Sweeps using WandB
 
-WandB makes it very easy to run hyperparameter sweeps to compare the performance of multiple configurations. The following sections detail how you can run our preconfigured sweeps using the `wandb` API.
+[WandB](https://wandb.ai) makes it very easy to run hyperparameter sweeps to compare the performance of multiple configurations. The following sections detail how you can run our preconfigured sweeps using the `wandb` API.
 
 #### Local computer
 
