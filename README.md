@@ -32,21 +32,18 @@ We have developed a lightweight command-line interface (CLI) that can be invoked
 $ uv run python -m qnrl.cli --help
 ```
 
-## Training 
+## Package Design Ethos
 
-> [!IMPORTANT]
-> For all training you should create a `.env` file with key `WANDB_API_KEY`.
+To simplify interaction with experiment configurations, (nearly) all custom classes within the `qnrl` package inherit from [`mashumaro`](https://github.com/Fatal1ty/mashumaro) to facilitate serialization/deserialization between various formats. This also includes all JAX Flax NNX modules used within the package. As a result, it is very easy to create a configuration in Python using loops, functions, or editor reference tools, and then export to JSON, YAML, or simply Python dictionaries for use elsewhere.
 
-### Experiments
+### Algorithm Configurations
 
-Experiments are defined as instances of the [`qnrl.algorithms.algorithm.Algorithm`](./qnrl/algorithms/algorithm.py) class, which contain the implementation for the algorithm's training and evaluation procedure. Variants of this class exist for each algorithm mentioned in the paper, which are:
+In `qnrl` _algorithms_ define the core of experiment implementation. Algorithm configurations are defined as instances of the [`qnrl.algorithms.algorithm.Algorithm`](./qnrl/algorithms/algorithm.py) class, which contain the implementation for the algorithm's training and evaluation procedure. All algorithms can be serialized/deserialized. Variants of this class exist for each algorithm mentioned in the paper, which are:
 
 Algorithm | Class Module Reference
 --- | ---
 C51 | [`qnrl.algorithms.c51.C51`](./qnrl/algorithms/c51.py)
 QnRL | [`qnrl.algorithms.qnrl.QnRL`](./qnrl/algorithms/qnrl.py)
-
-To simplify interaction with experiment configurations, (nearly) all custom classes within the `qnrl` package inherit from [`mashumaro`](https://github.com/Fatal1ty/mashumaro) to facilitate serialization/deserialization between various formats. This also includes all JAX Flax NNX modules, which can be serialized. As a result, it is very easy to create a configuration in Python using loops, functions, or editor reference tools, and then export to JSON, YAML, or simply Python dictionaries for use elsewhere.
 
 For example, to create a `QnRL` experiment instance in Python:
 
@@ -304,9 +301,15 @@ train_meta_prefix_key: train/
 type: QnRL
 ```
 
-#### Configurations
 
-The experiment configuration of each of the frameworks and environments discussed in the paper is described as a YAML file in the [`./sweeps`](./sweeps) folder.
+## Training 
+
+> [!IMPORTANT]
+> For all training you should create a `.env` file with key `WANDB_API_KEY`.
+
+### Experiment Configurations
+
+The experiment configuration for each of the frameworks and environments discussed in the paper is described as a YAML file in the [`./sweeps`](./sweeps) folder.
 
 The full list of experiments is as follows:
 
