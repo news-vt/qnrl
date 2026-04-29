@@ -1,3 +1,4 @@
+<!-- omit in toc -->
 # QnRL: Quantum-Native Reinforcement Learning
 
 <!-- Badges -->
@@ -10,6 +11,25 @@
 
 <!-- Introduction -->
 This repository is the official implementation of the paper "QnRL: Quantum-Native Reinforcement Learning".
+
+<!-- omit in toc -->
+## Table of Contents
+
+- [Installation](#installation)
+  - [Requirements](#requirements)
+- [CLI](#cli)
+- [Package Design Ethos](#package-design-ethos)
+  - [Algorithm Configurations](#algorithm-configurations)
+- [Training](#training)
+  - [Experiment Configurations](#experiment-configurations)
+  - [Sweeps using WandB](#sweeps-using-wandb)
+    - [Local computer](#local-computer)
+    - [SLURM](#slurm)
+  - [Single-run Training](#single-run-training)
+- [Experiment Results](#experiment-results)
+  - [WandB Sweeps](#wandb-sweeps)
+  - [Figures](#figures)
+- [Authors](#authors)
 
 ## Installation
 
