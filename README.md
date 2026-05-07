@@ -375,13 +375,13 @@ On your personal computer, start a new sweep:
 # Start a sweep using YAML config via UV.
 $ uv run --env-file .env wandb sweep sweeps/qnrl_CartPole-v1.yaml
 wandb: Creating sweep from: sweeps/qnrl_CartPole-v1.yaml
-wandb: Creating sweep with ID: 4ykq4hvw
-wandb: View sweep at: https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/4ykq4hvw
-wandb: Run sweep agent with: wandb agent zanderman-virginia-tech/qnrl/4ykq4hvw
-# Copy the agent ID string: "zanderman-virginia-tech/qnrl/4ykq4hvw"
+wandb: Creating sweep with ID: qojis1fw
+wandb: View sweep at: https://wandb.ai/news-vt/qnrl/sweeps/qojis1fw
+wandb: Run sweep agent with: wandb agent news-vt/qnrl/qojis1fw
+# Copy the agent ID string: "news-vt/qnrl/qojis1fw"
 # Paste the agent ID string into the following command:
 # Start 1 agent that performs 1 run of the sweep.
-$ uv run --env-file .env wandb agent --count 1 zanderman-virginia-tech/qnrl/4ykq4hvw
+$ uv run --env-file .env wandb agent --count 1 news-vt/qnrl/qojis1fw
 ```
 
 #### SLURM
@@ -398,13 +398,13 @@ $ source .env
 # Start a sweep using YAML config file and pass WandB API key from environment.
 $ WANDB_API_KEY=$WANDB_API_KEY wandb sweep sweeps/qnrl_CartPole-v1.yaml
 wandb: Creating sweep from: sweeps/qnrl_CartPole-v1.yaml
-wandb: Creating sweep with ID: 4ykq4hvw
-wandb: View sweep at: https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/4ykq4hvw
-wandb: Run sweep agent with: wandb agent zanderman-virginia-tech/qnrl/4ykq4hvw
-# Copy the agent ID string: "zanderman-virginia-tech/qnrl/4ykq4hvw"
+wandb: Creating sweep with ID: qojis1fw
+wandb: View sweep at: https://wandb.ai/news-vt/qnrl/sweeps/qojis1fw
+wandb: Run sweep agent with: wandb agent news-vt/qnrl/qojis1fw
+# Copy the agent ID string: "news-vt/qnrl/qojis1fw"
 # Paste the agent ID string into the following command:
 # Start 100 agents, max of 10 running at a time, that each perform 1 run of the sweep.
-$ sbatch --array=1-100%10 scripts/slurm-wandb.sh agent --count 1 zanderman-virginia-tech/qnrl/4ykq4hvw
+$ sbatch --array=1-100%10 scripts/slurm-wandb.sh agent --count 1 news-vt/qnrl/qojis1fw
 ```
 
 ### Single-run Training
@@ -420,24 +420,24 @@ $ uv run --env-file .env python -m qnrl.cli train --config="{'batch_size': 128, 
 
 ### WandB Sweeps
 
-All our experiment results are tracked using WandB and made public online, which can be found at the URL <https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps>.
+All our experiment results are tracked using WandB and made public online, which can be found at the URL <https://wandb.ai/news-vt/qnrl/sweeps>.
 
 The results for each of our experiment sweeps are as follows:
 
 Algorithm | Environment | WandB Sweep ID and URL | Sweep YAML File
 --- | --- | --- | ---
-C51 | `Acrobot-v1` | [`s3xwn85k`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/s3xwn85k) | [`sweeps/c51_Acrobot-v1.yaml`](./sweeps/c51_Acrobot-v1.yaml)
-QnRL | `Acrobot-v1` | [`sd4va92r`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/sd4va92r) | [`sweeps/qnrl_Acrobot-v1.yaml`](./sweeps/qnrl_Acrobot-v1.yaml)
-C51 | `CartPole-v1` | [`7raha9om`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/7raha9om) | [`sweeps/c51_CartPole-v1.yaml`](./sweeps/c51_CartPole-v1.yaml)
-QnRL | `CartPole-v1` | [`4ykq4hvw`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/4ykq4hvw) | [`sweeps/qnrl_CartPole-v1.yaml`](./sweeps/qnrl_CartPole-v1.yaml)
-C51 | `FrozenLake-v1` | [`3exa9jvo`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/3exa9jvo) | [`sweeps/c51_FrozenLake-v1.yaml`](./sweeps/c51_FrozenLake-v1.yaml)
-QnRL | `FrozenLake-v1` | [`sgi6zb0t`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/sgi6zb0t) | [`sweeps/qnrl_FrozenLake-v1.yaml`](./sweeps/qnrl_FrozenLake-v1.yaml)
-C51 | `CliffWalking-v1` | [`1nlfftsy`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/1nlfftsy) | [`sweeps/c51_CliffWalking-v1.yaml`](./sweeps/c51_CliffWalking-v1.yaml)
-QnRL | `CliffWalking-v1` | [`h4g5er22`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/h4g5er22) | [`sweeps/qnrl_CliffWalking-v1.yaml`](./sweeps/qnrl_CliffWalking-v1.yaml)
-C51 | `Breakout-v5` | [`gxpmvyxv`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/gxpmvyxv) | [`sweeps/c51_Breakout-v5.yaml`](./sweeps/c51_Breakout-v5.yaml)
-QnRL | `Breakout-v5` | [`yavb5d6j`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/yavb5d6j) | [`sweeps/qnrl_Breakout-v5.yaml`](./sweeps/qnrl_Breakout-v5.yaml)
-C51 | `SpaceInvaders-v5` | [`zo5jkyjm`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/zo5jkyjm) | [`sweeps/c51_SpaceInvaders-v5.yaml`](./sweeps/c51_SpaceInvaders-v5.yaml)
-QnRL | `SpaceInvaders-v5` | [`x8921x7e`](https://wandb.ai/zanderman-virginia-tech/qnrl/sweeps/x8921x7e) | [`sweeps/qnrl_SpaceInvaders-v5.yaml`](./sweeps/qnrl_SpaceInvaders-v5.yaml)
+C51 | `Acrobot-v1` | [`n8imxz1v`](https://wandb.ai/news-vt/qnrl/sweeps/n8imxz1v) | [`sweeps/c51_Acrobot-v1.yaml`](./sweeps/c51_Acrobot-v1.yaml)
+QnRL | `Acrobot-v1` | [`5ehazde3`](https://wandb.ai/news-vt/qnrl/sweeps/5ehazde3) | [`sweeps/qnrl_Acrobot-v1.yaml`](./sweeps/qnrl_Acrobot-v1.yaml)
+C51 | `CartPole-v1` | [`arv708xs`](https://wandb.ai/news-vt/qnrl/sweeps/arv708xs) | [`sweeps/c51_CartPole-v1.yaml`](./sweeps/c51_CartPole-v1.yaml)
+QnRL | `CartPole-v1` | [`qojis1fw`](https://wandb.ai/news-vt/qnrl/sweeps/qojis1fw) | [`sweeps/qnrl_CartPole-v1.yaml`](./sweeps/qnrl_CartPole-v1.yaml)
+C51 | `FrozenLake-v1` | [`jzduwzvg`](https://wandb.ai/news-vt/qnrl/sweeps/jzduwzvg) | [`sweeps/c51_FrozenLake-v1.yaml`](./sweeps/c51_FrozenLake-v1.yaml)
+QnRL | `FrozenLake-v1` | [`7yoeyqqr`](https://wandb.ai/news-vt/qnrl/sweeps/7yoeyqqr) | [`sweeps/qnrl_FrozenLake-v1.yaml`](./sweeps/qnrl_FrozenLake-v1.yaml)
+C51 | `CliffWalking-v1` | [`8xyt1eb5`](https://wandb.ai/news-vt/qnrl/sweeps/8xyt1eb5) | [`sweeps/c51_CliffWalking-v1.yaml`](./sweeps/c51_CliffWalking-v1.yaml)
+QnRL | `CliffWalking-v1` | [`nin93kq8`](https://wandb.ai/news-vt/qnrl/sweeps/nin93kq8) | [`sweeps/qnrl_CliffWalking-v1.yaml`](./sweeps/qnrl_CliffWalking-v1.yaml)
+C51 | `Breakout-v5` | [`dg4sodfc`](https://wandb.ai/news-vt/qnrl/sweeps/dg4sodfc) | [`sweeps/c51_Breakout-v5.yaml`](./sweeps/c51_Breakout-v5.yaml)
+QnRL | `Breakout-v5` | [`eigl7wk5`](https://wandb.ai/news-vt/qnrl/sweeps/eigl7wk5) | [`sweeps/qnrl_Breakout-v5.yaml`](./sweeps/qnrl_Breakout-v5.yaml)
+C51 | `SpaceInvaders-v5` | [`wbmr06xp`](https://wandb.ai/news-vt/qnrl/sweeps/wbmr06xp) | [`sweeps/c51_SpaceInvaders-v5.yaml`](./sweeps/c51_SpaceInvaders-v5.yaml)
+QnRL | `SpaceInvaders-v5` | [`8adr9d1k`](https://wandb.ai/news-vt/qnrl/sweeps/8adr9d1k) | [`sweeps/qnrl_SpaceInvaders-v5.yaml`](./sweeps/qnrl_SpaceInvaders-v5.yaml)
 
 
 
