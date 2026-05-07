@@ -29,6 +29,7 @@ This repository is the official implementation of the paper "QnRL: Quantum-Nativ
 - [Experiment Results](#experiment-results)
   - [WandB Sweeps](#wandb-sweeps)
   - [Figures](#figures)
+  - [Tables](#tables)
 - [Authors](#authors)
 
 ## Installation
@@ -445,7 +446,9 @@ QnRL | `SpaceInvaders-v5` | [`8adr9d1k`](https://wandb.ai/news-vt/qnrl/sweeps/8a
 
 > [!IMPORTANT]
 > **TL;DR**: Steps to produce figures:
-> 1. Download experiment data using [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) (modify as needed).
+> 1. Download experiment data from either:
+>     - Zip file from [latest release](https://github.com/news-vt/qnrl/releases) in repository.
+>     - Using [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) (modify as needed)
 > 2. Generate figures using [`notebooks/wandb-vis.ipynb`](./notebooks/wandb-vis.ipynb) (modify as needed).
 
 All figures are generated from the WandB experiment results using the Jupyter notebook tool [`notebooks/wandb-vis.ipynb`](./notebooks/wandb-vis.ipynb). This tool notebook requires that the experiment results be downloaded onto your system prior to work properly. You can use the dedicated download tool notebook [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) to download the data for all the sweeps and runs desired. Both the download and visualization tool notebooks can be modified as needed to produce the desired figures.
@@ -500,6 +503,14 @@ Figure | File | Description
 [![figure](./figures/env=SpaceInvaders-v5_type=compare-best_metric=total-model-parameter-count.png)](./figures/env=SpaceInvaders-v5_type=compare-best_metric=total-model-parameter-count.png) | `env=SpaceInvaders-v5_type=compare-best_metric=total-model-parameter-count` [[png](./figures/env=SpaceInvaders-v5_type=compare-best_metric=total-model-parameter-count.png), [pdf](./figures/env=SpaceInvaders-v5_type=compare-best_metric=total-model-parameter-count.pdf)] | Comparison of best models on SpaceInvaders showing metric `total-model-parameter-count`
 [![figure](./figures/env=SpaceInvaders-v5_type=compare-best_metric=train-episode-reward.png)](./figures/env=SpaceInvaders-v5_type=compare-best_metric=train-episode-reward.png) | `env=SpaceInvaders-v5_type=compare-best_metric=train-episode-reward` [[png](./figures/env=SpaceInvaders-v5_type=compare-best_metric=train-episode-reward.png), [pdf](./figures/env=SpaceInvaders-v5_type=compare-best_metric=train-episode-reward.pdf)] | Comparison of best models on SpaceInvaders showing metric `train-episode-reward`
 
+### Tables
+
+> [!IMPORTANT]
+> **TL;DR**: Steps to table data:
+> 1. Download experiment data from either:
+>     - Zip file from [latest release](https://github.com/news-vt/qnrl/releases) in repository.
+>     - Using [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) (modify as needed)
+> 2. Generate table data using [`notebooks/wandb-metric-tables.ipynb`](./notebooks/wandb-metric-tables.ipynb) (modify as needed).
 
 ## Authors
 
