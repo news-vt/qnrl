@@ -447,7 +447,7 @@ QnRL | `SpaceInvaders-v5` | [`8adr9d1k`](https://wandb.ai/news-vt/qnrl/sweeps/8a
 > [!IMPORTANT]
 > **TL;DR**: Steps to produce figures:
 > 1. Download experiment data from either:
->     - Zip file from [latest release](https://github.com/news-vt/qnrl/releases) in repository.
+>     - Archive file from [latest release](https://github.com/news-vt/qnrl/releases) in repository.
 >     - Using [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) (modify as needed)
 > 2. Generate figures using [`notebooks/wandb-vis.ipynb`](./notebooks/wandb-vis.ipynb) (modify as needed).
 
@@ -508,7 +508,7 @@ Figure | File | Description
 > [!IMPORTANT]
 > **TL;DR**: Steps to table data:
 > 1. Download experiment data from either:
->     - Zip file from [latest release](https://github.com/news-vt/qnrl/releases) in repository.
+>     - Archive file from [latest release](https://github.com/news-vt/qnrl/releases) in repository.
 >     - Using [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) (modify as needed)
 > 2. Generate table data using [`notebooks/wandb-metric-tables.ipynb`](./notebooks/wandb-metric-tables.ipynb) (modify as needed).
 
