@@ -33,6 +33,7 @@ This repository is the official implementation of the paper "QnRL: Quantum-Nativ
   - [Figures](#figures)
   - [Tables](#tables)
 - [Authors](#authors)
+- [Citation](#citation)
 
 ## Installation
 
@@ -518,3 +519,24 @@ Figure | File | Description
 
 - [zanderman](https://github.com/zanderman) [![zanderman github](https://img.shields.io/badge/GitHub-zanderman-181717.svg?style=flat&logo=github)](https://github.com/zanderman)
 - [saadwalid](https://github.com/saadwalid) [![saadwalid github](https://img.shields.io/badge/GitHub-saadwalid-181717.svg?style=flat&logo=github)](https://github.com/saadwalid)
+
+## Citation
+
+If you use the code in this repository for your research or publication, please cite our preprint on arXiv using the following BibTeX entry (also available in [CITATION.bib](CITATION.bib)):
+
+```bibtex
+@misc{derieux2026qnrl,
+  title = {{{QnRL}}: {{Quantum-Native Reinforcement Learning}}},
+  shorttitle = {{{QnRL}}},
+  author = {DeRieux, Alexander and Saad, Walid},
+  year = 2026,
+  month = jun,
+  number = {arXiv:2606.08276},
+  eprint = {2606.08276},
+  primaryclass = {quant-ph},
+  publisher = {arXiv},
+  doi = {10.48550/arXiv.2606.08276},
+  archiveprefix = {arXiv},
+  url={https://arxiv.org/abs/2606.08276}
+}
+```
