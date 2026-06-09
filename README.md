@@ -13,6 +13,7 @@
 
 <!-- Introduction -->
 This repository is the official implementation of the paper "QnRL: Quantum-Native Reinforcement Learning".
+> See [Citation](#citation) section for BibTeX reference.
 
 <!-- omit in toc -->
 ## Table of Contents
