@@ -1362,7 +1362,7 @@ class QuantumNativeQNetwork(SerializableModule):
     use_qft: bool = True # Default to True to uphold previous behavior.
     """Use a quantum Fourier transform (QFT) at the end of the return distribution gates."""
     input_preprocess: SerializableModule | None = None
-    """Nested module for input preprocessing (can be trainable). We need this because the `QuantumNativeQNetworkSplit` class has methods required by the QnRL training algorithm, hence it cannot be wrapped inside another module. To support customizing input preprocessing on a per-environment basis we allow a nested input preprocessing layer to be a member of the `QuantumNativeQNetworkSplit` module."""
+    """Nested module for input preprocessing (can be trainable). We need this because the `QuantumNativeQNetwork` class has methods required by the QnRL training algorithm, hence it cannot be wrapped inside another module. To support customizing input preprocessing on a per-environment basis we allow a nested input preprocessing layer to be a member of the `QuantumNativeQNetwork` module."""
     input_multiplex_activation: str = 'linear'
     """Activation function to use after multiplexing input for quantum circuit. Must be a string key contained within the `qnrl.modules.serializable.activation_function_dispatcher` dictionary."""
     
