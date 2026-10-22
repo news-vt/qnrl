@@ -8,3 +8,5 @@ from .serializable import SerializableModule, activation_function_dispatcher
 from .quantumnativeqnetwork import QuantumNativeQNetwork
 from .quantumnativeqnetworkconv import QuantumNativeQNetworkConv
 from .quantumqnetworklinear import QuantumQNetworkLinear
+from .quantumdistqnetworklinear import QuantumDistQNetworkLinear
+from .quantumdistqnetworkconv import QuantumDistQNetworkConv
