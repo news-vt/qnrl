@@ -1,7 +1,7 @@
 #!/bin/bash
 ## Reference: https://www.docs.arc.vt.edu/resources/compute/01owl.html
 ## Usage:
-## $ sbatch ./scripts/slurm-qnrl-cli.sh --config ./experiments/qnrl_CartPole-v1_quantum-QuantumNativeQNetworkSplit-partition.py train
+## $ sbatch ./scripts/slurm-qnrl-cli.sh --help
 
 ## You will need your own account.
 #SBATCH --account="bigdata"
