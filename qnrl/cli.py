@@ -884,6 +884,31 @@ class ModelSize(DataClassDictMixin):
 
 
 @dataclass(kw_only=True)
+class SweepRunCount(DataClassDictMixin):
+    """Report the number of run configurations within a WandB grid sweep.
+    
+    >>> cli sweep-run-count --config ./sweeps/qnrl_CartPole-v1.yaml # 96
+    """
+    config: pathlib.Path
+    """Path to sweep configuration YAML file."""
+    
+    def main(self):
+        
+        assert self.config.exists() and self.config.is_file(), "Configuration file does not exist or is not a file"
+        
+        # Load sweep YAML file.
+        with open(str(self.config), 'r') as f:
+            sweep_config = yaml.safe_load(f)
+        
+        # Extract the run configurations within the sweep grid.
+        run_metas = tools.expand_wandb_sweep_grid(sweep_config)
+        
+        # Report the number of run configurations.
+        print(len(run_metas))
+
+
+
+@dataclass(kw_only=True)
 class Args(DataClassDictMixin):
     """Algorithm CLI."""
     # config: pathlib.Path # Path of config file in format [yaml, json, python].
@@ -896,6 +921,7 @@ class Args(DataClassDictMixin):
         PlotPlotext,
         PlotLive,
         ModelSize,
+        SweepRunCount,
     ]
 
 
