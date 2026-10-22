@@ -8,6 +8,7 @@ from typing import Any, Callable, Literal, TypeVar
 import gzip
 import os
 import time
+import itertools
 
 from flax import nnx
 import jax
@@ -376,3 +377,24 @@ def vn_entropy(rho: jax.Array, *, base: float | None = None) -> jax.Array:
     eigenvalues_rho = compute_eigenvalues(rho)
     entropy = -(eigenvalues_rho @ (jnp.log(eigenvalues_rho) / log_base))
     return entropy
+
+
+def expand_wandb_parameter(spec):
+    """Return every concrete value for one W&B parameter specification."""
+    if "value" in spec:
+        return [spec["value"]]
+    if "values" in spec:
+        return spec["values"]
+    if "parameters" in spec:
+        parameters = spec["parameters"]
+        names = list(parameters)
+        choices = [expand_wandb_parameter(parameters[name]) for name in names]
+        return [dict(zip(names, combination)) for combination in itertools.product(*choices)]
+    raise ValueError(f"Unsupported parameter specification: {spec!r}")
+
+
+def expand_wandb_sweep_grid(sweep):
+    """Return a list of nested dictionaries for a W&B sweep, one per grid run."""
+    if sweep.get("method") != "grid":
+        raise ValueError("Only grid sweeps are supported")
+    return expand_wandb_parameter({"parameters": sweep["parameters"]})
