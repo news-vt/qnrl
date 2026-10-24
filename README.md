@@ -534,7 +534,7 @@ Figure | File | Description
 ### Tables
 
 > [!IMPORTANT]
-> **TL;DR**: Steps to table data:
+> **TL;DR**: Steps to reproduce table data:
 > 1. Download experiment data from either:
 >     - Archive file from [latest release](https://github.com/news-vt/qnrl/releases) in repository.
 >     - Using [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) (modify as needed)
