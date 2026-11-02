@@ -543,12 +543,12 @@ Figure | File | Description
 
 ## Data and GitHub Releases
 
-While all our experiment result data can be found online at WandB (see [WandB Sweeps](#wandb-sweeps) section above), we also provide the data already pre-downloaded via GitHub releases:
+While all our experiment result data can be found online at WandB (see [WandB Sweeps](#wandb-sweeps) section above), we also provide the data already pre-packaged via GitHub releases:
 
 - [Latest release](https://github.com/news-vt/qnrl/releases/latest)
 - [All releases](https://github.com/news-vt/qnrl/releases)
 
-The data was downloaded from WandB using the tool notebook [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb).
+The data packaged with the release was downloaded from WandB using the tool notebook [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb).
 
 If you download the data using the notebook, the resulting directory tree will have the following structure:
 
@@ -611,7 +611,7 @@ $ split -b 1G -d wandb-sweep-data-qnrl.tar.gz wandb-sweep-data-qnrl.tar.gz.part
 # (optional) 3. Recombine into singular .tar.gz for unpacking.
 $ cat wandb-sweep-data-qnrl.tar.gz.part* > wandb-sweep-data-qnrl.tar.gz
 # OR
-# (optional) 3. Recombine and unpack in one command/
+# (optional) 3. Recombine and unpack in one command.
 $ cat wandb-sweep-data-qnrl.tar.gz.part* | tar -xzvf -
 # 4. Compute SHA256 and MD5 checksums of archive for verification.
 $ shasum -a 256 wandb-sweep-data-qnrl.tar.gz
