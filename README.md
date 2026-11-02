@@ -33,6 +33,7 @@ This repository is the official implementation of the paper "QnRL: Quantum-Nativ
   - [WandB Sweeps](#wandb-sweeps)
   - [Figures](#figures)
   - [Tables](#tables)
+- [Data and GitHub Releases](#data-and-github-releases)
 - [Authors](#authors)
 - [Citation](#citation)
 
@@ -539,6 +540,83 @@ Figure | File | Description
 >     - Archive file from [latest release](https://github.com/news-vt/qnrl/releases) in repository.
 >     - Using [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb) (modify as needed)
 > 2. Generate table data using [`notebooks/wandb-metric-tables.ipynb`](./notebooks/wandb-metric-tables.ipynb) (modify as needed).
+
+## Data and GitHub Releases
+
+While all our experiment result data can be found online at WandB (see [WandB Sweeps](#wandb-sweeps) section above), we also provide the data already pre-downloaded via GitHub releases:
+
+- [Latest release](https://github.com/news-vt/qnrl/releases/latest)
+- [All releases](https://github.com/news-vt/qnrl/releases)
+
+The data was downloaded from WandB using the tool notebook [`notebooks/wandb-download.ipynb`](./notebooks/wandb-download.ipynb).
+
+If you download the data using the notebook, the resulting directory tree will have the following structure:
+
+```bash
+wandb-sweep-data-qnrl/
+└── sweep-<SWEEP_ID>
+    └── run-<RUN_ID>
+        ├── artifact
+        │   └── 2799547981
+        │       └── wandb_manifest.json
+        ├── config.yaml
+        ├── history
+        │   └── 0000.parquet
+        ├── media
+        │   └── videos
+        │       └── eval
+        │           ├── video_100000_68dc6fcca11067c66bda.mp4
+        │           ├── video_100001_c5976b29f15396444d11.mp4
+        │           ├── video_100002_5aa66b20dcfc1ff0151f.mp4
+        │           ├── video_100003_897d7bb6ee471b99b2d8.mp4
+        │           ├── video_100004_23c1e85eb1b327ce0816.mp4
+        │           ├── video_100005_1dc35e2d961c9ef9d4bf.mp4
+        │           ├── video_100006_7126b001ae2b40c128a7.mp4
+        │           ├── video_100007_8761c912f035a233d649.mp4
+        │           ├── video_100008_c866926abb3dc4c416d2.mp4
+        │           └── video_99999_7357f88dd8809bd96b6b.mp4
+        ├── models
+        │   └── model
+        │       └── state
+        │           ├── _CHECKPOINT_METADATA
+        │           ├── _METADATA
+        │           ├── _sharding
+        │           ├── array_metadatas
+        │           │   └── process_0
+        │           ├── d
+        │           │   └── f672f028165d1a69fd44cc7d0c20a4da
+        │           ├── manifest.ocdbt
+        │           └── ocdbt.process_0
+        │               ├── d
+        │               │   ├── 7cce7801d1fbbb2b151abc7befde5434
+        │               │   ├── 9afb899847d9ab16820aa9b5d5531e8b
+        │               │   ├── c869d80d22bf360b202e4e6aa3bea839
+        │               │   └── cd89d39a6d539de9d76cd11bb10b51e1
+        │               └── manifest.ocdbt
+        ├── output.log
+        ├── requirements.txt
+        ├── wandb-metadata.json
+        └── wandb-summary.json
+```
+
+Due to GitHub release file size limits, the data is archived (using `tar`) and divided into different smaller archives in `1 GB` increments (using `split`).
+
+The archives are created using the following commands:
+
+```bash
+# 1. Generate compressed archive: wandb-sweep-data-qnrl.tar.gz
+$ tar --use-compress-program="pigz -9" -czf wandb-sweep-data-qnrl.tar.gz wandb-sweep-data-qnrl
+# 2. Split into 1GB files for GitHub releases.
+$ split -b 1G -d wandb-sweep-data-qnrl.tar.gz wandb-sweep-data-qnrl.tar.gz.part
+# (optional) 3. Recombine into singular .tar.gz for unpacking.
+$ cat wandb-sweep-data-qnrl.tar.gz.part* > wandb-sweep-data-qnrl.tar.gz
+# OR
+# (optional) 3. Recombine and unpack in one command/
+$ cat wandb-sweep-data-qnrl.tar.gz.part* | tar -xzvf -
+# 4. Compute SHA256 and MD5 checksums of archive for verification.
+$ shasum -a 256 wandb-sweep-data-qnrl.tar.gz
+$ md5 wandb-sweep-data-qnrl.tar.gz
+```
 
 ## Authors
 
